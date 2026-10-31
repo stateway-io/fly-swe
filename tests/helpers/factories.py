@@ -82,7 +82,6 @@ def make_task(trigger: TriggerEvent | None = None, **overrides: Any) -> Task:
         "issue_number": trigger.issue.number,
         "trigger_kind": trigger.kind,
         "target_repo": "stateway-io/stateway-agent-fixtures",
-        "installation_id": 12345,
         "trigger_json": trigger.model_dump_json(),
         "provider_instance": trigger.issue.provider_instance,
         "credentials_ref": trigger.credentials_ref,

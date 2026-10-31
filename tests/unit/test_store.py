@@ -952,8 +952,8 @@ class TestMigrateV5:
 
 class TestMigrateV6:
     """_migrate_v6 adds `trigger_json`/`provider_instance`/`credentials_ref`
-    to `tasks` — additive `ALTER TABLE ... ADD COLUMN`, never a rebuild. The
-    rows it can't fill itself are re-normalized by webhook/backfill.py."""
+    to `tasks` — additive `ALTER TABLE ... ADD COLUMN`, never a rebuild.
+    Rows left without a trigger are failed by the worker's payload guard."""
 
     def _create_pre_v6_db(self, db_path: str) -> None:
         # The pre-v4 schema has the same `tasks` table as v5 (v4/v5 only
@@ -973,7 +973,6 @@ class TestMigrateV6:
         assert task.trigger is None
         assert task.provider_instance == "github"
         assert task.credentials_ref is None
-        assert [t.id for t in store.find_tasks_without_trigger()] == ["t1"]
 
     def test_idempotent_on_repeat_init(self, tmp_path) -> None:
         db_path = str(tmp_path / "pre-v6-idempotent.db")
@@ -1157,20 +1156,6 @@ class TestTriggerRoundtrip:
         assert fetched.trigger == trigger
         assert fetched.provider_instance == "github"
         assert fetched.credentials_ref == "777"
-
-    def test_set_task_trigger_fills_once(self, store: SQLiteStore) -> None:
-        task_id = store.insert_task(_make_task())
-        first = make_trigger_event(delivery_key="first").model_dump_json()
-        second = make_trigger_event(delivery_key="second").model_dump_json()
-
-        store.set_task_trigger(task_id, first, "github", "1")
-        store.set_task_trigger(task_id, second, "github", "2")
-
-        task = store.get_task(task_id)
-        assert task is not None
-        assert task.trigger_json == first
-        assert task.credentials_ref == "1"
-        assert store.find_tasks_without_trigger() == []
 
 
 class TestCloseIssueWorkTotals:

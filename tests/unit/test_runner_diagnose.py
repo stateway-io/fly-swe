@@ -49,7 +49,6 @@ def _make_task(**overrides) -> Task:
             actor=make_author(login="reporter"),
         ).model_dump_json(),
         target_repo="owner/code-repo",
-        installation_id=12345,
     )
     defaults.update(overrides)
     return Task(**defaults)

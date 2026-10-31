@@ -67,7 +67,6 @@ def _make_task(**overrides: dict) -> Task:
         trigger_kind=TriggerKind.ISSUE_OPENED,
         trigger_json=_TRIGGER.model_dump_json(),
         target_repo="stateway-io/stateway-agent-fixtures",
-        installation_id=0,
         base_branch="main",
         workflow="trunk_based",
     )

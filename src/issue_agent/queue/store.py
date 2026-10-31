@@ -193,9 +193,7 @@ class SQLiteStore:
         Additive `ALTER TABLE ... ADD COLUMN`, guarded by `PRAGMA
         table_info` like `_migrate_v5` — idempotent, including on fresh DBs
         where schema.sql already created the columns. Existing rows keep a
-        NULL `trigger_json` until `webhook/backfill.py` re-normalizes their
-        `payload_json`; the store can't do it itself without importing the
-        GitHub parser."""
+        NULL `trigger_json`; the worker's payload guard fails them."""
         columns = {
             row["name"]
             for row in self.conn.execute("PRAGMA table_info(tasks)").fetchall()
@@ -468,7 +466,8 @@ class SQLiteStore:
                 task.trigger_kind.value,
                 task.label_category,
                 task.status.value,
-                task.payload_json,
+                # Legacy NOT NULL column, no longer read or written.
+                "",
                 task.created_at,
                 task.target_repo,
                 task.base_branch,
@@ -664,31 +663,6 @@ class SQLiteStore:
             (TaskStatus.RUNNING.value,),
         ).fetchall()
         return {r["id"] for r in rows}
-
-    def find_tasks_without_trigger(self) -> list[Task]:
-        """Rows created before `trigger_json` existed (see `_migrate_v6`)."""
-        rows = self.conn.execute(
-            "SELECT * FROM tasks WHERE trigger_json IS NULL ORDER BY created_at"
-        ).fetchall()
-        return [Task(**dict(r)) for r in rows]
-
-    def set_task_trigger(
-        self,
-        task_id: str,
-        trigger_json: str,
-        provider_instance: str,
-        credentials_ref: str | None,
-    ) -> None:
-        """Fill in a task's canonical trigger, once: a row that already has
-        one is left alone, so concurrent backfills can't overwrite each
-        other."""
-        self.conn.execute(
-            """UPDATE tasks SET trigger_json=?, provider_instance=?,
-               credentials_ref=?
-               WHERE id=? AND trigger_json IS NULL""",
-            (trigger_json, provider_instance, credentials_ref, task_id),
-        )
-        self.conn.commit()
 
     def delete_old_records(
         self, task_ids: list[str], cutoff: str

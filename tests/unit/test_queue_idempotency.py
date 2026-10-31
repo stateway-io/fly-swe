@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import sqlite3
 
 import pytest
@@ -22,7 +21,6 @@ def _make_task(**overrides: dict) -> Task:
         repo="stateway-io/stateway-issues",
         issue_number=42,
         trigger_kind=TriggerKind.ISSUE_OPENED,
-        payload_json=json.dumps({"action": "opened", "issue": {"number": 42}}),
     )
     defaults.update(overrides)
     return Task(**defaults)

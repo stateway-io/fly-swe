@@ -44,9 +44,6 @@ class Task(BaseModel):
     started_at: str | None = None
     completed_at: str | None = None
     heartbeat_at: str | None = None
-    # Raw webhook payload. Still written for the backfill of rows created
-    # before `trigger_json` existed, but never read outside it (PRD §3.1).
-    payload_json: str = "{}"
     target_repo: str = ""
     base_branch: str = "main"
     workflow: str = "trunk_based"

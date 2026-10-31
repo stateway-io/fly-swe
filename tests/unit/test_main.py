@@ -118,25 +118,6 @@ class TestMainAppLifespan:
                 get_settings.cache_clear()
 
     @pytest.mark.asyncio
-    async def test_lifespan_backfills_trigger_json(self, monkeypatch) -> None:
-        import issue_agent.main as main_mod
-        from issue_agent.main import lifespan
-
-        calls: list[tuple[SQLiteStore, Settings]] = []
-        with tempfile.TemporaryDirectory() as tmpdir:
-            settings = _make_settings(DATA_DIR=tmpdir)
-            monkeypatch.setattr(main_mod, "get_settings", lambda: settings)
-            monkeypatch.setattr(
-                main_mod,
-                "backfill_trigger_json",
-                lambda store, s: calls.append((store, s)) or 0,
-            )
-
-            app = FastAPI()
-            async with lifespan(app):
-                assert calls == [(app.state.store, settings)]
-
-    @pytest.mark.asyncio
     async def test_lifespan_logs_function_calling_warning(self, monkeypatch) -> None:
         from unittest.mock import MagicMock
 

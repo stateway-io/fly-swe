@@ -70,7 +70,6 @@ def _make_task(**overrides: dict) -> Task:
         trigger_kind=TriggerKind.ISSUE_OPENED,
         trigger_json=_trigger_json([]),
         target_repo="stateway-io/stateway-agent-fixtures",
-        installation_id=12345,
     )
     defaults.update(overrides)
     return Task(**defaults)
@@ -596,7 +595,7 @@ def _make_triage_task(**overrides: dict) -> Task:
 class TestCommentsGoThroughTheTasksProvider:
     """Every comment the worker posts goes through the plugin registered for
     ``task.provider_instance``, on the issue's own repo — never a client
-    built from ``task.installation_id`` (PRD §3.2)."""
+    built from a per-task credential (PRD §3.2)."""
 
     def test_triage_comment_is_posted_on_the_issue_repo(
         self, store: SQLiteStore, settings: Settings, registry: ProviderRegistry, forge: FakeForge
@@ -613,20 +612,6 @@ class TestCommentsGoThroughTheTasksProvider:
         updated = store.get_task(task.id)
         assert updated is not None
         assert updated.status is TaskStatus.SUCCEEDED
-
-    def test_installation_id_is_not_consulted(
-        self, store: SQLiteStore, settings: Settings, registry: ProviderRegistry, forge: FakeForge
-    ) -> None:
-        # Rows backfilled by the multi-repo migration carry installation_id=0;
-        # the plugin resolves credentials per repo, so they comment fine.
-        task = _make_triage_task(installation_id=0)
-        store.insert_task(task)
-        fetched = store.fetch_next()
-        assert fetched is not None
-
-        run_task(store, fetched, settings, registry)
-
-        assert len(forge.posted("stateway-io/stateway-issues", 42)) == 1
 
     def test_the_tasks_provider_instance_is_used(
         self, store: SQLiteStore, settings: Settings, forge: FakeForge

@@ -32,7 +32,6 @@ from issue_agent.providers.registry import ProviderRegistry
 from issue_agent.queue.models import Task, TaskStatus
 from issue_agent.queue.store import SQLiteStore
 from issue_agent.triage.builder import build_triage_comment
-from issue_agent.webhook.backfill import backfill_trigger_json
 
 if TYPE_CHECKING:
     from issue_agent.providers.base import ProviderPlugin
@@ -667,7 +666,6 @@ def main() -> None:
     db_path = str(data_dir / "issue_agent.db")
     store = SQLiteStore(db_path)
     store.init()
-    backfill_trigger_json(store, settings)
     registry = ProviderRegistry.from_settings(settings)
 
     signal.signal(signal.SIGINT, _signal_handler)

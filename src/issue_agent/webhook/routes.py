@@ -239,9 +239,6 @@ async def handle_webhook(instance_id: str, request: Request) -> Response:
             content={"status": status, "reason": reason},
         )
 
-    # Still written (the column is NOT NULL) but never read: the canonical
-    # trigger_json is what the worker consumes.
-    payload_json = body.decode("utf-8", errors="replace")
     label_category = get_label_category(trigger.issue.labels)
 
     task = Task(
@@ -250,7 +247,6 @@ async def handle_webhook(instance_id: str, request: Request) -> Response:
         issue_number=trigger.issue.number,
         trigger_kind=trigger.kind,
         label_category=label_category,
-        payload_json=payload_json,
         target_repo=route.target_repo,
         base_branch=route.base_branch,
         workflow=route.workflow,

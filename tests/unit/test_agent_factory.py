@@ -55,7 +55,6 @@ def _make_task(label_category: str | None = "bug") -> Task:
         issue_number=42,
         trigger_kind=TriggerKind.ISSUE_OPENED,
         label_category=label_category,
-        payload_json="{}",
     )
 
 
