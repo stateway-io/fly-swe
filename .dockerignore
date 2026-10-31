@@ -1,0 +1,43 @@
+# The Dockerfile COPYs only what it needs (pyproject.toml, uv.lock, src/,
+# prompts/, config.yaml.example, Procfile). Everything else is excluded so the
+# build context sent to Fly's remote builder stays small.
+
+.git
+.github
+.venv
+venv
+virtualenv
+
+# Docs & specs — never needed at build time (root-anchored so prompts/*.md stay).
+# README.md is the exception: pyproject.toml declares it as the package
+# `readme`, so uv sync needs it at build time (see Dockerfile).
+/docs
+/*.md
+!/README.md
+/LICENSE
+
+# Tests
+/tests
+
+# Local dev state
+/data
+/secrets
+/config.yaml
+/.env
+/.env.local
+
+# Caches / build artifacts
+**/__pycache__
+**/*.py[cod]
+**/*.egg-info
+**/.pytest_cache
+.ruff_cache
+.mypy_cache
+/dist
+/build
+
+# Editor / OS
+.vscode
+.idea
+.DS_Store
+*.swp

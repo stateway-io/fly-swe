@@ -1,0 +1,59 @@
+[project]
+name = "fly-swe"
+version = "1.1.9"
+description = "A lightweight, mini-swe-agent-based GitHub issue agent, built for Fly.io and easy to deploy anywhere"
+readme = "README.md"
+license = "AGPL-3.0-only"
+license-files = ["LICENSE"]
+keywords = ["github", "issue-agent", "coding-agent", "mini-swe-agent", "fly.io", "llm", "automation"]
+authors = [
+    { name = "Samuel Diniz Casimiro", email = "nedmaj@yahoo.com" }
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Bug Tracking",
+]
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.34.0",
+    "pydantic-settings>=2.7.0",
+    "structlog>=25.1.0",
+    "pygithub>=2.6.0",
+    "httpx>=0.28.0",
+    "honcho>=2.0.0",
+    "mini-swe-agent>=2.4.6,<3.0.0",
+    "litellm>=1.85.0,<2.0.0",
+    "prometheus-client>=0.21.0,<1.0.0",
+    "pyyaml>=6.0.1",
+    "filelock>=3.16.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/stateway-io/fly-swe"
+Repository = "https://github.com/stateway-io/fly-swe"
+Issues = "https://github.com/stateway-io/fly-swe/issues"
+
+[build-system]
+requires = ["uv_build>=0.11.7,<0.12.0"]
+build-backend = "uv_build"
+
+# The distribution is named `fly-swe` but the import package stays `issue_agent`
+# (renaming the module would touch every import and the Procfile/Dockerfile).
+[tool.uv.build-backend]
+module-name = "issue_agent"
+
+[tool.pytest.ini_options]
+markers = [
+    "e2e: Tests that hit real GitHub and webhook endpoints. Requires agent running and credentials.",
+]
+testpaths = ["tests"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.25.0",
+    "ruff>=0.11.0",
+]

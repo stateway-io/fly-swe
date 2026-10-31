@@ -1,0 +1,44 @@
+{
+  "action": "created",
+  "issue": {
+    "id": 2001,
+    "number": 7,
+    "title": "Broken link",
+    "body": "The README has a broken link.",
+    "state": "open",
+    "labels": [
+      {
+        "name": "bug"
+      }
+    ],
+    "user": {
+      "login": "reporter",
+      "type": "User"
+    },
+    "author_association": "NONE",
+    "html_url": "https://github.com/stateway-io/stateway-issues/issues/7"
+  },
+  "comment": {
+    "id": 9002,
+    "body": "Opened PR #8.",
+    "created_at": "2026-10-25T10:00:00Z",
+    "user": {
+      "login": "stateway-issue-agent[bot]",
+      "type": "Bot"
+    },
+    "author_association": "NONE",
+    "performed_via_github_app": {
+      "id": 3735121
+    }
+  },
+  "repository": {
+    "full_name": "stateway-io/stateway-issues"
+  },
+  "sender": {
+    "login": "stateway-issue-agent[bot]",
+    "type": "Bot"
+  },
+  "installation": {
+    "id": 12345
+  }
+}

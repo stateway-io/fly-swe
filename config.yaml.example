@@ -1,0 +1,429 @@
+# Template of the issue-agent's non-secret configuration.
+#
+# This file (`config.yaml.example`) is versioned; the real `config.yaml` is NOT
+# (it's in .gitignore). To run:
+#
+#   Local:  cp config.yaml.example config.yaml  and edit the values.
+#   Deploy: the real `config.yaml` goes in as a Fly secret and Fly mounts it in
+#           the container via the fly.toml `[[files]]`:
+#             fly secrets set CONFIG_YAML="$(base64 -w0 < config.yaml)" \
+#               --app <your-app-name>
+#           (changing the secret restarts the machine — no redeploy needed).
+#
+# Precedence: environment variable > this file > built-in default.
+# Every parameter below is optional except the ones marked "required"; when a
+# key is omitted (or commented out), the built-in default noted next to it
+# applies.
+# Secrets do NOT go here — they stay in an environment variable / `fly secrets`:
+# PROVIDERS__<ID>__APP_PRIVATE_KEY (or _APP_PRIVATE_KEY_PATH),
+# PROVIDERS__<ID>__WEBHOOK_SECRET, LLM_API_KEY, LLM_FALLBACK_API_KEY
+# (optional), ALERT_WEBHOOK_URL, FLY_API_TOKEN. <ID> is the provider instance
+# id in upper case (`github` -> GITHUB). Putting a provider secret in this
+# file is an error. See .env.example at the repo root.
+
+agent:
+  # Name shown in comments and PRs (env: AGENT_NAME). Default: "Issue Agent".
+  name: issue-agent
+
+# Provider instances, keyed by an instance id (lowercase letters/digits,
+# separated by single '-' or '_'). The id names the webhook URL
+# (`/webhooks/<id>`) and the env prefix of the instance's secrets
+# (PROVIDERS__<ID>__...). Any field here can also come from env, e.g.
+# PROVIDERS__GITHUB__APP_ID. Keep the id `github` to preserve the
+# `/webhooks/github` URL configured on the GitHub App.
+providers:
+  github:
+    # Provider type (required). Built-in: github.
+    type: github
+    # GitHub App ID (required). Not a secret.
+    app_id: 0
+    # Login of the bot account, e.g. "my-app[bot]". GitHub derives it from
+    # the App's public slug, which often differs from agent.name. Used to
+    # ignore the agent's own comments; set it explicitly when the slug
+    # differs from agent.name. Default: empty = slugified agent.name.
+    # bot_login: "my-app[bot]"
+    # Base URL of the GitHub instance, with the scheme; set it for GitHub
+    # Enterprise (Server or ghe.com). Git, the REST API (/api/v3 on Server)
+    # and PR links all follow it. Default: https://github.com.
+    # host: https://github.com
+    # The App installation token is renewed this many seconds before it
+    # expires. Default: 300.
+    # token_refresh_margin_seconds: 300
+
+# List of (issue repo, code repo) pairs. The repository an issue comes from
+# selects the pair that handles it; issues from repositories not listed here
+# are ignored. At least one pair is needed to process anything.
+repos:
+  # Repository the issues come from, as owner/name (required).
+  - issues: owner/repo
+    # Provider instance (`providers.<id>`) the issues repo lives on.
+    # Default: the only configured instance; required with more than one.
+    # provider: github
+    # Repository where the PR is opened. Default: same as `issues`.
+    target: owner/repo
+    # Branch the PR is based on (trunk_based) or the integration branch
+    # (gitflow, e.g. dev). Default: main.
+    base_branch: main
+    # Branch/PR strategy. Default: trunk_based.
+    #   trunk_based — branch <branch_prefix>/issue-<n>-<slug> from
+    #     `base_branch`, PR directly against `base_branch`.
+    #   gitflow — branch <base_branch>-<slug> from `base_branch`
+    #     (typically `dev`), PR against `base_branch` itself.
+    workflow: trunk_based # trunk_based | gitflow
+    # Prefix of the branch name in the trunk_based workflow; ignored in
+    # gitflow. Default: agent.
+    branch_prefix: agent
+    # true = open the PR as a draft. Default: false.
+    draft: false
+    # Labels added to the PR in addition to pr.label (below). Default: [].
+    labels: []
+    # Project profile of the target repo. The whole block is optional. For any
+    # field left empty the agent figures it out on its own, in this order:
+    # (1) an explicit value here always wins; (2) the target repo's
+    # instructions file (AGENTS.md, CLAUDE.md, .github/copilot-instructions.md);
+    # (3) heuristics based on marker files of the ecosystem (pyproject.toml,
+    # package.json, go.mod, Cargo.toml, ...).
+    project:
+      # Command that runs the test suite, e.g. pytest, npm test,
+      # go test ./... Default: empty = the agent figures it out.
+      test_command: ""
+      # Command that runs the linter, e.g. ruff check, npm run lint.
+      # Default: empty = the agent figures it out.
+      lint_command: ""
+      # File extensions the agent should consider relevant, e.g. [.py] or
+      # [.ts, .tsx]. Default: [] = the agent figures it out.
+      relevant_extensions: []
+      # Paths the agent must not modify, e.g. [migrations/, src/engine/].
+      # Default: [] = no extra restriction.
+      protected_paths: []
+      # Runtime provisioning for the stack. "auto" detects it from project
+      # files (e.g. package.json -> nodejs); a concrete name forces that
+      # toolchain; "none" disables automatic provisioning. Default: auto.
+      toolchain: auto # auto | nodejs | none
+      # Node.js version to install for this repo. Default: empty = discovered
+      # from .nvmrc / package.json engines, falling back to
+      # toolchains.nodejs.default_version.
+      node_version: ""
+    # Per-repo override of the global `llm:` block below. Everything here is
+    # commented out, so this repo uses the global config unchanged. It takes
+    # the same fields: set only the ones that should differ for this repo; any
+    # field left out falls back to the global value, field by field.
+    # api_key / fallback.api_key are NOT accepted here — API keys always stay
+    # global (fly secrets set) and config validation rejects them.
+    # llm:
+    #   model: anthropic/claude-opus-4-5
+    #   provider: ""
+    #   base_url: ""
+    #   max_retries: 5
+    #   cost_tracking: strict # strict | lenient
+    #   prompt_caching: default_end # default_end | none
+    #   temperature: # explicit `null` resets to "provider default",
+    #     # even when the global llm.temperature is set
+    #   max_output_tokens: # same as temperature
+    #   reasoning_effort: # minimal | low | medium | high | xhigh | max | none
+    #     # explicit `null` resets to "provider default" (see llm.reasoning_effort
+    #     # below for caveats)
+    #   observation_max_chars: 10000
+    #   fallback: # explicit `null` (bare `fallback:`) disables failover for
+    #     # just this repo, even when the global llm.fallback is set
+    #     model: ""
+    #     base_url: ""
+  # Second example pair (commented out) — gitflow workflow against a `dev` branch:
+  # - issues: owner/other-repo
+  #   target: owner/other-repo
+  #   base_branch: dev
+  #   workflow: gitflow
+  #   branch_prefix: agent
+  #   draft: true
+  #   labels: [agent-generated]
+  #   project:
+  #     test_command: "npm test"
+  #     lint_command: "npm run lint"
+  #     relevant_extensions: [.ts, .tsx]
+  #     protected_paths: [migrations/]
+
+# Default LLM config — applies to every repo in `repos:` above, except for
+# any field a repo overrides in its own `llm:` block (commented out in the
+# example above).
+llm:
+  # Model id in LiteLLM format: <provider>/<model>.
+  # Default: anthropic/claude-sonnet-4-5.
+  model: anthropic/claude-sonnet-4-5
+  # Explicit LiteLLM provider (openrouter, anthropic, ...), passed as
+  # custom_llm_provider and used to check that the model supports function
+  # calling. Never inferred from the API key format.
+  # Default: empty = derived from the model prefix.
+  provider: ""
+  # Overrides LiteLLM's api_base (custom endpoint, proxy, gateway).
+  # Default: empty = the provider's default endpoint.
+  base_url: ""
+  # How many times a failed LLM call (rate limits, transient provider errors,
+  # request timeouts) is retried before the error surfaces: max_retries + 1
+  # attempts in total, with exponential backoff (4s up to 60s). Default: 5.
+  max_retries: 5
+  # Per-request timeout in seconds. A dead connection fails fast into the retry
+  # logic instead of hanging. Each attempt is additionally capped at the time
+  # left of budgets.task_timeout_seconds, so a hung call can no longer outlive
+  # the task budget; once it is spent the task stops as task_timeout.
+  # 0 = LiteLLM's own default. Global only (not part of the per-repo override).
+  # Default: 120.
+  request_timeout_seconds: 120
+  # What happens when a step's cost can't be determined. Default: strict.
+  #   strict — aborts the task, so the cost budgets below can never be
+  #     silently bypassed.
+  #   lenient — logs a warning and counts the step as 0.0.
+  cost_tracking: strict # strict | lenient
+  # Prompt caching. Default: default_end.
+  #   default_end — Anthropic-style cache-control markers on the last message.
+  #   none — sends no markers (for providers that reject the field).
+  prompt_caching: default_end # default_end | none
+  # Sampling temperature. Default: empty = provider default.
+  temperature:
+  # Maximum tokens generated per LLM response. Default: empty = provider
+  # default.
+  max_output_tokens:
+  # Reasoning depth, mapped by LiteLLM to the provider's native shape:
+  #   minimal | low | medium | high | xhigh | max | none
+  # Default: empty = never sent (provider default). "none" explicitly strips
+  # thinking, which is not the same as leaving this field unset.
+  # On adaptive-thinking models (Opus 4.6+, Sonnet 4.6+, Opus 5.x, Sonnet 5.x)
+  # this becomes thinking={type: adaptive} + output_config.effort. On older
+  # models (including the default anthropic/claude-sonnet-4-5 above) it
+  # becomes a FIXED thinking budget: minimal/low=1024, medium=2048, high=4096,
+  # xhigh=8192, max=16384 tokens.
+  # Two caveats:
+  #   - On an older model, that budget must stay below max_output_tokens
+  #     above, or the provider returns a 400 and the task fails after
+  #     repeated retries. Leaving max_output_tokens empty avoids this.
+  #   - A model with no reasoning support aborts the task immediately
+  #     (UnsupportedParamsError) instead of ignoring this setting.
+  # Higher effort spends more output tokens per step, so it interacts directly
+  # with budgets.max_cost_per_task_usd below.
+  reasoning_effort:
+  # Maximum size in characters of a single command output shown to the model.
+  # Longer outputs are elided to head + tail with a warning, which keeps one
+  # huge output (e.g. `pytest -v`, `cat` of a big file) from being re-sent on
+  # every later step and overflowing the context window.
+  # 0 = no cap. Default: 10000.
+  observation_max_chars: 10000
+  # Optional failover: LiteLLM tries this model if the primary one errors out.
+  # Its key is a secret and lives in the environment (LLM_FALLBACK_API_KEY);
+  # when empty, LLM_API_KEY is used.
+  fallback:
+    # Failover model id in LiteLLM format. Default: "" = no failover.
+    model: ""
+    # api_base for the failover model. Default: empty = provider default.
+    base_url: ""
+
+# Limits that keep a single task, and the day's total, from running away.
+budgets:
+  # Maximum agent steps (LLM call + command) in one task. Default: 50.
+  max_iterations: 50
+  # Maximum LLM spend in one task, in USD. The task stops when it is reached.
+  # Default: 2.00.
+  max_cost_per_task_usd: 2.00
+  # Maximum LLM spend per day and target repo, in USD. Once reached, new tasks
+  # for that repo wait in the queue until the next day (UTC). Default: 50.00.
+  max_daily_cost_usd: 50.00
+  # Maximum wall-clock time of one task, in seconds. Default: 900.
+  task_timeout_seconds: 900
+  # Maximum time of a single shell command run by the agent (and of the test
+  # run after the push), in seconds. Default: 120.
+  command_timeout_seconds: 120
+  # How many times a task that failed with a recoverable error is retried,
+  # waiting worker.backoff_schedule_seconds between attempts, before it is
+  # marked as terminally failed. Default: 3.
+  max_task_retries: 3
+  # Above this percentage of ANY limit above (iterations, cost per task, or
+  # task timeout), each command output carries a <budget_status> block telling
+  # the agent how much it has spent and to wrap up with a partial edit.
+  # 0 turns the block off. Default: 80.
+  warn_at_percent: 80
+
+worker:
+  # How often the worker polls the queue for new tasks, in seconds.
+  # Default: 2.0.
+  poll_interval_seconds: 2.0
+  # A running task whose heartbeat is older than this is considered orphaned
+  # (e.g. the machine restarted mid-run) and is requeued, or failed once
+  # budgets.max_task_retries is exhausted. In seconds. Default: 90.
+  orphan_timeout_seconds: 90
+  # Seconds to wait before retrying a task that failed recoverably: the first
+  # value before the first retry, the second before the second, and so on; the
+  # last value is reused when there are more retries than entries.
+  # Default: [60, 300, 1800].
+  backoff_schedule_seconds: [60, 300, 1800]
+
+pr:
+  # Maximum length of the issue-title slug used in branch names. Default: 30.
+  slug_max_length: 30
+  # Label added to every PR the agent opens. Default: agent-generated.
+  label: agent-generated
+
+# Comments the agent posts on and reads from the issue.
+comments:
+  # Posts a comment when the agent starts (or resumes) work on an issue.
+  # Only for issues that go through the fix flow. Default: true.
+  initial_comment: true
+
+  # Progress comment during a long run.
+  # Posts a "still working" comment every N iterations; 0 turns it off.
+  # Default: 20.
+  progress_every_iterations: 20
+  # Maximum number of progress comments per run. Default: 2.
+  progress_max_per_run: 2
+
+  # Who can trigger the agent via comment. A rejected comment is silently
+  # discarded at ingestion (no task, no comment, no cost). Whoever opened the
+  # issue can always trigger it — even a bot, whose later comments stay valid
+  # while the issue is open.
+  author_filter:
+    # false = any comment author is accepted. Default: true.
+    enabled: true
+    # Always accept comments from the author of the issue. Default: true.
+    allow_issue_author: true
+    # Accepted values of GitHub's author_association field.
+    # Default: [OWNER, MEMBER, COLLABORATOR].
+    allow_associations: [OWNER, MEMBER, COLLABORATOR]
+    # Logins accepted individually, bots included. Default: [].
+    allowlist: []
+
+  # How much of the conversation is given to the model as context.
+  context:
+    # Keeps only the last N comments (after the author filter). Default: 20.
+    max_comments: 20
+    # Each comment is truncated to this many characters. Default: 2000.
+    max_chars_per_comment: 2000
+
+# Resuming partial work between triggers.
+resume:
+  # false = nothing is preserved when a task is blocked and nothing is
+  # resumed; every trigger starts from scratch. Default: true.
+  enabled: true
+  # When a task is blocked (budget, timeout, ...), commits and pushes the
+  # partial work to the work branch before the workspace is cleaned up, so the
+  # next run can continue from it. Default: true.
+  push_wip_on_block: true
+  # Attempts on the same issue before the agent gives up and closes the work.
+  # Default: 3.
+  max_attempts: 3
+  # Summary of a blocked run, stored for the next attempt. Default: mechanical.
+  #   never — no summary.
+  #   mechanical — built from the trajectory already recorded; costs nothing.
+  #   llm_unless_budget — asks the LLM for a summary, unless the budget is
+  #     already exhausted.
+  #   llm — always asks the LLM for a summary.
+  summary_on_block: mechanical
+  # The summary is truncated to this many characters before it is stored and
+  # handed to the next attempt. Default: 4000.
+  summary_max_chars: 4000
+  # When the tests the agent runs after pushing fail, retries the task instead
+  # of opening the PR as is. Counts against max_attempts and the daily budget;
+  # false = the PR opens regardless of the test result. Default: true.
+  retry_on_test_failure: true
+
+  # Reconciliation sweep: stops tracking work on issues that were closed while
+  # the webhook never arrived (lost delivery, downtime).
+  # How often the sweep runs, in minutes. Default: 60.
+  reconcile_interval_minutes: 60
+  # Maximum GitHub API lookups per sweep. Default: 50.
+  reconcile_max_per_cycle: 50
+
+git:
+  # History depth of the workspace clone. Default: 0.
+  #   0 — full history. Lets the agent find (with `git log -S`) the commit
+  #     that already landed a fix before reporting that an issue needs no
+  #     change; it cannot deepen the clone itself.
+  #   N > 0 — `git clone --depth=N`. Bounds clone time and disk usage on large
+  #     repos; the lookup above then finds nothing older than N commits.
+  clone_depth: 0
+
+# Author configured on the commits the agent creates.
+git_identity:
+  # Default: "issue-agent[bot]".
+  user_name: "issue-agent[bot]"
+  # Default: empty = the provider's no-reply address for user_name
+  # (GitHub: "<user_name>@users.noreply.github.com").
+  # user_email: "issue-agent[bot]@users.noreply.github.com"
+
+# Prometheus metrics.
+metrics:
+  # Port the metrics endpoint listens on. Default: 9090.
+  port: 9090
+  # Histogram buckets for task duration, in seconds.
+  # Default: [1, 5, 10, 30, 60, 120, 300, 600].
+  task_duration_buckets_seconds: [1, 5, 10, 30, 60, 120, 300, 600]
+  # Histogram buckets for iterations per task.
+  # Default: [1, 5, 10, 20, 50, 100].
+  iteration_buckets: [1, 5, 10, 20, 50, 100]
+
+prompts:
+  # Maps an issue label category to the prompt file in prompts/ used for it.
+  # Categories that route to a fix need an entry; those that only triage or
+  # diagnose do not. Default as below.
+  category_map:
+    bug: bug_fix.md
+    docs: doc_fix.md
+    chore: bug_fix.md
+    agent_fix_please: bug_fix.md
+
+# Which action each label category triggers. A category not listed in either
+# key below keeps its built-in action: bug, docs, chore, agent_fix_please ->
+# fix (the agent edits files and opens a PR); anything unrecognized, or
+# agent-skip -> skipped. Omit a key to keep its default.
+policy:
+  # Categories that only get a triage comment: no code is touched.
+  # Default: [question, feature_request, high_severity_bug].
+  triage_only_categories: [question, feature_request, high_severity_bug]
+  # Categories that run the agent read-only against the repo and post a
+  # verdict on whether the issue's label matches reality; never edits files,
+  # commits, or opens a PR. Opt-in. Default: [].
+  diagnose_categories: []
+
+# On-demand toolchain provisioning. The base Docker image stays small
+# (Python-only); runtimes are downloaded into toolchains.tools_root on the
+# persistent volume the first time a repo needs them, then cached for later
+# tasks.
+toolchains:
+  # false = never install runtimes. Default: true.
+  enabled: true
+  # Directory (on the persistent volume) where runtimes are installed.
+  # Default: /data/tools.
+  tools_root: /data/tools
+  nodejs:
+    # Node.js version used when neither the repo's project.node_version,
+    # .nvmrc nor package.json engines specify one. Default: "20".
+    default_version: "20"
+    # Base URL Node.js binaries are downloaded from.
+    # Default: https://nodejs.org/dist.
+    mirror: https://nodejs.org/dist
+    # Cap on V8's heap for every Node process the harness or the agent starts
+    # (tsc, jest, npm ci), as a percentage of the machine's total memory, read
+    # at run time so it follows the VM if it is resized. It exists because
+    # `tsc` + `jest` on a 1 GB VM without swap push it into thrashing: the cap
+    # turns that into a fast "heap out of memory" in the one command. The
+    # agent's own NODE_OPTIONS cannot raise it. 0 = no cap. Default: 40
+    # (~385 MB of old space on a 1 GB VM).
+    max_old_space_percent: 40
+    # Fixed cap in MB. Wins over the percentage when > 0. Default: 0 (use the
+    # percentage).
+    max_old_space_mb: 0
+  # Maximum time to download and install a toolchain, in seconds.
+  # Default: 300.
+  install_timeout_seconds: 300
+  # Maximum time to wait when another task is already installing the same
+  # toolchain, in seconds. Default: 600.
+  lock_timeout_seconds: 600
+
+retention:
+  # Days to keep the per-task trajectory in /data/events/<task-id>/.
+  # Default: 30.
+  events_days: 30
+  # Days to keep tasks/events/deliveries rows in the SQLite database.
+  # Default: 90.
+  db_days: 90
+  # Days to keep audit.<date>.log files in /data (compressed on expiry).
+  # Default: 90.
+  audit_days: 90
+  # How often the cleanup job runs, in minutes. Default: 60.
+  cleanup_interval_minutes: 60

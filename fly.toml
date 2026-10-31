@@ -1,0 +1,44 @@
+# No `app = ...` on purpose: the app name is the operator's, not the repo's.
+# Locally `export FLY_APP=<your-app>` (or pass `--app`); the Deploy workflow
+# passes `--app "$FLY_APP"` from the repository variable of the same name.
+primary_region = "gru"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  # DATA_DIR is the only entry here: it's the volume mount path below, not a
+  # tunable default. Everything else lives in config.yaml (see Settings in
+  # src/issue_agent/config.py) — secrets stay in `fly secrets`.
+  DATA_DIR = "/data"
+
+# The real non-secret config. The committed file is config.yaml.example; the
+# actual config.yaml ships as a base64 Fly secret and Fly writes it here at
+# deploy time (config.py's default path is /app/config.yaml). Set/update it with:
+#   fly secrets set CONFIG_YAML="$(base64 -w0 < config.yaml)" --app <your-app-name>
+[[files]]
+  guest_path = "/app/config.yaml"
+  secret_name = "CONFIG_YAML"
+
+[mounts]
+  source = "issue_agent_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "10s"
+    method = "GET"
+    path = "/readyz"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 1024

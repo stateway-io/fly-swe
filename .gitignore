@@ -1,0 +1,63 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.pyc
+
+# Environment
+.env
+.env.local
+
+# Real (non-secret) config — the committed template is config.yaml.example.
+# For deploy the real file ships as the CONFIG_YAML Fly secret (fly.toml [[files]]).
+/config.yaml
+.venv
+venv/
+virtualenv/
+
+# Tooling (not tracked)
+.opencode/
+.memory/
+.code-graph/
+.claude/
+.superpowers/
+
+# Internal planning/history docs — not part of the public repo. See
+# docs/research/ for the material that *is* published.
+/PRD-Issue-Agent.md
+/PRD-Issue-Agent-Continuidade.md
+/active-context.md
+/docs/history/
+/docs/estudo-openhands-sdk.md
+/docs/deploy/learned-lessons.md
+/docs/deploy/fly-agent-deploy-issues.md
+/docs/plans/public-release.md
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data (local dev — Fly volume /data is separate)
+data/
+secrets/
+
+# Logs
+*.log
+
+# Database (local dev)
+*.db
+*.db-wal
+*.db-shm

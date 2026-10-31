@@ -1,0 +1,93 @@
+name: CI
+
+# Runs on every PR (not path-filtered): `lint-test` is a required status check on
+# `main`, so it must be able to report on docs-only PRs too, otherwise those PRs
+# sit blocked on a check that never starts. Also runs on push to `main` so the
+# pre-release state has a green-check history.
+#
+# Docs-only changes still start the job, but the `changes` step detects that only
+# Markdown was touched and every expensive step is skipped — the check reports
+# green in seconds without installing Python or running the suite. Do NOT replace
+# this with `paths-ignore`: that stops the workflow from running at all, and the
+# required check never reports.
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  lint-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect non-Markdown changes
+        id: changes
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          # Fall back to running the full suite whenever the base commit is
+          # unusable (force push, first push to a branch, shallow history).
+          if [ -z "${BASE_SHA}" ] \
+            || [ "${BASE_SHA}" = "0000000000000000000000000000000000000000" ] \
+            || ! git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
+            echo "base commit unavailable — running full suite"
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          changed="$(git diff --name-only "${BASE_SHA}" "${HEAD_SHA}")"
+          echo "Changed files:"
+          echo "${changed}"
+
+          # `grep -v` (not `grep -qv`): under `pipefail`, `-q` closes the pipe
+          # early and the SIGPIPE from printf would fail the whole pipeline,
+          # misreading code changes as docs-only.
+          non_md="$(printf '%s\n' "${changed}" | grep -vE '\.md$' || true)"
+
+          # `prompts/*.md` is not documentation: it is loaded at runtime and
+          # covered by tests/unit/test_prompts.py, so it must run the suite.
+          prompt_md="$(printf '%s\n' "${changed}" | grep -E '(^|/)prompts/.*\.md$' || true)"
+
+          if [ -n "${non_md}" ] || [ -n "${prompt_md}" ]; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "docs-only change — skipping lint and tests"
+            echo "code=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install uv
+        if: steps.changes.outputs.code == 'true'
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        if: steps.changes.outputs.code == 'true'
+        run: uv sync --frozen
+
+      - name: Lint (ruff)
+        if: steps.changes.outputs.code == 'true'
+        run: uv run ruff check
+
+      - name: Unit tests
+        if: steps.changes.outputs.code == 'true'
+        run: uv run pytest tests/unit/ -v
+
+      - name: Integration tests
+        if: steps.changes.outputs.code == 'true'
+        run: uv run pytest tests/integration/ -v
+
+      # Gating build only — no push, no registry. `flyctl deploy` builds the
+      # image on Fly's remote builder at release time, which is too late to
+      # catch a broken Dockerfile (finding A3). The build context is the repo
+      # root, same as `flyctl deploy` (see docs/deploy/fly-agent-deploy-issues.md).
+      - name: Docker build
+        if: steps.changes.outputs.code == 'true'
+        run: docker build -t fly-swe:ci .

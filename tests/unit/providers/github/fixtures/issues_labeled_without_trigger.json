@@ -1,0 +1,34 @@
+{
+  "action": "labeled",
+  "label": {
+    "name": "wontfix"
+  },
+  "issue": {
+    "id": 2001,
+    "number": 7,
+    "title": "Broken link",
+    "body": "The README has a broken link.",
+    "state": "open",
+    "labels": [
+      {
+        "name": "wontfix"
+      }
+    ],
+    "user": {
+      "login": "reporter",
+      "type": "User"
+    },
+    "author_association": "NONE",
+    "html_url": "https://github.com/stateway-io/stateway-issues/issues/7"
+  },
+  "repository": {
+    "full_name": "stateway-io/stateway-issues"
+  },
+  "sender": {
+    "login": "triager",
+    "type": "User"
+  },
+  "installation": {
+    "id": 12345
+  }
+}

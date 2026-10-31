@@ -1,0 +1,54 @@
+name: Deploy
+
+# Trunk-based release: merges land on `main` without deploying. Publishing a
+# GitHub Release (tag `vX.Y.Z`, matching `pyproject.toml`) ships that commit to
+# Fly. `workflow_dispatch` re-runs it for a manual redeploy or rollback.
+# See AGENTS.md § Git Convention.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: default
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Tag matches pyproject version
+        if: github.event_name == 'release'
+        run: |
+          pyproject_version=$(grep -E '^version = ' pyproject.toml | head -1 | cut -d'"' -f2)
+          tag="${GITHUB_REF_NAME#v}"
+          if [ "$pyproject_version" != "$tag" ]; then
+            echo "::error::Release tag v$tag != pyproject.toml version $pyproject_version"
+            exit 1
+          fi
+
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Deploy to Fly.io
+        run: flyctl deploy --remote-only --app "$FLY_APP"
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          FLY_APP: ${{ vars.FLY_APP }}
+
+      - name: Wait for deployment to settle
+        run: sleep 10
+
+      - name: Smoke test — healthz
+        run: curl -sfS "https://${FLY_APP}.fly.dev/healthz"
+        env:
+          FLY_APP: ${{ vars.FLY_APP }}
+
+      - name: Smoke test — readyz
+        run: curl -sfS "https://${FLY_APP}.fly.dev/readyz"
+        env:
+          FLY_APP: ${{ vars.FLY_APP }}
