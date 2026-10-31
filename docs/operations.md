@@ -175,7 +175,9 @@ rollback. This is the rule earlier migrations cite as "P4". The one
 exception is a primary key change, which SQLite can't do in place. Such a
 migration rebuilds the table with a full copy in one transaction (v1–v3 on
 `tasks`/`daily_budget`; v7 on `processed_deliveries` and `issue_work`, which
-gained `provider_instance` in the key). Treat a release that contains one as
+gained `provider_instance` in the key; v8 on `tasks`, which dropped the legacy
+`payload_json` and `installation_id` columns, since a NOT NULL column can't be
+dropped in place). Treat a release that contains one as
 one-way: snapshot the volume first, and roll back by restoring the snapshot
 rather than by redeploying the old image.
 

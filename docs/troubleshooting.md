@@ -67,18 +67,16 @@ deliveries.
 
 ## Task Failed with `invalid_trigger`
 
-The worker reads each task's canonical trigger (`tasks.trigger_json`), never
-the raw webhook payload. Two paths end in `failed_terminal` with
-`error = invalid_trigger`:
+The worker reads each task's canonical trigger (`tasks.trigger_json`); the
+raw webhook payload is not stored. The payload guard rejects a task whose
+`trigger_json` is missing or invalid with `failed_terminal` and
+`error = invalid_trigger`, and posts the usual "task not processed" comment.
 
-- **On upgrade.** Rows enqueued before `trigger_json` existed are
-  re-normalized from their stored `payload_json` when the web or worker
-  process starts (`webhook/backfill.py`, log event `backfill_trigger_json`).
-  A pending/running/recoverable row whose payload can't be re-normalized is
-  failed instead (log event `backfill_invalid_trigger`). Finished rows are
-  left as they are.
-- **At run time.** The payload guard rejects a task whose `trigger_json` is
-  missing or invalid, and posts the usual "task not processed" comment.
+A missing trigger only happens on a database upgraded straight from a
+release older than v0.10. Those releases enqueued tasks with only the raw
+payload, and the startup backfill that re-normalized them was removed in
+v1.1.10. Upgrade through any 1.x release up to v1.1.9 first to keep such
+in-flight tasks.
 
 Neither is expected for deliveries GitHub actually sent. To retry the
 issue, comment on it or re-apply its label: that creates a new task.
