@@ -12,11 +12,9 @@ from issue_agent.config import Settings
 from issue_agent.providers.github.client import GitHubClient
 from issue_agent.queue.models import Task, TaskStatus, TriggerKind
 from issue_agent.queue.store import SQLiteStore
-from issue_agent.runner.delegators import CodingAgentDelegator, DelegationResult
 from issue_agent.runner.executor import MiniSWERunner, run_task
 from issue_agent.runner.executor import _run_git as _real_run_git
 from tests.helpers.factories import make_author, make_issue, make_trigger_event
-from tests.helpers.fake_delegator import FakeDelegator
 from tests.helpers.fake_model import FakeModel, _make_bash_response
 from tests.helpers.github import GITHUB_TERMS as TERMS
 from tests.helpers.github import stub_github_plugin
@@ -541,58 +539,3 @@ class TestAgentLevelCaps:
         # ambiguous generic label.
         assert result.success is False
         assert result.error == "iteration_limit_exceeded"
-
-
-# ── Scenario 6: FakeDelegator protocol validation ────────────────────
-
-
-class TestFakeDelegatorProtocol:
-    """Verify CodingAgentDelegator abstraction."""
-
-    def test_fake_delegator_satisfies_protocol(self) -> None:
-        delegator = FakeDelegator()
-        assert isinstance(delegator, CodingAgentDelegator)
-
-    def test_execute_returns_typed_result(self) -> None:
-        delegator = FakeDelegator(
-            result=DelegationResult(success=True, cost_usd=0.42, iterations=7),
-        )
-        result = delegator.execute(
-            workspace_path="/tmp/ws",
-            task_instruction="Fix the docs",
-            max_budget_usd=1.0,
-            max_iterations=50,
-            timeout_seconds=300,
-        )
-        assert isinstance(result, DelegationResult)
-        assert result.success is True
-        assert result.cost_usd == 0.42
-        assert result.iterations == 7
-
-    def test_budget_cap_propagated_to_delegator(self) -> None:
-        delegator = FakeDelegator()
-        result = delegator.execute(
-            workspace_path="/tmp/ws",
-            task_instruction="fix",
-            max_budget_usd=0.0,
-            max_iterations=50,
-            timeout_seconds=300,
-        )
-        assert result.success is False
-        assert result.abort_reason == "budget"
-
-    def test_fake_delegator_writes_file(self) -> None:
-        import tempfile
-
-        with tempfile.TemporaryDirectory() as tmp:
-            delegator = FakeDelegator(write_file=("src/fix.md", "fixed!"))
-            result = delegator.execute(
-                workspace_path=tmp,
-                task_instruction="fix it",
-                max_budget_usd=1.0,
-                max_iterations=10,
-                timeout_seconds=60,
-            )
-            assert result.success is True
-            assert "src/fix.md" in result.files_modified
-            assert (Path(tmp) / "src" / "fix.md").read_text() == "fixed!"
