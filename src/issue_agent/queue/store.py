@@ -71,6 +71,85 @@ class SQLiteStore:
         self._migrate_v5()
         self._migrate_v6()
         self._migrate_v7()
+        self._migrate_v8()
+
+    def _migrate_v8(self) -> None:
+        """Drop the GitHub-era `payload_json` and `installation_id` columns
+        from `tasks` (PRD §3.6 cleanup): the canonical `trigger_json`
+        replaced the raw payload, and credentials are resolved per repo by
+        the provider plugin.
+
+        `DROP COLUMN` can't remove a NOT NULL column without a default, so
+        `tasks` is rebuilt v2-style in one transaction, keeping every row
+        and the ids `task_events` points to. Like v7, this is a documented
+        exception to the additive-migration rule (P4, see
+        docs/operations.md): an older image can't insert into the new
+        shape, so roll back by restoring a volume snapshot. Idempotent:
+        guarded by `PRAGMA table_info`, a no-op on fresh DBs where
+        schema.sql already created the new shape."""
+        columns = {
+            row["name"]
+            for row in self.conn.execute("PRAGMA table_info(tasks)").fetchall()
+        }
+        if not columns & {"payload_json", "installation_id"}:
+            return
+
+        kept = (
+            "id, delivery_id, repo, issue_number, trigger_kind, label_category, "
+            "status, pr_number, cost_usd, iterations, retry_count, error, "
+            "created_at, started_at, completed_at, heartbeat_at, target_repo, "
+            "base_branch, workflow, trigger_json, provider_instance, credentials_ref"
+        )
+        self.conn.execute("PRAGMA foreign_keys = OFF")
+        try:
+            self.conn.execute("BEGIN IMMEDIATE")
+            self.conn.execute("""
+                CREATE TABLE tasks_v8 (
+                  id                TEXT PRIMARY KEY,
+                  delivery_id       TEXT NOT NULL,
+                  repo              TEXT NOT NULL,
+                  issue_number      INTEGER NOT NULL,
+                  trigger_kind      TEXT NOT NULL,
+                  label_category    TEXT,
+                  status            TEXT NOT NULL,
+                  pr_number         INTEGER,
+                  cost_usd          REAL NOT NULL DEFAULT 0,
+                  iterations        INTEGER NOT NULL DEFAULT 0,
+                  retry_count       INTEGER NOT NULL DEFAULT 0,
+                  error             TEXT,
+                  created_at        TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                  started_at        TEXT,
+                  completed_at      TEXT,
+                  heartbeat_at      TEXT,
+                  target_repo       TEXT NOT NULL DEFAULT '',
+                  base_branch       TEXT NOT NULL DEFAULT 'main',
+                  workflow          TEXT NOT NULL DEFAULT 'trunk_based',
+                  trigger_json      TEXT,
+                  provider_instance TEXT NOT NULL DEFAULT 'github',
+                  credentials_ref   TEXT
+                )
+            """)
+            self.conn.execute(
+                f"INSERT INTO tasks_v8 ({kept}) SELECT {kept} FROM tasks"
+            )
+            self.conn.execute("DROP TABLE tasks")
+            self.conn.execute("ALTER TABLE tasks_v8 RENAME TO tasks")
+            self.conn.execute(
+                "CREATE UNIQUE INDEX idx_tasks_unique_pending ON tasks"
+                "(provider_instance, repo, issue_number, trigger_kind) "
+                "WHERE status = 'pending'"
+            )
+            self.conn.execute("CREATE INDEX idx_tasks_status ON tasks(status, created_at)")
+            self.conn.execute(
+                "CREATE INDEX idx_tasks_heartbeat "
+                "ON tasks(status, heartbeat_at) WHERE status = 'running'"
+            )
+            self.conn.commit()
+        except Exception:
+            self.conn.rollback()
+            raise
+        finally:
+            self.conn.execute("PRAGMA foreign_keys = ON")
 
     def _migrate_v7(self) -> None:
         """Key `processed_deliveries` and `issue_work` by provider instance
@@ -454,10 +533,10 @@ class SQLiteStore:
         self.conn.execute(
             """INSERT INTO tasks
                (id, delivery_id, repo, issue_number, trigger_kind,
-                label_category, status, payload_json, created_at,
+                label_category, status, created_at,
                 target_repo, base_branch, workflow,
                 trigger_json, provider_instance, credentials_ref)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 task.id,
                 task.delivery_id,
@@ -466,8 +545,6 @@ class SQLiteStore:
                 task.trigger_kind.value,
                 task.label_category,
                 task.status.value,
-                # Legacy NOT NULL column, no longer read or written.
-                "",
                 task.created_at,
                 task.target_repo,
                 task.base_branch,

@@ -24,7 +24,6 @@ def _make_task(**overrides: dict) -> Task:
         repo="stateway-io/stateway-issues",
         issue_number=42,
         trigger_kind=TriggerKind.ISSUE_OPENED,
-        payload_json=json.dumps({"action": "opened", "issue": {"number": 42}}),
     )
     defaults.update(overrides)
     return Task(**defaults)
@@ -419,7 +418,8 @@ class TestRepoFieldsRoundtrip:
 
 class TestMigrateV2:
     """_migrate_v2 backfills target_repo/installation_id/base_branch/workflow
-    onto databases created before those columns existed."""
+    onto databases created before those columns existed (installation_id is
+    dropped again by _migrate_v8)."""
 
     def _create_pre_fase5_db(self, db_path: str) -> None:
         conn = sqlite3.connect(db_path)
@@ -521,7 +521,6 @@ class TestMigrateV2:
             for row in store.conn.execute("PRAGMA table_info(tasks)").fetchall()
         }
         assert "target_repo" in columns
-        assert "installation_id" in columns
         assert "base_branch" in columns
         assert "workflow" in columns
 
@@ -1102,6 +1101,122 @@ class TestMigrateV7:
         assert self._pk(store, "issue_work") == [
             "provider_instance", "issue_repo", "issue_number",
         ]
+
+
+class TestMigrateV8:
+    """_migrate_v8 drops the legacy `payload_json`/`installation_id` columns
+    from `tasks` — a rebuild (a NOT NULL column can't be dropped in place),
+    keeping every row and the `task_events` that point at them."""
+
+    LEGACY = {"payload_json", "installation_id"}
+
+    def _create_pre_v8_db(self, db_path: str) -> None:
+        TestMigrateV7()._create_pre_v7_db(db_path)
+        # One pending task with a trigger and an event, next to the
+        # finished legacy row `t1` seeded by the v4 helper.
+        conn = sqlite3.connect(db_path)
+        try:
+            conn.executescript(
+                """
+                INSERT INTO tasks
+                  (id, delivery_id, repo, issue_number, trigger_kind, status,
+                   payload_json, target_repo, installation_id, base_branch,
+                   workflow, trigger_json, provider_instance, credentials_ref,
+                   cost_usd, iterations)
+                  VALUES ('t2', 'd2', 'owner/repo', 43, 'issue_opened', 'pending',
+                          '{"raw": true}', 'owner/code', 99, 'develop',
+                          'gitflow', '{"x": 1}', 'ghe', '99', 1.25, 4);
+                INSERT INTO task_events (task_id, event_type, payload_json)
+                  VALUES ('t2', 'started', '{"step": 1}');
+                """
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+    def _columns(self, store: SQLiteStore) -> set[str]:
+        return {
+            r["name"] for r in store.conn.execute("PRAGMA table_info(tasks)").fetchall()
+        }
+
+    def _indexes(self, store: SQLiteStore) -> set[str]:
+        return {
+            r["name"]
+            for r in store.conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='tasks'"
+            ).fetchall()
+        }
+
+    def test_drops_legacy_columns_and_keeps_rows(self, tmp_path) -> None:
+        db_path = str(tmp_path / "pre-v8.db")
+        self._create_pre_v8_db(db_path)
+
+        store = SQLiteStore(db_path)
+        store.init()
+
+        assert not self._columns(store) & self.LEGACY
+        assert store.get_task("t1") is not None
+        task = store.get_task("t2")
+        assert task is not None
+        assert (task.target_repo, task.base_branch, task.workflow) == (
+            "owner/code", "develop", "gitflow",
+        )
+        assert (task.trigger_json, task.provider_instance, task.credentials_ref) == (
+            '{"x": 1}', "ghe", "99",
+        )
+        assert (task.cost_usd, task.iterations) == (1.25, 4)
+        assert [e.event_type for e in store.get_task_events("t2")] == ["started"]
+        assert store.conn.execute("PRAGMA foreign_key_check").fetchall() == []
+
+    def test_recreates_the_task_indexes(self, tmp_path) -> None:
+        db_path = str(tmp_path / "pre-v8-index.db")
+        self._create_pre_v8_db(db_path)
+
+        store = SQLiteStore(db_path)
+        store.init()
+
+        assert {
+            "idx_tasks_unique_pending", "idx_tasks_status", "idx_tasks_heartbeat",
+        } <= self._indexes(store)
+        columns = [
+            r["name"]
+            for r in store.conn.execute(
+                "PRAGMA index_info(idx_tasks_unique_pending)"
+            ).fetchall()
+        ]
+        assert columns == ["provider_instance", "repo", "issue_number", "trigger_kind"]
+        with pytest.raises(sqlite3.IntegrityError):
+            store.insert_task(
+                _make_task(repo="owner/repo", issue_number=43, provider_instance="ghe")
+            )
+
+    def test_idempotent_on_repeat_init(self, tmp_path) -> None:
+        db_path = str(tmp_path / "pre-v8-idempotent.db")
+        self._create_pre_v8_db(db_path)
+
+        store = SQLiteStore(db_path)
+        store.init()
+        store.init()
+
+        assert store.conn.execute(
+            "SELECT COUNT(*) AS cnt FROM tasks"
+        ).fetchone()["cnt"] == 2
+
+    def test_full_chain_from_a_pre_v2_db(self, tmp_path) -> None:
+        db_path = str(tmp_path / "pre-v2.db")
+        TestMigrateV2()._create_pre_fase5_db(db_path)
+
+        store = SQLiteStore(db_path)
+        store.init()
+
+        assert not self._columns(store) & self.LEGACY
+        task = store.get_task("t1")
+        assert task is not None and task.target_repo == "owner/repo"
+
+    def test_new_db_has_no_legacy_columns(self, store: SQLiteStore) -> None:
+        assert not self._columns(store) & self.LEGACY
+        task_id = store.insert_task(_make_task())
+        assert store.get_task(task_id) is not None
 
 
 class TestProviderInstanceIsolation:
