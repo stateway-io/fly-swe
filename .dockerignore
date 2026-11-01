@@ -1,5 +1,5 @@
 # The Dockerfile COPYs only what it needs (pyproject.toml, uv.lock, src/,
-# prompts/, config.yaml.example, Procfile). Everything else is excluded so the
+# prompts/, README.md, LICENSE, config.yaml.example, Procfile). Everything else is excluded so the
 # build context sent to Fly's remote builder stays small.
 
 .git
@@ -10,11 +10,11 @@ virtualenv
 
 # Docs & specs — never needed at build time (root-anchored so prompts/*.md stay).
 # README.md is the exception: pyproject.toml declares it as the package
-# `readme`, so uv sync needs it at build time (see Dockerfile).
+# `readme`, so uv sync needs it at build time (see Dockerfile). LICENSE is
+# not excluded either: it is the package's `license-files`.
 /docs
 /*.md
 !/README.md
-/LICENSE
 
 # Tests
 /tests
