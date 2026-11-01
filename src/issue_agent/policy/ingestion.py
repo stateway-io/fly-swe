@@ -21,9 +21,7 @@ if TYPE_CHECKING:
 
 def ingestion_filter(trigger: TriggerEvent, settings: Settings) -> str | None:
     """The reason to drop ``trigger`` at the webhook, or None to keep it."""
-    if trigger.kind is TriggerKind.LABEL_ADDED and not labels_can_trigger(
-        trigger.issue.labels
-    ):
+    if trigger.kind is TriggerKind.LABEL_ADDED and not labels_can_trigger(trigger.issue.labels):
         return "no_trigger_label"
     if trigger.trigger_comment is not None:
         return _filter_comment(trigger, settings)
@@ -50,7 +48,7 @@ def _filter_comment(trigger: TriggerEvent, settings: Settings) -> str | None:
         issue_author_login=trigger.issue.author.login,
         settings=settings,
     ):
-        # Silent drop (R2.3, D5): no task, no GitHub comment, no cost. An
+        # Silent drop: no task, no GitHub comment, no cost. An
         # unknown association can't be judged here without a network call;
         # the worker re-checks it before spending anything (PRD §3.1).
         return "comment_author_not_allowed"

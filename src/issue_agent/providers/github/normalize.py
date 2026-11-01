@@ -31,9 +31,7 @@ class BotIdentity:
         return _derive_bot_login(self.app_name, self.app_bot_login)
 
 
-def bot_identity_from_settings(
-    config: GitHubProviderSettings, agent_name: str
-) -> BotIdentity:
+def bot_identity_from_settings(config: GitHubProviderSettings, agent_name: str) -> BotIdentity:
     return BotIdentity(
         app_id=config.app_id,
         app_name=agent_name,
@@ -105,7 +103,7 @@ def comment_dict_is_own_app(
 
     Other bots are intentionally *not* matched — they may legitimately drive a
     conversation with the agent. Shared by the webhook parser (raw payload)
-    and the run-context assembly (normalized comment dicts, R3.3).
+    and the run-context assembly (normalized comment dicts).
     """
     app_id_int = _normalize_app_id(app_id)
     performed_id = _normalize_app_id(performed_via_github_app_id)

@@ -55,8 +55,12 @@ class _FakeModel:
 class TestPolicyNever:
     def test_returns_empty(self, repo: Path) -> None:
         text, kind, cost = summarize_block(
-            policy="never", block_error="task_timeout", ws_path=repo,
-            messages=_MESSAGES, model=_FakeModel(), max_chars=4000,
+            policy="never",
+            block_error="task_timeout",
+            ws_path=repo,
+            messages=_MESSAGES,
+            model=_FakeModel(),
+            max_chars=4000,
         )
         assert (text, kind, cost) == ("", "", 0.0)
 
@@ -64,8 +68,12 @@ class TestPolicyNever:
 class TestMechanical:
     def test_lists_touched_files_and_recent_actions(self, repo: Path) -> None:
         text, kind, cost = summarize_block(
-            policy="mechanical", block_error="task_timeout", ws_path=repo,
-            messages=_MESSAGES, model=_FakeModel(), max_chars=4000,
+            policy="mechanical",
+            block_error="task_timeout",
+            ws_path=repo,
+            messages=_MESSAGES,
+            model=_FakeModel(),
+            max_chars=4000,
         )
         assert kind == "mechanical"
         assert cost == 0.0
@@ -76,15 +84,23 @@ class TestMechanical:
     def test_does_not_call_the_model(self, repo: Path) -> None:
         model = _FakeModel()
         summarize_block(
-            policy="mechanical", block_error="task_timeout", ws_path=repo,
-            messages=_MESSAGES, model=model, max_chars=4000,
+            policy="mechanical",
+            block_error="task_timeout",
+            ws_path=repo,
+            messages=_MESSAGES,
+            model=model,
+            max_chars=4000,
         )
         assert model.calls == []
 
     def test_truncated_to_max_chars(self, repo: Path) -> None:
         text, _, _ = summarize_block(
-            policy="mechanical", block_error="task_timeout", ws_path=repo,
-            messages=_MESSAGES, model=_FakeModel(), max_chars=40,
+            policy="mechanical",
+            block_error="task_timeout",
+            ws_path=repo,
+            messages=_MESSAGES,
+            model=_FakeModel(),
+            max_chars=40,
         )
         assert len(text) <= 40 + 40  # body + truncation marker
         assert "truncat" in text.lower()
@@ -94,21 +110,27 @@ class TestLlm:
     def test_llm_policy_calls_model_and_counts_cost(self, repo: Path) -> None:
         model = _FakeModel(text="what remains: wire the helper", cost=0.02)
         text, kind, cost = summarize_block(
-            policy="llm", block_error="task_timeout", ws_path=repo,
-            messages=_MESSAGES, model=model, max_chars=4000,
+            policy="llm",
+            block_error="task_timeout",
+            ws_path=repo,
+            messages=_MESSAGES,
+            model=model,
+            max_chars=4000,
         )
         assert kind == "llm"
         assert cost == 0.02
         assert "wire the helper" in text
         assert len(model.calls) == 1
 
-    def test_llm_unless_budget_degrades_to_mechanical_on_cost_block(
-        self, repo: Path
-    ) -> None:
+    def test_llm_unless_budget_degrades_to_mechanical_on_cost_block(self, repo: Path) -> None:
         model = _FakeModel()
         text, kind, cost = summarize_block(
-            policy="llm_unless_budget", block_error="budget_exceeded", ws_path=repo,
-            messages=_MESSAGES, model=model, max_chars=4000,
+            policy="llm_unless_budget",
+            block_error="budget_exceeded",
+            ws_path=repo,
+            messages=_MESSAGES,
+            model=model,
+            max_chars=4000,
         )
         assert kind == "mechanical"
         assert cost == 0.0
@@ -118,8 +140,12 @@ class TestLlm:
     def test_llm_unless_budget_uses_llm_on_timeout(self, repo: Path) -> None:
         model = _FakeModel()
         _, kind, _ = summarize_block(
-            policy="llm_unless_budget", block_error="task_timeout", ws_path=repo,
-            messages=_MESSAGES, model=model, max_chars=4000,
+            policy="llm_unless_budget",
+            block_error="task_timeout",
+            ws_path=repo,
+            messages=_MESSAGES,
+            model=model,
+            max_chars=4000,
         )
         assert kind == "llm"
         assert len(model.calls) == 1
@@ -127,8 +153,12 @@ class TestLlm:
     def test_llm_failure_degrades_to_mechanical(self, repo: Path) -> None:
         model = _FakeModel(raises=RuntimeError("cost for model could not be determined"))
         text, kind, cost = summarize_block(
-            policy="llm", block_error="task_timeout", ws_path=repo,
-            messages=_MESSAGES, model=model, max_chars=4000,
+            policy="llm",
+            block_error="task_timeout",
+            ws_path=repo,
+            messages=_MESSAGES,
+            model=model,
+            max_chars=4000,
         )
         assert kind == "mechanical"
         assert cost == 0.0

@@ -53,7 +53,11 @@ def _fail(
         level="error",
     )
     observe_task_result(
-        "failed", duration, 0.0, 0, task.target_repo,
+        "failed",
+        duration,
+        0.0,
+        0,
+        task.target_repo,
         provider_instance=task.provider_instance,
     )
 
@@ -70,9 +74,7 @@ def run_diagnosis(
     read, let alone published (see diagnose/verdict.py, diagnose/builder.py).
     """
     _start = time.monotonic()
-    task_log = bind_context(
-        logger, task_id=task.id, issue_number=task.issue_number, repo=task.repo
-    )
+    task_log = bind_context(logger, task_id=task.id, issue_number=task.issue_number, repo=task.repo)
 
     route = settings.route_for(task.provider_instance, task.repo)
     if route is None:
@@ -82,8 +84,12 @@ def run_diagnosis(
         )
         task_log.error("diagnose_route_not_found", error=error)
         _fail(
-            store, task, settings, TaskStatus.FAILED_RECOVERABLE,
-            error, time.monotonic() - _start,
+            store,
+            task,
+            settings,
+            TaskStatus.FAILED_RECOVERABLE,
+            error,
+            time.monotonic() - _start,
         )
         return
 
@@ -94,8 +100,12 @@ def run_diagnosis(
     except Exception as exc:
         task_log.exception("diagnose_clone_failed")
         _fail(
-            store, task, settings, TaskStatus.FAILED_RECOVERABLE,
-            f"clone_failed: {exc}", time.monotonic() - _start,
+            store,
+            task,
+            settings,
+            TaskStatus.FAILED_RECOVERABLE,
+            f"clone_failed: {exc}",
+            time.monotonic() - _start,
         )
         return
 
@@ -103,11 +113,12 @@ def run_diagnosis(
         from issue_agent.runner.executor import MiniSWERunner, _fetch_comment_history
 
         result = MiniSWERunner().run(
-            str(ws_path), task, settings, route,
+            str(ws_path),
+            task,
+            settings,
+            route,
             system_template=load_diagnose_system_prompt(),
-            comment_history=_fetch_comment_history(
-                task, settings, plugin.client(task.repo)
-            ),
+            comment_history=_fetch_comment_history(task, settings, plugin.client(task.repo)),
             terms=plugin.capabilities.terms,
         )
 
@@ -162,7 +173,11 @@ def run_diagnosis(
             today = datetime.now(UTC).strftime("%Y-%m-%d")
             store.add_daily_budget(today, task.target_repo, result.cost_usd)
         observe_task_result(
-            "succeeded", duration, result.cost_usd, result.iterations, task.target_repo,
+            "succeeded",
+            duration,
+            result.cost_usd,
+            result.iterations,
+            task.target_repo,
             provider_instance=task.provider_instance,
         )
         task_log.info(

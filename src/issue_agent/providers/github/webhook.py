@@ -54,9 +54,7 @@ class GitHubWebhookAdapter(WebhookAdapter):
             # A merged PR also fires pull_request/push/check events when the
             # App subscribes to more than issues + issue_comment. Those are
             # valid, signed deliveries we simply don't act on.
-            return ParsedDelivery(
-                event, "unsupported_event", Ignored("unsupported_event", None)
-            )
+            return ParsedDelivery(event, "unsupported_event", Ignored("unsupported_event", None))
         try:
             payload = json.loads(body)
         except json.JSONDecodeError:
@@ -192,9 +190,9 @@ def normalize_payload(
             author=author_from_github(
                 comment.get("user"),
                 association=comment.get("author_association"),
-                performed_via_github_app_id=(
-                    comment.get("performed_via_github_app") or {}
-                ).get("id"),
+                performed_via_github_app_id=(comment.get("performed_via_github_app") or {}).get(
+                    "id"
+                ),
                 identity=identity,
             ),
             body=comment.get("body", "") or "",

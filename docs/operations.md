@@ -200,7 +200,7 @@ There is a salvage path — the executor detects commits the agent made on
 top of the clone point and folds them back into the tree (logged as
 `agent_self_committed`) — but it is a safety net, not the design.
 
-The agent's sandbox has **no push credential and no `gh`** (finding A2), so
+The agent's sandbox has **no push credential and no `gh`**, so
 it can never actually push or open a PR; the only failure mode is a local
 commit.
 
@@ -338,6 +338,42 @@ run starts from scratch (`llm_error` is still re-queued).
 The LLM request timeout (`llm.request_timeout_seconds`, default 120) makes a
 dead connection fail fast into those retry layers instead of consuming
 `budgets.task_timeout_seconds`.
+
+### How task and command timeouts are counted
+
+`budgets.task_timeout_seconds` limits **each agent run**, not the whole task's
+wall-clock time:
+
+- The clock starts when the agent is built (`DefaultAgent.__init__` in
+  mini-swe-agent, called from `runner/agent_factory.py::build_agent`). The
+  setup that comes before it is **not counted**: the clone, toolchain
+  provisioning (bounded separately by `toolchains.install_timeout_seconds`)
+  and the checkout/merge of the work branch. On a Node.js repo with `npm ci`,
+  that setup alone can take several minutes.
+- The harness wrap-up after the agent stops (WIP push, post-push test
+  verification, opening the PR) is not counted either.
+- The limit is checked **between steps**. A command that is already running
+  is never interrupted by the task limit, so a run can end up to one
+  `command_timeout_seconds` past it.
+- Each LLM call is capped at the time left (`CostAwareLitellmModel` in
+  `runner/litellm_cost.py`). That clock starts at the first LLM call, so it
+  is a few seconds behind the agent's own clock.
+- When the post-push test verification fails and the in-task retry fires
+  (`run_task` loop in `runner/executor.py`), the new pass builds a new agent
+  with **another full `task_timeout_seconds`**.
+
+`budgets.command_timeout_seconds` applies to each shell command on its own:
+the whole process group is killed when the limit is reached. It also bounds
+the harness's post-push test command. It is not capped by the time left of
+the task.
+
+In practice, a task's wall-clock time is about **setup +
+`task_timeout_seconds` × (1 + test retries) + wrap-up**. For example, one
+task with `task_timeout_seconds: 1800` ran for ~35 min: ~5 min of clone and
+`npm ci`, then exactly 1800 s of agent run. When you size the limits, keep
+in mind that a single command can use up to `command_timeout_seconds` of the
+agent's time. Moving to a single per-task deadline is a known open
+improvement.
 
 ### Prompt vocabulary per provider
 
@@ -664,7 +700,7 @@ Both `/healthz` and `/readyz` carry a `version` field — the installed
 fastest way to confirm a given release actually reached production:
 
 ```bash
-curl -s https://<app-name>.fly.dev/healthz | jq .version   # e.g. "0.2.1"
+curl -s https://<app-name>.fly.dev/healthz | jq .version   # e.g. "1.1.15"
 ```
 
 Compare it against the tag of the release you just published
@@ -797,20 +833,19 @@ with no app to target.
 |---|---|---|
 | `GET /healthz` | 200 | Liveness — always 200 while the process is up |
 | `GET /readyz` | 200 / 503 | SQLite reachable, required settings present, each provider instance's own health check (GitHub: private key looks like a PEM), model function-calling support (advisory) |
-| `GET /metrics` | 200 | Prometheus metrics in OpenMetrics format |
 
 **`/healthz` response** (`service` is the slugified `agent.name`; `version` is
 the installed `fly-swe` distribution version, resolved once at startup via
 `importlib.metadata`):
 ```json
-{"status": "healthy", "service": "issue-agent", "version": "0.2.1"}
+{"status": "healthy", "service": "issue-agent", "version": "1.1.15"}
 ```
 
 **`/readyz` response (healthy):**
 ```json
 {
   "status": "ready",
-  "version": "0.2.1",
+  "version": "1.1.15",
   "checks": {
     "sqlite": "ok",
     "settings": "ok",
@@ -825,7 +860,7 @@ the installed `fly-swe` distribution version, resolved once at startup via
 ```json
 {
   "status": "not_ready",
-  "version": "0.2.1",
+  "version": "1.1.15",
   "checks": {
     "sqlite": "ok",
     "settings": "missing: providers.github.app_id, REPO_ROUTES (config.yaml: repos), LLM_API_KEY",
@@ -868,7 +903,10 @@ issue_agent_issue_work_attempts{provider_instance="<id>", repo="owner/name"}   (
 `owner/name` can exist on two forges. Queries that only `sum by (repo)` keep
 working; add `provider_instance` to tell the instances apart.
 
-Access via `fly proxy` (since metrics port is internal):
+Metrics are **not** served on the public port (8080): `GET /metrics` there
+returns 404. They are exposed only by the internal Prometheus exporter on
+`metrics.port` (default 9090), which `fly.toml` does not publish. Access it via
+`fly proxy`:
 
 ```bash
 fly proxy 9090:9090 --app <app-name>

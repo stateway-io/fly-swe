@@ -16,19 +16,21 @@ from issue_agent.runner.llm_errors import (
     parse_provider_error,
 )
 
-_BUDGET_BODY = json.dumps({
-    "error": {
-        "message": (
-            "Budget limit exceeded (monthly limit). Contact your org admin. "
-            "$10.02 of $10.00 used; resets 2026-11-01T00:00:00.000Z."
-        ),
-        "code": 403,
-        "metadata": {
-            "limit_source": "openrouter_guardrail_budget",
-            "remedy_hint": "Wait for the budget to reset or ask your org admin to raise it.",
-        },
+_BUDGET_BODY = json.dumps(
+    {
+        "error": {
+            "message": (
+                "Budget limit exceeded (monthly limit). Contact your org admin. "
+                "$10.02 of $10.00 used; resets 2026-11-01T00:00:00.000Z."
+            ),
+            "code": 403,
+            "metadata": {
+                "limit_source": "openrouter_guardrail_budget",
+                "remedy_hint": "Wait for the budget to reset or ask your org admin to raise it.",
+            },
+        }
     }
-})
+)
 
 
 def _api_error(message: str, status_code: int = 500) -> litellm.APIError:
@@ -92,7 +94,9 @@ class TestDescribeLlmError:
 
     def test_wrapped_budget_error_reads_the_same(self):
         error = budget_error(budget_exc())
-        assert describe_llm_error(ProviderBudgetExceededError(error)) == describe_llm_error(budget_exc())
+        assert describe_llm_error(ProviderBudgetExceededError(error)) == describe_llm_error(
+            budget_exc()
+        )
 
     def test_plain_error_keeps_its_class_without_litellm_prefixes(self):
         text = describe_llm_error(_api_error("OpenrouterException - [SSL: UNEXPECTED_EOF]"))

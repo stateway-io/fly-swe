@@ -32,9 +32,7 @@ def _extract_issue_info(task: Task) -> dict[str, str]:
     }
 
 
-def build_diagnosis_comment(
-    verdict: DiagnosisVerdict | None, task: Task, agent_name: str
-) -> str:
+def build_diagnosis_comment(verdict: DiagnosisVerdict | None, task: Task, agent_name: str) -> str:
     """Build the (only) public output of a DIAGNOSE run.
 
     The body is assembled entirely from the two enum fields on `verdict`

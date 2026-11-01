@@ -236,9 +236,7 @@ class GitTransport(ABC):
         that lives in ``from_repo`` (``#N``, ``!N``, ``owner/repo#N``)."""
 
     @abstractmethod
-    def closing_reference(
-        self, issue_repo: str, number: int, target_repo: str
-    ) -> str | None:
+    def closing_reference(self, issue_repo: str, number: int, target_repo: str) -> str | None:
         """The PR-body line that closes the issue on merge (``Closes #N``),
         or None when the forge can't be trusted to."""
 

@@ -19,7 +19,7 @@ class TriggerKind(StrEnum):
     ISSUE_OPENED = "issue_opened"
     LABEL_ADDED = "label_added"
     COMMENT_COMMAND = "comment_command"
-    # R7.1/R7.2: issue lifecycle events. The handler acts on these
+    # Issue lifecycle events. The handler acts on these
     # directly — closing or touching `issue_work` — and never enqueues a Task,
     # so no `tasks` row ever carries these values.
     ISSUE_CLOSED = "issue_closed"
@@ -28,9 +28,7 @@ class TriggerKind(StrEnum):
 
 # "unknown": the forge's webhook doesn't say. The comment filter then can't
 # decide by association at ingestion and defers to the worker (§3.1).
-Association = Literal[
-    "owner", "member", "collaborator", "contributor", "none", "bot", "unknown"
-]
+Association = Literal["owner", "member", "collaborator", "contributor", "none", "bot", "unknown"]
 
 
 class _Frozen(BaseModel):

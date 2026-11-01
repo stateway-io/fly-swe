@@ -52,6 +52,7 @@ def _pr_url(number: int, host: str) -> str:
     """The ``html_url`` GitHub reports for a PR on ``host``."""
     return f"{host}/{TARGET_REPO}/pull/{number}"
 
+
 BRANCH_DOCS = "alpha\nbeta-branch\ngamma\n"
 BASE_ADVANCED_DOCS = "alpha\nbeta-main\ngamma\n"  # conflicts with BRANCH_DOCS
 RESOLVED_DOCS = "alpha\nbeta-resolved\ngamma\n"
@@ -67,9 +68,7 @@ class SettingsNoEnv(Settings):
 
 
 def _git(cwd: Path, *args: str, check: bool = True) -> str:
-    result = subprocess.run(
-        ["git", *args], cwd=cwd, capture_output=True, text=True, check=check
-    )
+    result = subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, check=check)
     return result.stdout.strip()
 
 
@@ -95,9 +94,17 @@ class _Runner:
         self.resume_summary: str | None = None
 
     def run(
-        self, workspace_path: str, task: Task, settings: Settings, route=None,
-        resume_summary=None, on_progress=None, toolchain_env=None, branch_status=None,
-        comment_history=None, terms=None,
+        self,
+        workspace_path: str,
+        task: Task,
+        settings: Settings,
+        route=None,
+        resume_summary=None,
+        on_progress=None,
+        toolchain_env=None,
+        branch_status=None,
+        comment_history=None,
+        terms=None,
     ) -> AgentResult:
         self.branch_status = branch_status
         self.terms = terms
@@ -116,18 +123,21 @@ class Outcome:
     git_calls: list[tuple[tuple[str, ...], dict[str, str]]]
 
     def issue_comments(self) -> list[str]:
-        return [c.args[2] for c in self.create_comment.call_args_list
-                if c.args[:2] == (ISSUES_REPO, 42)]
+        return [
+            c.args[2] for c in self.create_comment.call_args_list if c.args[:2] == (ISSUES_REPO, 42)
+        ]
 
     def pr_comments(self, pr_number: int = PR_NUMBER) -> list[str]:
-        return [c.args[2] for c in self.create_comment.call_args_list
-                if c.args[:2] == (TARGET_REPO, pr_number)]
+        return [
+            c.args[2]
+            for c in self.create_comment.call_args_list
+            if c.args[:2] == (TARGET_REPO, pr_number)
+        ]
 
     def authenticated_git(self, command: str) -> list[dict[str, str]]:
         """The env of every ``git <command>`` the run authenticated."""
         return [
-            env for args, env in self.git_calls
-            if args[0] == command and "GIT_CONFIG_KEY_0" in env
+            env for args, env in self.git_calls if args[0] == command and "GIT_CONFIG_KEY_0" in env
         ]
 
 
@@ -195,7 +205,8 @@ class FollowUpEnv:
     def remote_contains(self, ancestor: str, ref: str) -> bool:
         result = subprocess.run(
             ["git", "merge-base", "--is-ancestor", ancestor, ref],
-            cwd=self.remote, capture_output=True,
+            cwd=self.remote,
+            capture_output=True,
         )
         return result.returncode == 0
 
@@ -205,8 +216,12 @@ class FollowUpEnv:
         self.store.open_issue_work("github", ISSUES_REPO, 42, TARGET_REPO, "main", BRANCH)
         self.store.update_issue_work(
             "github",
-            ISSUES_REPO, 42, state="closed", closed_reason="pr_opened",
-            pr_number=PR_NUMBER, last_summary=EARLIER_SUMMARY,
+            ISSUES_REPO,
+            42,
+            state="closed",
+            closed_reason="pr_opened",
+            pr_number=PR_NUMBER,
+            last_summary=EARLIER_SUMMARY,
             last_summary_kind="submission",
         )
 
@@ -257,10 +272,12 @@ class FollowUpEnv:
 
         existing = (
             SimpleNamespace(
-                number=PR_NUMBER, html_url=_pr_url(PR_NUMBER, self.settings.providers["github"].host),
+                number=PR_NUMBER,
+                html_url=_pr_url(PR_NUMBER, self.settings.providers["github"].host),
                 head=SimpleNamespace(ref=BRANCH, sha=""),
             )
-            if pr_exists else None
+            if pr_exists
+            else None
         )
 
         def pull_request(repo: str, number: int):
@@ -285,7 +302,9 @@ class FollowUpEnv:
         plugin = GitHubProviderPlugin(
             "github",
             webhook_secret="s",
-            identity=bot_identity_from_settings(self.settings.providers["github"], self.settings.agent_name),
+            identity=bot_identity_from_settings(
+                self.settings.providers["github"], self.settings.agent_name
+            ),
             host=self.settings.providers["github"].host,
             label_agent_generated=self.settings.pr_label_agent_generated,
             auth_factory=lambda: auth,
@@ -296,9 +315,11 @@ class FollowUpEnv:
             patch("issue_agent.runner.executor.Workspace") as mock_ws_cls,
             patch("issue_agent.runner.executor._resolve_agent_runner", return_value=runner),
             patch.object(
-                GitHubClient, "create_pr",
+                GitHubClient,
+                "create_pr",
                 return_value=SimpleNamespace(
-                    number=new_pr_number, html_url=_pr_url(new_pr_number, self.settings.providers["github"].host),
+                    number=new_pr_number,
+                    html_url=_pr_url(new_pr_number, self.settings.providers["github"].host),
                     head=SimpleNamespace(ref=BRANCH),
                 ),
             ) as create_pr,
@@ -313,16 +334,12 @@ class FollowUpEnv:
             mock_ws_cls.return_value.clone.return_value = ws_path
             run_task(self.store, fetched, self.settings, plugin)
 
-        return Outcome(
-            task.id, runner, create_pr, create_comment, get_pull_request, git_calls
-        )
+        return Outcome(task.id, runner, create_pr, create_comment, get_pull_request, git_calls)
 
     def task_status(self, outcome: Outcome) -> Task:
         task = self.store.get_task(outcome.task_id)
         assert task is not None
         return task
-
-
 
 
 @pytest.fixture
@@ -371,7 +388,11 @@ class TestCleanBaseMerge:
         assert any("updated the PR" in c for c in out.issue_comments())
 
         work = env.work()
-        assert (work.state, work.closed_reason, work.pr_number) == ("closed", "pr_opened", PR_NUMBER)
+        assert (work.state, work.closed_reason, work.pr_number) == (
+            "closed",
+            "pr_opened",
+            PR_NUMBER,
+        )
         # A human follow-up is not a block retry.
         assert work.attempts == 0
 
@@ -415,7 +436,11 @@ class TestConflictingBaseMerge:
 
         # Back to pr_opened, so the next comment reopens the same branch.
         work = env.work()
-        assert (work.state, work.closed_reason, work.pr_number) == ("closed", "pr_opened", PR_NUMBER)
+        assert (work.state, work.closed_reason, work.pr_number) == (
+            "closed",
+            "pr_opened",
+            PR_NUMBER,
+        )
 
     def test_merge_that_cannot_start_is_reported_and_the_edit_is_still_pushed(
         self, env: FollowUpEnv
@@ -479,9 +504,7 @@ class TestPrNoLongerOpen:
         assert not any("updated the PR" in c for c in out.issue_comments())
         assert env.work().pr_number == 305
 
-    def test_work_branch_deleted_from_remote_restarts_from_the_base(
-        self, env: FollowUpEnv
-    ) -> None:
+    def test_work_branch_deleted_from_remote_restarts_from_the_base(self, env: FollowUpEnv) -> None:
         env.seed_pr_opened_work()  # row says pr_opened, but the branch is gone
         runner = _Runner({"src/extra.md": "follow-up edit\n"})
 
@@ -524,13 +547,9 @@ class TestStillConflictingAfterPush:
         assert not any("still reports conflicts" in c for c in out.pr_comments())
         assert not any("still reports conflicts" in c for c in out.issue_comments())
 
-    def test_pull_request_lookup_failure_does_not_fail_the_run(
-        self, env: FollowUpEnv
-    ) -> None:
+    def test_pull_request_lookup_failure_does_not_fail_the_run(self, env: FollowUpEnv) -> None:
         env.seed_open_pr()
-        out = env.run(
-            _Runner({"src/extra.md": "follow-up edit\n"}), pull_request_raises=True
-        )
+        out = env.run(_Runner({"src/extra.md": "follow-up edit\n"}), pull_request_raises=True)
 
         assert env.task_status(out).status is TaskStatus.SUCCEEDED
         assert out.get_pull_request.call_count == 1
@@ -571,9 +590,7 @@ class TestGitHubEnterpriseHost:
         read_with = {self._token(e) for e in out.authenticated_git("ls-remote")}
         assert pushed_with not in read_with
 
-    def test_issue_comment_links_the_pr_on_the_configured_host(
-        self, env: FollowUpEnv
-    ) -> None:
+    def test_issue_comment_links_the_pr_on_the_configured_host(self, env: FollowUpEnv) -> None:
         env.settings = with_github(env.settings, host=self.HOST)
         env.seed_open_pr()
 

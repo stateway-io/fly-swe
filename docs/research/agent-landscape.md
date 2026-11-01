@@ -4,6 +4,12 @@
 > evaluation and landscape survey as of the date below; it is not kept in
 > sync with the codebase. For current, authoritative behaviour see
 > [`docs/operations.md`](../operations.md) and the source under `src/`.
+>
+> **Since this snapshot:** the `CodingAgentDelegator` protocol
+> (`runner/delegators/`) was removed in v1.1.10 without an implementation;
+> `webhook/validation.py` moved into `providers/github/webhook.py`; and the
+> §7.3 gaps were closed — the trajectory is persisted per task and no write
+> token reaches the agent's process (see [`SECURITY.md`](../../SECURITY.md)).
 
 **Version:** 1.0
 **Date:** 2026-09-03
@@ -312,7 +318,7 @@ This is a recorded decision ("scoped LocalWorkspace, not Docker sandbox", with D
 
 ### 6.4 Operational notes already paid for in production
 
-Our internal deploy notes record the specific pitfalls of this setup, and they remain valid: the Docker image is a snapshot of the repo at deploy time; **Fly secrets don't sync with `.env`**; a 503 on `/readyz` makes the proxy block external traffic; the `LLM_MODEL` prefix must match the key's provider. Any sandbox change runs into these same points.
+Known deploy pitfalls of this setup, still valid: the Docker image is a snapshot of the repo at deploy time; **Fly secrets don't sync with `.env`**; a 503 on `/readyz` makes the proxy block external traffic; the `LLM_MODEL` prefix must match the key's provider. Any sandbox change runs into these same points.
 
 ---
 

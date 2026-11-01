@@ -70,7 +70,7 @@ class AgentResult:
     # "summarize what you changed and why" instruction in prompts/system.md
     # actually feeds something instead of being silently discarded.
     submission: str | None = None
-    # R5: on a block outcome (task_timeout / budget_exceeded / cost_unavailable)
+    # On a block outcome (task_timeout / budget_exceeded / cost_unavailable)
     # the runner summarizes the interrupted attempt here — mechanical (zero
     # cost) or LLM per `resume.summary_on_block`. The executor persists it on
     # `issue_work` and injects it into the next run. None on success or when
@@ -181,12 +181,10 @@ def _is_transient_llm_error(exc: BaseException) -> bool:
     return isinstance(exc, transient)
 
 
-def _fetch_comment_history(
-    task: Task, settings: Settings, forge: ForgeClient
-) -> list[Comment]:
-    """The issue's recent comments, normalized, for the run context (R3.2).
+def _fetch_comment_history(task: Task, settings: Settings, forge: ForgeClient) -> list[Comment]:
+    """The issue's recent comments, normalized, for the run context.
 
-    Best-effort (R3.6): any failure — bad credentials, the forge down —
+    Best-effort: any failure — bad credentials, the forge down —
     returns an empty list and the run still gets the triggering comment,
     which rode in on the webhook payload. A freshly ``opened`` issue has no
     thread, so that trigger is skipped entirely.
@@ -196,9 +194,7 @@ def _fetch_comment_history(
     if settings.comments_context_max_comments <= 0:
         return []
     try:
-        return forge.list_comments(
-            task.issue_number, settings.comments_context_max_comments
-        )
+        return forge.list_comments(task.issue_number, settings.comments_context_max_comments)
     except Exception:
         logger.warning(
             "comment_history_fetch_failed",
@@ -209,7 +205,7 @@ def _fetch_comment_history(
 
 
 # Outcomes where the agent did real, paid work that a resume can build on —
-# the ones that get a WIP push and a block summary (R4.3, R5).
+# the ones that get a WIP push and a block summary.
 _BLOCK_ERRORS = {
     "task_timeout",
     "budget_exceeded",
@@ -224,14 +220,17 @@ _BLOCK_ERRORS = {
 # of starting over. `llm_error` is a transient provider failure and is also
 # re-queued automatically; the others wait for a human comment.
 _SALVAGE_ERRORS = _BLOCK_ERRORS | {
-    "llm_error", "agent_crashed", "format_error", "provider_budget_exceeded",
+    "llm_error",
+    "agent_crashed",
+    "format_error",
+    "provider_budget_exceeded",
 }
 
 
 def _maybe_block_summary(
     agent, settings: Settings, workspace_path: str, error: str | None
 ) -> tuple[str | None, str, float]:
-    """Summarize the interrupted attempt for the next run (R5). Best-effort:
+    """Summarize the interrupted attempt for the next run. Best-effort:
     any failure leaves the block without a summary rather than crashing the
     task — the WIP on the branch is the real safety net. Returns
     ``(text_or_None, kind, extra_cost_usd)``."""
@@ -248,7 +247,8 @@ def _maybe_block_summary(
             # The model that just failed is the last thing to ask for a
             # handoff note: use the zero-cost mechanical one.
             policy=(
-                "mechanical" if error in ("llm_error", "provider_budget_exceeded")
+                "mechanical"
+                if error in ("llm_error", "provider_budget_exceeded")
                 else settings.resume_summary_on_block
             ),
             block_error=error,
@@ -300,8 +300,13 @@ class MiniSWERunner:
 
         try:
             agent = build_agent(
-                task, Path(workspace_path), settings, route,
-                terms=terms, model=self._model, on_progress=on_progress,
+                task,
+                Path(workspace_path),
+                settings,
+                route,
+                terms=terms,
+                model=self._model,
+                on_progress=on_progress,
                 system_template=system_template,
                 toolchain_env=toolchain_env,
             )
@@ -314,12 +319,12 @@ class MiniSWERunner:
         user_message = build_user_message(task, terms)
 
         # The discussion thread reaches the model as a Jinja *value* through
-        # the static <comments> block (R3, D8) — never concatenated into
+        # the static <comments> block — never concatenated into
         # template text. The caller fetched it from the forge.
         agent.extra_template_vars["comments"] = build_comments_block(
             task, comment_history or [], settings
         )
-        # The prior attempt's handoff note, same value-only path (R5.6). Set
+        # The prior attempt's handoff note, same value-only path. Set
         # only on a resume; agent_factory seeds it "" for the first attempt.
         if resume_summary:
             agent.extra_template_vars["resume_summary"] = resume_summary
@@ -336,7 +341,7 @@ class MiniSWERunner:
             finally:
                 _reap_agent_processes(agent, task)
         except CostUnavailableError:
-            # Strict cost tracking refused to proceed unmetered (R5.5.3) —
+            # Strict cost tracking refused to proceed unmetered —
             # a terminal, alert-worthy stop, not a generic crash to retry.
             exit_status, submission = "cost_unavailable", None
         except ProviderBudgetExceededError as exc:
@@ -479,9 +484,7 @@ def _prepare_toolchain(
     return toolchain_env
 
 
-def _cap_node_heap(
-    toolchain_env: dict[str, str], settings: Settings, task_log
-) -> dict[str, str]:
+def _cap_node_heap(toolchain_env: dict[str, str], settings: Settings, task_log) -> dict[str, str]:
     """Put the capped ``node`` shim first on the toolchain PATH (see ``guards``).
 
     The cap is a share of this VM's memory (``resolve_node_heap_mb``). Best
@@ -630,9 +633,7 @@ def _commits_ahead_of_base(ws_path: Path, base_branch: str) -> int:
     decide whether to push, and guessing "ahead" would push a branch we
     cannot reason about."""
     try:
-        ahead = _run_git(
-            ws_path, "rev-list", "--count", f"origin/{base_branch}..HEAD"
-        ).strip()
+        ahead = _run_git(ws_path, "rev-list", "--count", f"origin/{base_branch}..HEAD").strip()
     except Exception:
         return 0
     try:
@@ -650,9 +651,7 @@ def _changed_files_vs_base(ws_path: Path, base_branch: str) -> list[tuple[str, s
     was aborted — a two-dot diff would then also list the base's own newer
     commits as if the branch had reverted them."""
     try:
-        output = _run_git(
-            ws_path, "diff", "--name-status", f"origin/{base_branch}...HEAD"
-        )
+        output = _run_git(ws_path, "diff", "--name-status", f"origin/{base_branch}...HEAD")
     except Exception:
         return []
 
@@ -790,13 +789,19 @@ def _finish_base_merge(
 
     _run_git(ws_path, "add", "-A", "--", *paths)
     tree = _run_git(ws_path, "write-tree")
-    message = (
-        f"Merge origin/{base_branch} into {branch}\n\n"
-        "Conflicts resolved:\n" + "\n".join(f"- {path}" for path in paths)
+    message = f"Merge origin/{base_branch} into {branch}\n\nConflicts resolved:\n" + "\n".join(
+        f"- {path}" for path in paths
     )
     merge_sha = _run_git(
-        ws_path, "commit-tree", tree, "-p", start_sha, "-p", f"origin/{base_branch}",
-        "-m", message,
+        ws_path,
+        "commit-tree",
+        tree,
+        "-p",
+        start_sha,
+        "-p",
+        f"origin/{base_branch}",
+        "-m",
+        message,
     )
     _run_git(ws_path, "update-ref", f"refs/heads/{branch}", merge_sha)
     _run_git(ws_path, "symbolic-ref", "HEAD", f"refs/heads/{branch}")
@@ -857,7 +862,9 @@ _REPORTED_CHECK_STATUSES = ("passed", "failed", "not_run")
 _MAX_REPORTED_CHECKS = 10
 _MAX_CHECK_COMMAND_CHARS = 200
 _MAX_CHECK_REASON_CHARS = 300
-_CHECK_LINE_RE = re.compile(r"^\s*[-*]?\s*(?P<status>[a-z_ -]+?)\s*:\s*(?P<rest>.+)$", re.IGNORECASE)
+_CHECK_LINE_RE = re.compile(
+    r"^\s*[-*]?\s*(?P<status>[a-z_ -]+?)\s*:\s*(?P<rest>.+)$", re.IGNORECASE
+)
 # Only an em/en dash separates the reason: an ASCII ` -- ` is part of real
 # commands (`npm test -- --forceExit`).
 _CHECK_REASON_SEPARATOR_RE = re.compile(r"\s+[—–]\s+")
@@ -928,7 +935,7 @@ def _consume_checks_sentinel(ws_path: Path) -> list[ReportedCheck]:
 def _resolve_test_command(project: ProjectProfile, sentinel_command: str | None) -> str | None:
     """Decide which command (if any) verifies the agent's changes.
 
-    Priority order (A10 / R5.6.5): (1) ``project.test_command``, if
+    Priority order: (1) ``project.test_command``, if
     explicitly configured on the resolved repo route — config always wins,
     even if the agent used something else; (2) ``sentinel_command``, the
     first line of the ``.agent-test-command`` sentinel file the agent may
@@ -951,8 +958,8 @@ def _run_test_command(
 
     This runs in the worker process, *after* the LLM agent's own run has
     ended — never as part of its bash loop — so ``testing_notes`` reflects
-    an objective, code-driven result instead of the agent's self-report
-    (R5.6.5). It reuses the same env allowlist (``_sandboxed_env``) and
+    an objective, code-driven result instead of the agent's self-report.
+    It reuses the same env allowlist (``_sandboxed_env``) and
     timeout/process-group-kill subprocess helper (``_run``) that the
     agent's own sandboxed bash commands use
     (``issue_agent.runner.environment``), rather than a fresh, unaudited
@@ -997,10 +1004,7 @@ def _build_testing_notes(
     evidence, and partial verification no longer collapses into "testing was
     not performed" (issue #102)."""
     if command is None and not reported_checks:
-        return (
-            "- [ ] No test command was configured or discovered; "
-            "testing was not performed."
-        )
+        return "- [ ] No test command was configured or discovered; testing was not performed."
     if command is None:
         harness_line = "- [ ] The harness did not re-run any test command."
     elif passed:
@@ -1176,8 +1180,7 @@ def _build_branch_published_comment(
     base = task.base_branch
     if updated_existing:
         headline = (
-            f"🤖 **{agent_name}** updated branch `{branch}` in response to the "
-            "latest comment."
+            f"🤖 **{agent_name}** updated branch `{branch}` in response to the latest comment."
         )
     elif carried_over_commits:
         plural = "s" if carried_over_commits > 1 else ""
@@ -1295,8 +1298,7 @@ def _build_abort_comment(
         detail = " ".join(result.error_detail.split())
         reason += f"\n\n> {_DETAIL_LABELS[result.error]}: {detail}"
     body = (
-        f"{reason}\n\n"
-        f"Accumulated cost: US$ {result.cost_usd:.2f} | Iterations: {result.iterations}"
+        f"{reason}\n\nAccumulated cost: US$ {result.cost_usd:.2f} | Iterations: {result.iterations}"
     )
     if result.error == "no_changes":
         summary = _resolve_agent_summary(result.submission)
@@ -1306,9 +1308,7 @@ def _build_abort_comment(
     if note:
         body += f"\n\n{note}"
     headline = (
-        "run finished with no changes"
-        if result.error == "no_changes"
-        else "execution aborted"
+        "run finished with no changes" if result.error == "no_changes" else "execution aborted"
     )
     return (
         f"🤖 **{agent_name}** — {headline}.\n\n"
@@ -1320,7 +1320,7 @@ def _build_abort_comment(
 @dataclass
 class WipOutcome:
     """What `_preserve_wip_on_block` did with the partial work — drives the
-    block comment (R4.6, R4.7)."""
+    block comment."""
 
     reason: str = "disabled"  # disabled | no_changes | pushed | push_failed | max_attempts
     branch: str = ""
@@ -1363,8 +1363,8 @@ def _build_block_comment(
         )
     elif wip.reason == "push_failed":
         retry_note = (
-            "The task will be retried automatically, but it starts over "
-            "from scratch" if will_retry
+            "The task will be retried automatically, but it starts over from scratch"
+            if will_retry
             else "The next trigger starts over from scratch"
         )
         extra = (
@@ -1429,8 +1429,10 @@ class _Outbound:
     def issue_ref(self) -> str:
         """The issue as text in the target repo (commit, PR title)."""
         return self.transport.format_ref(
-            "issue", self.task.issue_number,
-            repo=self.task.repo, from_repo=self.task.target_repo,
+            "issue",
+            self.task.issue_number,
+            repo=self.task.repo,
+            from_repo=self.task.target_repo,
         )
 
     def closing_reference(self) -> str | None:
@@ -1439,7 +1441,14 @@ class _Outbound:
         )
 
     def open_pr(
-        self, *, head: str, base: str, title: str, body: str, draft: bool, labels: list[str],
+        self,
+        *,
+        head: str,
+        base: str,
+        title: str,
+        body: str,
+        draft: bool,
+        labels: list[str],
     ) -> PRRef:
         """The open PR for ``head``, or a new one. An existing PR is returned
         untouched — a follow-up reports its update in a PR comment."""
@@ -1451,8 +1460,12 @@ class _Outbound:
         if draft and caps.draft_mode == "title_prefix":
             title = f"{caps.draft_prefix or ''}{title}"
         return self.pulls.create_pr(
-            head=head, base=base, title=title, body=self._fit(body),
-            draft=draft and caps.draft_mode == "native", labels=labels,
+            head=head,
+            base=base,
+            title=title,
+            body=self._fit(body),
+            draft=draft and caps.draft_mode == "native",
+            labels=labels,
         )
 
     def comment_on_pr(self, pr: PRRef, body: str) -> str:
@@ -1483,10 +1496,16 @@ def _finish_salvaged_failure(
     will_retry = result.error == "llm_error" and work_stays_open
     status = TaskStatus.FAILED_RECOVERABLE if will_retry else TaskStatus.FAILED_TERMINAL
     _fail(
-        store, task, settings, status,
+        store,
+        task,
+        settings,
+        status,
         {"from": "running", "to": status.value, "error": result.error},
-        error=result.error, cost_usd=total_cost, iterations=total_iterations,
-        duration=duration, work=work,
+        error=result.error,
+        cost_usd=total_cost,
+        iterations=total_iterations,
+        duration=duration,
+        work=work,
     )
     if result.error == "provider_budget_exceeded":
         provider = result.provider_error
@@ -1505,14 +1524,21 @@ def _finish_salvaged_failure(
     if wip.reason == "disabled":
         # resume is off: nothing was preserved, so there is nothing to resume.
         _close_issue_work(
-            store, task, "terminal_failure",
+            store,
+            task,
+            "terminal_failure",
             total_cost_usd=work.total_cost_usd + total_cost,
             total_iterations=work.total_iterations + total_iterations,
         )
     try:
         comment = _build_block_comment(
-            task, result, settings.agent_name, wip,
-            settings.resume_max_attempts, work, will_retry=will_retry,
+            task,
+            result,
+            settings.agent_name,
+            wip,
+            settings.resume_max_attempts,
+            work,
+            will_retry=will_retry,
         )
         out.comment(comment)
     except Exception:
@@ -1520,7 +1546,11 @@ def _finish_salvaged_failure(
 
 
 def _build_merge_unresolved_comment(
-    task: Task, unresolved: list[str], cost_usd: float, iterations: int, agent_name: str,
+    task: Task,
+    unresolved: list[str],
+    cost_usd: float,
+    iterations: int,
+    agent_name: str,
 ) -> str:
     files = "\n".join(f"- `{path}`" for path in unresolved)
     return (
@@ -1555,28 +1585,40 @@ def _fail_unresolved_base_merge(
     delivered work), a block-retry stays open."""
     task_log.warning("base_merge_unresolved", files=unresolved)
     _fail(
-        store, task, settings, TaskStatus.ABORTED_POLICY,
+        store,
+        task,
+        settings,
+        TaskStatus.ABORTED_POLICY,
         {"from": "running", "to": "aborted_policy", "reason": "merge_conflict_unresolved"},
-        error="merge_conflict_unresolved", cost_usd=cost_usd, iterations=iterations,
-        duration=duration, work=work,
+        error="merge_conflict_unresolved",
+        cost_usd=cost_usd,
+        iterations=iterations,
+        duration=duration,
+        work=work,
     )
     totals = {
         "total_cost_usd": work.total_cost_usd + cost_usd,
         "total_iterations": work.total_iterations + iterations,
     }
     if force_continue:
-        _close_issue_work(
-            store, task, out.delivery_reason, pr_number=work.pr_number, **totals
-        )
+        _close_issue_work(store, task, out.delivery_reason, pr_number=work.pr_number, **totals)
     else:
         store.update_issue_work(
-            task.provider_instance, task.repo, task.issue_number,
-            last_task_id=task.id, last_error="merge_conflict_unresolved", **totals,
+            task.provider_instance,
+            task.repo,
+            task.issue_number,
+            last_task_id=task.id,
+            last_error="merge_conflict_unresolved",
+            **totals,
         )
     try:
         out.comment(
             _build_merge_unresolved_comment(
-                task, unresolved, cost_usd, iterations, settings.agent_name,
+                task,
+                unresolved,
+                cost_usd,
+                iterations,
+                settings.agent_name,
             ),
         )
     except Exception:
@@ -1607,7 +1649,7 @@ def _build_test_retry_comment(
 
 
 # One-line description of why the previous attempt stopped, for the
-# continuation comment (R1.4). Keyed by the `last_error` persisted on
+# continuation comment. Keyed by the `last_error` persisted on
 # issue_work when a run blocked.
 _PRIOR_STOP_REASONS: dict[str, str] = {
     "budget_exceeded": "the per-task budget was exceeded",
@@ -1631,7 +1673,7 @@ def _build_initial_comment(
     pr_number: int | None = None,
     published_branch: bool = False,
 ) -> str:
-    """Announce the start (or resumption) of work on an issue (R1.1, R1.4).
+    """Announce the start (or resumption) of work on an issue.
 
     Carries the attempt number, the frozen work branch and the task id.
     `work.attempts` is 0 on the first run and incremented on each resume;
@@ -1643,19 +1685,13 @@ def _build_initial_comment(
     if pr_number:
         lead = f"🤖 **{agent_name}** resumed working on this issue to update PR #{pr_number}."
     elif published_branch:
-        lead = (
-            f"🤖 **{agent_name}** resumed working on this issue to update its "
-            "published branch."
-        )
+        lead = f"🤖 **{agent_name}** resumed working on this issue to update its published branch."
     elif work.attempts == 0:
         lead = f"🤖 **{agent_name}** started working on this issue."
     else:
         reason = _PRIOR_STOP_REASONS.get(work.last_error or "")
         tail = f" — previous stop: {reason}" if reason else ""
-        lead = (
-            f"🤖 **{agent_name}** resumed working on this issue "
-            f"(attempt {attempt}){tail}."
-        )
+        lead = f"🤖 **{agent_name}** resumed working on this issue (attempt {attempt}){tail}."
     return (
         f"{lead}\n\n"
         f"Work branch: `{work.work_branch}`\n"
@@ -1664,10 +1700,8 @@ def _build_initial_comment(
     )
 
 
-def _build_progress_comment(
-    task: Task, iteration: int, cost_usd: float, agent_name: str
-) -> str:
-    """The "still working" comment posted mid-run every N iterations (R6.1)."""
+def _build_progress_comment(task: Task, iteration: int, cost_usd: float, agent_name: str) -> str:
+    """The "still working" comment posted mid-run every N iterations."""
     return (
         f"🤖 **{agent_name}** is still working on this issue.\n\n"
         f"Iteration: {iteration} | Accumulated cost: US$ {cost_usd:.2f}\n\n"
@@ -1679,8 +1713,8 @@ def _make_progress_reporter(
     out: _Outbound, task: Task, agent_name: str, task_log
 ) -> Callable[[int, float], None]:
     """A callback the agent invokes mid-run to post a progress comment. The
-    subclass already caps frequency and count and swallows errors (R6.3,
-    R6.4); this only builds the text and posts it."""
+    subclass already caps frequency and count and swallows errors;
+    this only builds the text and posts it."""
 
     def _report(iteration: int, cost_usd: float) -> None:
         out.comment(_build_progress_comment(task, iteration, cost_usd, agent_name))
@@ -1697,15 +1731,15 @@ def _open_or_resume_issue_work(
     issue_title: str,
 ) -> tuple[IssueWork, bool, bool]:
     """Get the `issue_work` row for this issue, opening it on the first FIX
-    run and resuming it on later ones (R4.1). Returns
+    run and resuming it on later ones. Returns
     ``(work, resumed, force_continue)``.
 
     The work branch is computed once here — from the issue title in effect
     at open time — and frozen on the row; every subsequent run reads it back
-    instead of recomputing from a payload that may have changed (C4). A row
+    instead of recomputing from a payload that may have changed. A row
     left `closed` is normally treated as absent (a new work item starts
     fresh) — with one exception: a row closed as `pr_opened` (or, on a forge
-    with no PR API, `branch_published` — PRD §3.7) is reopened *in place*
+    with no PR API, `branch_published`) is reopened *in place*
     instead, so a maintainer's follow-up comment continues from the
     delivered branch rather than re-cloning and re-doing the work from
     scratch. `force_continue` is True only for that reopen — it tells
@@ -1716,6 +1750,7 @@ def _open_or_resume_issue_work(
     counter is a block-retry budget (`resume.max_attempts`), and a
     human-driven PR follow-up isn't a block retry.
     """
+
     def _branch() -> str:
         return pr_text.branch_name(
             task.issue_number,
@@ -1728,14 +1763,15 @@ def _open_or_resume_issue_work(
 
     work = store.get_issue_work(task.provider_instance, task.repo, task.issue_number)
 
-    if (
-        work is not None and work.state == "closed"
-        and work.closed_reason in _DELIVERED_REASONS
-    ):
+    if work is not None and work.state == "closed" and work.closed_reason in _DELIVERED_REASONS:
         delivered_as = work.closed_reason
         store.update_issue_work(
-            task.provider_instance, task.repo, task.issue_number,
-            state="open", closed_reason=None, last_task_id=task.id,
+            task.provider_instance,
+            task.repo,
+            task.issue_number,
+            state="open",
+            closed_reason=None,
+            last_task_id=task.id,
         )
         work = store.get_issue_work(task.provider_instance, task.repo, task.issue_number)
         assert work is not None  # just updated
@@ -1752,13 +1788,18 @@ def _open_or_resume_issue_work(
         branch = _branch()
         if work is not None:
             # A closed row (no_changes/max_attempts/terminal_failure — the
-            # delivered cases are handled above, and R7.6 already intercepted
+            # delivered cases are handled above, and the closed-issue guard already intercepted
             # the one closed_reason, `issue_closed`, that must NOT restart)
             # is a spent work item — the PK forbids a second `open`, so drop
             # it and start fresh.
             store.delete_issue_work(task.provider_instance, task.repo, task.issue_number)
         work = store.open_issue_work(
-            task.provider_instance, task.repo, task.issue_number, task.target_repo, task.base_branch, branch
+            task.provider_instance,
+            task.repo,
+            task.issue_number,
+            task.target_repo,
+            task.base_branch,
+            branch,
         )
         store.append_task_event(
             task.id,
@@ -1769,7 +1810,7 @@ def _open_or_resume_issue_work(
 
     updates: dict = {"attempts": work.attempts + 1, "last_task_id": task.id}
     # A blank work_branch means a prior WIP push failed and the row was reset
-    # for a clean restart (R4.4): recompute the branch from the current title
+    # for a clean restart: recompute the branch from the current title
     # now, keeping the attempts counter (and the max_attempts cap) intact.
     if not work.work_branch:
         updates["work_branch"] = _branch()
@@ -1822,7 +1863,11 @@ def _local_conflicts(
 
 
 def _still_conflicting(
-    out: _Outbound, pr: PRRef | None, pushed_sha: str, ws_path: Path, base_branch: str,
+    out: _Outbound,
+    pr: PRRef | None,
+    pushed_sha: str,
+    ws_path: Path,
+    base_branch: str,
     task_log,
 ) -> bool:
     """Whether the delivered branch still conflicts with its base after the
@@ -1852,7 +1897,8 @@ def _close_issue_work(
     total_iterations: int | None = None,
 ) -> None:
     store.close_issue_work(
-        task.provider_instance, task.repo,
+        task.provider_instance,
+        task.repo,
         task.issue_number,
         closed_reason,
         pr_number=pr_number,
@@ -1866,14 +1912,12 @@ def _close_issue_work(
         "issue_work_closed",
         {"closed_reason": closed_reason, "attempts": attempts},
     )
-    observe_issue_work_closed(
-        task.target_repo, attempts, provider_instance=task.provider_instance
-    )
+    observe_issue_work_closed(task.target_repo, attempts, provider_instance=task.provider_instance)
 
 
 def _remote_branch_exists(ws_path: Path, branch: str, git_env: dict[str, str]) -> bool:
     """Whether ``branch`` is on the target remote — decides resume-from-branch
-    vs. start-from-base (R4.2). Any failure is treated as "not there", so a
+    vs. start-from-base. Any failure is treated as "not there", so a
     flaky ``ls-remote`` degrades to a clean restart rather than a crash."""
     try:
         out = _run_git(
@@ -1903,8 +1947,8 @@ def _preserve_wip_on_block(
 ) -> WipOutcome:
     """Commit and push the partial work to the frozen branch before cleanup,
     persist the block summary, and decide whether the work stays open, closes
-    with ``no_changes`` (nothing to resume, R4.5), or closes with
-    ``max_attempts`` (retry ceiling, R4.7).
+    with ``no_changes`` (nothing to resume), or closes with
+    ``max_attempts`` (retry ceiling).
 
     The block is always recorded on the row (``last_error`` / ``last_task_id``)
     so ``resume.enabled: false`` keeps the behavior from before resume existed."""
@@ -1917,7 +1961,9 @@ def _preserve_wip_on_block(
     }
 
     if not (settings.resume_enabled and settings.resume_push_wip_on_block):
-        store.update_issue_work(task.provider_instance, task.repo, task.issue_number, **base_updates)
+        store.update_issue_work(
+            task.provider_instance, task.repo, task.issue_number, **base_updates
+        )
         return WipOutcome(reason="disabled")
 
     try:
@@ -1936,7 +1982,8 @@ def _preserve_wip_on_block(
             ahead = ""
         if ahead in ("", "0"):
             store.update_issue_work(
-                task.provider_instance, task.repo,
+                task.provider_instance,
+                task.repo,
                 task.issue_number,
                 last_summary=result.block_summary or "",
                 last_summary_kind=result.block_summary_kind,
@@ -1951,12 +1998,16 @@ def _preserve_wip_on_block(
                 ws_path,
                 "commit",
                 "-m",
-                f"WIP: issue #{task.issue_number} attempt {attempt} "
-                f"({result.error}) [skip ci]",
+                f"WIP: issue #{task.issue_number} attempt {attempt} ({result.error}) [skip ci]",
             )
         _assert_branch_integrity(ws_path, task.base_branch, start_sha)
         _run_git(
-            ws_path, "push", "-f", "origin", branch, env=out.git_env(),
+            ws_path,
+            "push",
+            "-f",
+            "origin",
+            branch,
+            env=out.git_env(),
         )
     except Exception:
         task_log.exception("wip_push_failed")
@@ -1966,7 +2017,8 @@ def _preserve_wip_on_block(
         return WipOutcome(reason="push_failed")
 
     store.update_issue_work(
-        task.provider_instance, task.repo,
+        task.provider_instance,
+        task.repo,
         task.issue_number,
         last_summary=result.block_summary or "",
         last_summary_kind=result.block_summary_kind,
@@ -1981,7 +2033,10 @@ def _preserve_wip_on_block(
 
 
 def _decide_test_retry(
-    store: SQLiteStore, task: Task, settings: Settings, work: IssueWork,
+    store: SQLiteStore,
+    task: Task,
+    settings: Settings,
+    work: IssueWork,
 ) -> tuple[bool, str]:
     """Whether an automatic in-loop retry may fire after the harness's own
     post-push test verification failed. Reuses the SAME attempts counter and
@@ -2015,13 +2070,16 @@ def _record_test_retry_attempt(
     `run_task`'s `accumulated_cost`/`accumulated_iterations` (avoids double-
     counting a retried iteration's spend)."""
     store.update_issue_work(
-        task.provider_instance, task.repo, task.issue_number,
+        task.provider_instance,
+        task.repo,
+        task.issue_number,
         attempts=work.attempts + 1,
         last_task_id=task.id,
         last_error="test_failed",
     )
     store.append_task_event(
-        task.id, "issue_work_test_retry",
+        task.id,
+        "issue_work_test_retry",
         {
             "attempt": work.attempts + 1,
             "test_command": test_command,
@@ -2088,7 +2146,7 @@ def _fail(
         "cost_usd": cost_usd,
         "iterations": iterations,
     }
-    # R8.2: entries for a task that is part of an issue_work item carry which
+    # Entries for a task that is part of an issue_work item carry which
     # attempt and branch it ran on.
     if work is not None:
         audit["attempts"] = work.attempts
@@ -2099,14 +2157,16 @@ def _fail(
         store.add_daily_budget(today, task.target_repo, cost_usd)
     label = _PROMETHEUS_LABEL.get(status, "failed")
     observe_task_result(
-        label, duration, cost_usd, iterations, task.target_repo,
+        label,
+        duration,
+        cost_usd,
+        iterations,
+        task.target_repo,
         provider_instance=task.provider_instance,
     )
 
 
-def run_task(
-    store: SQLiteStore, task: Task, settings: Settings, plugin: ProviderPlugin
-) -> None:
+def run_task(store: SQLiteStore, task: Task, settings: Settings, plugin: ProviderPlugin) -> None:
     _start = time.monotonic()
 
     task_log = bind_context(
@@ -2124,9 +2184,18 @@ def run_task(
         )
         task_log.error("route_not_found", error=error)
         _fail(
-            store, task, settings, TaskStatus.FAILED_RECOVERABLE,
-            {"from": "running", "to": "failed_recoverable", "step": "route_resolution", "error": error},
-            error=error, duration=time.monotonic() - _start,
+            store,
+            task,
+            settings,
+            TaskStatus.FAILED_RECOVERABLE,
+            {
+                "from": "running",
+                "to": "failed_recoverable",
+                "step": "route_resolution",
+                "error": error,
+            },
+            error=error,
+            duration=time.monotonic() - _start,
         )
         return
 
@@ -2137,7 +2206,7 @@ def run_task(
 
     issue_title = _extract_issue_title(task)
 
-    # R7.6: the issue was closed (webhook or reconciliation) while this task
+    # The issue was closed (webhook or reconciliation) while this task
     # sat in the queue. Abort without cost — no clone, no agent, no comment
     # (commenting on a closed issue is noise). The row stays closed; a fresh
     # trigger on a reopened issue starts new work explicitly.
@@ -2145,24 +2214,28 @@ def run_task(
     if prior is not None and prior.state == "closed" and prior.closed_reason == "issue_closed":
         task_log.info("issue_closed_before_run")
         _fail(
-            store, task, settings, TaskStatus.ABORTED_POLICY,
+            store,
+            task,
+            settings,
+            TaskStatus.ABORTED_POLICY,
             {"from": "running", "to": "aborted_policy", "reason": "issue_closed"},
-            error="issue_closed", duration=time.monotonic() - _start,
+            error="issue_closed",
+            duration=time.monotonic() - _start,
         )
         return
 
-    # Per-issue work state (R4.1). The work branch is frozen on this
+    # Per-issue work state. The work branch is frozen on this
     # row the first time the issue is worked — computed from task.workflow
     # (frozen at webhook-ingestion time, NOT route.workflow which reflects
     # the current config) and the title in effect then — and read back on
     # every later run, so editing the issue title between attempts can't
-    # silently move the branch (C4).
+    # silently move the branch.
     work, resumed, force_continue = _open_or_resume_issue_work(
         store, task, settings, route, issue_title
     )
     branch = work.work_branch
     # On a resume, the prior attempt's handoff note rides into the next run's
-    # prompt (R3.1 item 4, R5.6). A delivered reopen (`force_continue`)
+    # prompt. A delivered reopen (`force_continue`)
     # gets this too, regardless of `resume.enabled` — it's a distinct
     # feature from the block-retry resume machinery that flag gates.
     resume_summary = (
@@ -2173,7 +2246,9 @@ def run_task(
         try:
             out.comment(
                 _build_initial_comment(
-                    task, work, settings.agent_name,
+                    task,
+                    work,
+                    settings.agent_name,
                     pr_number=work.pr_number if force_continue else None,
                     published_branch=force_continue and publishes_branch,
                 ),
@@ -2197,9 +2272,14 @@ def run_task(
         except Exception:
             diag = str(exc)
         _fail(
-            store, task, settings, TaskStatus.FAILED_RECOVERABLE,
+            store,
+            task,
+            settings,
+            TaskStatus.FAILED_RECOVERABLE,
             {"from": "running", "to": "failed_recoverable", "step": "clone", "error": diag},
-            error=diag, duration=time.monotonic() - _start, work=work,
+            error=diag,
+            duration=time.monotonic() - _start,
+            work=work,
         )
         return
 
@@ -2207,7 +2287,7 @@ def run_task(
 
     try:
         # A resume clones the base (so `_salvage_agent_commits` keeps its
-        # `origin/<base_branch>` ref, R4.2) and then checks out the work
+        # `origin/<base_branch>` ref) and then checks out the work
         # branch's tip when it exists on the remote — otherwise it starts
         # fresh from the base, exactly like a first run.
         checked_out_wip = False
@@ -2217,7 +2297,7 @@ def run_task(
             if _remote_branch_exists(ws_path, branch, git_env):
                 # Deepen the shallow base clone so the work branch and
                 # `origin/<base_branch>` share history — `_salvage_agent_commits`
-                # walks `origin/<base>..HEAD` (R4.2). Best-effort: a no-op /
+                # walks `origin/<base>..HEAD`. Best-effort: a no-op /
                 # error when the clone is already complete.
                 with contextlib.suppress(Exception):
                     _run_git(ws_path, "fetch", "--unshallow", "origin", env=git_env)
@@ -2241,9 +2321,14 @@ def run_task(
     except Exception as exc:
         task_log.exception("branch_failed")
         _fail(
-            store, task, settings, TaskStatus.FAILED_RECOVERABLE,
+            store,
+            task,
+            settings,
+            TaskStatus.FAILED_RECOVERABLE,
             {"from": "running", "to": "failed_recoverable", "step": "branch", "error": str(exc)},
-            error=str(exc), duration=time.monotonic() - _start, work=work,
+            error=str(exc),
+            duration=time.monotonic() - _start,
+            work=work,
         )
         ws.cleanup()
         return
@@ -2278,7 +2363,9 @@ def run_task(
 
     branch_status = (
         build_branch_status(
-            base_update.status, task.base_branch, out.capabilities.terms,
+            base_update.status,
+            task.base_branch,
+            out.capabilities.terms,
             base_update.conflicted_files,
             pr_number=work.pr_number if force_continue else None,
             published_branch=force_continue and publishes_branch,
@@ -2293,8 +2380,12 @@ def run_task(
     while True:
         try:
             result = runner.run(
-                str(ws_path), task, settings, route,
-                resume_summary=current_resume_summary, on_progress=on_progress,
+                str(ws_path),
+                task,
+                settings,
+                route,
+                resume_summary=current_resume_summary,
+                on_progress=on_progress,
                 toolchain_env=toolchain_env,
                 # Only the first pass starts on the harness's merge; a test
                 # retry continues from what this run already pushed.
@@ -2346,11 +2437,12 @@ def run_task(
                 # A block (or an unexpected failure, e.g. the LLM provider
                 # dropping the connection): preserve the partial work on the
                 # branch and keep `issue_work` open so the next trigger
-                # resumes it (R4.3). `_preserve_wip_on_block` may instead
-                # close it — `no_changes` when there is nothing to resume
-                # (R4.5), `max_attempts` when the retry ceiling is hit (R4.7).
+                # resumes it. `_preserve_wip_on_block` may instead
+                # close it — `no_changes` when there is nothing to resume,
+                # `max_attempts` when the retry ceiling is hit.
                 block_persist_result = (
-                    result if accumulated_cost == 0.0 and accumulated_iterations == 0
+                    result
+                    if accumulated_cost == 0.0 and accumulated_iterations == 0
                     else replace(result, cost_usd=task_total_cost, iterations=task_total_iterations)
                 )
                 # The WIP commit must not conclude a half-resolved base merge
@@ -2360,7 +2452,11 @@ def run_task(
                     merge_pending = False
                     try:
                         unresolved = _finish_base_merge(
-                            ws_path, branch, task.base_branch, start_sha, base_update,
+                            ws_path,
+                            branch,
+                            task.base_branch,
+                            start_sha,
+                            base_update,
                             task_log,
                         )
                     except Exception:
@@ -2369,30 +2465,56 @@ def run_task(
                     if unresolved:
                         _abandon_base_merge(ws_path, start_sha)
                 wip = _preserve_wip_on_block(
-                    store, task, settings, work, ws_path, branch, block_persist_result,
-                    out, task_log, start_sha,
+                    store,
+                    task,
+                    settings,
+                    work,
+                    ws_path,
+                    branch,
+                    block_persist_result,
+                    out,
+                    task_log,
+                    start_sha,
                 )
                 ws.cleanup()
                 if result.error not in _BLOCK_ERRORS:
                     _finish_salvaged_failure(
-                        store, task, settings, out, work, wip, result,
-                        task_total_cost, task_total_iterations, task_duration,
+                        store,
+                        task,
+                        settings,
+                        out,
+                        work,
+                        wip,
+                        result,
+                        task_total_cost,
+                        task_total_iterations,
+                        task_duration,
                         task_log,
                     )
                     return
                 _fail(
-                    store, task, settings, TaskStatus.ABORTED_BUDGET,
+                    store,
+                    task,
+                    settings,
+                    TaskStatus.ABORTED_BUDGET,
                     {"from": "running", "to": "aborted_budget", "reason": result.error},
-                    error=result.error, cost_usd=task_total_cost, iterations=task_total_iterations,
-                    duration=task_duration, work=work,
+                    error=result.error,
+                    cost_usd=task_total_cost,
+                    iterations=task_total_iterations,
+                    duration=task_duration,
+                    work=work,
                 )
                 if result.error == "iteration_limit_exceeded":
                     alert_metric, alert_spent, alert_limit = (
-                        "iterations", result.iterations, settings.max_iterations,
+                        "iterations",
+                        result.iterations,
+                        settings.max_iterations,
                     )
                 else:
                     alert_metric, alert_spent, alert_limit = (
-                        "cost", result.cost_usd, settings.max_budget_per_task_usd,
+                        "cost",
+                        result.cost_usd,
+                        settings.max_budget_per_task_usd,
                     )
                 send_budget_alert(
                     settings.alert_webhook_url,
@@ -2406,8 +2528,12 @@ def run_task(
                 )
                 try:
                     comment = _build_block_comment(
-                        task, result, settings.agent_name, wip,
-                        settings.resume_max_attempts, work,
+                        task,
+                        result,
+                        settings.agent_name,
+                        wip,
+                        settings.resume_max_attempts,
+                        work,
                     )
                     out.comment(comment)
                 except Exception:
@@ -2416,13 +2542,21 @@ def run_task(
 
             ws.cleanup()
             _fail(
-                store, task, settings, TaskStatus.FAILED_TERMINAL,
+                store,
+                task,
+                settings,
+                TaskStatus.FAILED_TERMINAL,
                 {"from": "running", "to": "failed_terminal", "error": result.error},
-                error=result.error, cost_usd=task_total_cost, iterations=task_total_iterations,
-                duration=task_duration, work=work,
+                error=result.error,
+                cost_usd=task_total_cost,
+                iterations=task_total_iterations,
+                duration=task_duration,
+                work=work,
             )
             _close_issue_work(
-                store, task, "terminal_failure",
+                store,
+                task,
+                "terminal_failure",
                 total_cost_usd=work.total_cost_usd + task_total_cost,
                 total_iterations=work.total_iterations + task_total_iterations,
             )
@@ -2441,7 +2575,12 @@ def run_task(
             merge_pending = False
             try:
                 unresolved = _finish_base_merge(
-                    ws_path, branch, task.base_branch, start_sha, base_update, task_log,
+                    ws_path,
+                    branch,
+                    task.base_branch,
+                    start_sha,
+                    base_update,
+                    task_log,
                 )
             except Exception as exc:
                 task_log.exception("base_merge_commit_failed")
@@ -2449,9 +2588,17 @@ def run_task(
             if unresolved:
                 _abandon_base_merge(ws_path, start_sha)
                 _fail_unresolved_base_merge(
-                    store, task, settings, out, work, force_continue,
-                    unresolved, accumulated_cost, accumulated_iterations,
-                    time.monotonic() - _start, task_log,
+                    store,
+                    task,
+                    settings,
+                    out,
+                    work,
+                    force_continue,
+                    unresolved,
+                    accumulated_cost,
+                    accumulated_iterations,
+                    time.monotonic() - _start,
+                    task_log,
                 )
                 ws.cleanup()
                 return
@@ -2463,12 +2610,24 @@ def run_task(
         except Exception as exc:
             task_log.exception("git_status_failed")
             _fail(
-                store, task, settings, TaskStatus.FAILED_TERMINAL,
-                {"from": "running", "to": "failed_terminal", "step": "git_status", "error": str(exc)},
-                error=str(exc), duration=time.monotonic() - _start, work=work,
+                store,
+                task,
+                settings,
+                TaskStatus.FAILED_TERMINAL,
+                {
+                    "from": "running",
+                    "to": "failed_terminal",
+                    "step": "git_status",
+                    "error": str(exc),
+                },
+                error=str(exc),
+                duration=time.monotonic() - _start,
+                work=work,
             )
             _close_issue_work(
-                store, task, "terminal_failure",
+                store,
+                task,
+                "terminal_failure",
                 total_cost_usd=work.total_cost_usd + accumulated_cost,
                 total_iterations=work.total_iterations + accumulated_iterations,
             )
@@ -2495,16 +2654,16 @@ def run_task(
         # this can only ever fire on a resume.
         carried_over_now = 0
         if (
-            not status_output.strip() and first_loop_iteration and checked_out_wip
+            not status_output.strip()
+            and first_loop_iteration
+            and checked_out_wip
             and not merged_base_now
         ):
             ahead = _commits_ahead_of_base(ws_path, task.base_branch)
             # Content, not just commit count: a branch whose own commits were
             # squash-merged into the base is still "ahead" by the merge commit
             # alone, and must not open an empty PR.
-            carried = (
-                _changed_files_vs_base(ws_path, task.base_branch) if ahead else []
-            )
+            carried = _changed_files_vs_base(ws_path, task.base_branch) if ahead else []
             if ahead and carried:
                 carried_over_now = ahead
                 carried_over_commits = ahead
@@ -2522,22 +2681,36 @@ def run_task(
             if first_loop_iteration:
                 task_log.info("no_changes")
                 abt = AgentResult(
-                    success=False, error="no_changes", cost_usd=accumulated_cost,
-                    iterations=accumulated_iterations, submission=result.submission,
+                    success=False,
+                    error="no_changes",
+                    cost_usd=accumulated_cost,
+                    iterations=accumulated_iterations,
+                    submission=result.submission,
                 )
                 _fail(
-                    store, task, settings, TaskStatus.ABORTED_POLICY,
+                    store,
+                    task,
+                    settings,
+                    TaskStatus.ABORTED_POLICY,
                     {"from": "running", "to": "aborted_policy", "reason": "no_changes"},
-                    error="no_changes", cost_usd=accumulated_cost, iterations=accumulated_iterations,
-                    duration=time.monotonic() - _start, work=work,
+                    error="no_changes",
+                    cost_usd=accumulated_cost,
+                    iterations=accumulated_iterations,
+                    duration=time.monotonic() - _start,
+                    work=work,
                 )
                 summary = _resolve_agent_summary(result.submission)
                 store.update_issue_work(
-                    task.provider_instance, task.repo, task.issue_number,
-                    last_summary=summary or "", last_summary_kind="submission" if summary else "",
+                    task.provider_instance,
+                    task.repo,
+                    task.issue_number,
+                    last_summary=summary or "",
+                    last_summary_kind="submission" if summary else "",
                 )
                 _close_issue_work(
-                    store, task, "no_changes",
+                    store,
+                    task,
+                    "no_changes",
                     total_cost_usd=work.total_cost_usd + accumulated_cost,
                     total_iterations=work.total_iterations + accumulated_iterations,
                 )
@@ -2575,12 +2748,24 @@ def run_task(
             except Exception as exc:
                 task_log.exception("commit_failed")
                 _fail(
-                    store, task, settings, TaskStatus.FAILED_TERMINAL,
-                    {"from": "running", "to": "failed_terminal", "step": "commit", "error": str(exc)},
-                    error=str(exc), duration=time.monotonic() - _start, work=work,
+                    store,
+                    task,
+                    settings,
+                    TaskStatus.FAILED_TERMINAL,
+                    {
+                        "from": "running",
+                        "to": "failed_terminal",
+                        "step": "commit",
+                        "error": str(exc),
+                    },
+                    error=str(exc),
+                    duration=time.monotonic() - _start,
+                    work=work,
                 )
                 _close_issue_work(
-                    store, task, "terminal_failure",
+                    store,
+                    task,
+                    "terminal_failure",
                     total_cost_usd=work.total_cost_usd + accumulated_cost,
                     total_iterations=work.total_iterations + accumulated_iterations,
                 )
@@ -2597,13 +2782,21 @@ def run_task(
         except BranchIntegrityError as exc:
             task_log.error("branch_integrity_failed", error=str(exc))
             _fail(
-                store, task, settings, TaskStatus.ABORTED_POLICY,
+                store,
+                task,
+                settings,
+                TaskStatus.ABORTED_POLICY,
                 {"from": "running", "to": "aborted_policy", "reason": "branch_integrity"},
-                error=str(exc), cost_usd=accumulated_cost, iterations=accumulated_iterations,
-                duration=time.monotonic() - _start, work=work,
+                error=str(exc),
+                cost_usd=accumulated_cost,
+                iterations=accumulated_iterations,
+                duration=time.monotonic() - _start,
+                work=work,
             )
             _close_issue_work(
-                store, task, "branch_integrity",
+                store,
+                task,
+                "branch_integrity",
                 total_cost_usd=work.total_cost_usd + accumulated_cost,
                 total_iterations=work.total_iterations + accumulated_iterations,
             )
@@ -2617,7 +2810,7 @@ def run_task(
             return
 
         try:
-            # origin is already the tokenless URL Workspace.clone() set up (A2);
+            # origin is already the tokenless URL Workspace.clone() set up;
             # authenticate this push via env only, never by rewriting the remote
             # URL — that would put the credential back into .git/config.
             _run_git(ws_path, "push", "-f", "origin", branch, env=out.git_env())
@@ -2625,9 +2818,14 @@ def run_task(
         except Exception as exc:
             task_log.exception("push_failed")
             _fail(
-                store, task, settings, TaskStatus.FAILED_RECOVERABLE,
+                store,
+                task,
+                settings,
+                TaskStatus.FAILED_RECOVERABLE,
                 {"from": "running", "to": "failed_recoverable", "step": "push", "error": str(exc)},
-                error=str(exc), duration=time.monotonic() - _start, work=work,
+                error=str(exc),
+                duration=time.monotonic() - _start,
+                work=work,
             )
             ws.cleanup()
             return
@@ -2658,14 +2856,20 @@ def run_task(
         work = _record_test_retry_attempt(store, task, work, test_command, test_output_excerpt)
         try:
             comment = _build_test_retry_comment(
-                task, work, test_command, test_output_excerpt,
-                settings.agent_name, settings.resume_max_attempts,
+                task,
+                work,
+                test_command,
+                test_output_excerpt,
+                settings.agent_name,
+                settings.resume_max_attempts,
             )
             out.comment(comment)
         except Exception:
             task_log.warning("test_retry_comment_failed")
 
-        current_resume_summary = _build_test_failure_resume_summary(test_command, test_output_excerpt)
+        current_resume_summary = _build_test_failure_resume_summary(
+            test_command, test_output_excerpt
+        )
         first_loop_iteration = False
 
     # Every remaining line below reads `result.cost_usd`/`result.iterations`
@@ -2709,9 +2913,14 @@ def run_task(
         except Exception as exc:
             task_log.exception("pr_failed")
             _fail(
-                store, task, settings, TaskStatus.FAILED_RECOVERABLE,
+                store,
+                task,
+                settings,
+                TaskStatus.FAILED_RECOVERABLE,
                 {"from": "running", "to": "failed_recoverable", "step": "pr", "error": str(exc)},
-                error=str(exc), duration=time.monotonic() - _start, work=work,
+                error=str(exc),
+                duration=time.monotonic() - _start,
+                work=work,
             )
             ws.cleanup()
             return
@@ -2726,7 +2935,9 @@ def run_task(
         if still_conflicting:
             task_log.warning(
                 "branch_still_conflicting",
-                pr=pr.number if pr else None, branch=branch, base=task.base_branch,
+                pr=pr.number if pr else None,
+                branch=branch,
+                base=task.base_branch,
             )
 
     if pr is None:
@@ -2739,11 +2950,19 @@ def run_task(
                 task_log.warning("issue_label_failed")
         try:
             comment = _build_branch_published_comment(
-                task, branch, out.compare_url(branch), result, pr_description,
-                changed_files, testing_notes, settings.agent_name,
-                out.capabilities.terms.pr, work,
+                task,
+                branch,
+                out.compare_url(branch),
+                result,
+                pr_description,
+                changed_files,
+                testing_notes,
+                settings.agent_name,
+                out.capabilities.terms.pr,
+                work,
                 carried_over_commits=carried_over_commits,
-                updated_existing=updated_existing, base_update=base_update,
+                updated_existing=updated_existing,
+                base_update=base_update,
                 still_conflicting=still_conflicting,
             )
             out.comment(comment)
@@ -2759,8 +2978,14 @@ def run_task(
                 out.comment_on_pr(
                     pr,
                     _build_pr_update_comment(
-                        task, result, pr_description, changed_files, testing_notes,
-                        settings.agent_name, base_update, still_conflicting,
+                        task,
+                        result,
+                        pr_description,
+                        changed_files,
+                        testing_notes,
+                        settings.agent_name,
+                        base_update,
+                        still_conflicting,
                     ),
                 )
             except Exception:
@@ -2768,9 +2993,16 @@ def run_task(
 
         try:
             comment = _build_fix_comment(
-                task, pr, result, task.target_repo, settings.agent_name, work,
-                carried_over_commits=carried_over_commits, branch=branch,
-                updated_existing=updated_existing, still_conflicting=still_conflicting,
+                task,
+                pr,
+                result,
+                task.target_repo,
+                settings.agent_name,
+                work,
+                carried_over_commits=carried_over_commits,
+                branch=branch,
+                updated_existing=updated_existing,
+                still_conflicting=still_conflicting,
             )
             out.comment(comment)
         except Exception:
@@ -2780,20 +3012,29 @@ def run_task(
     pr_number = pr.number if pr else None
 
     store.append_task_event(
-        task.id, "state_change", {"from": "running", "to": "succeeded"},
+        task.id,
+        "state_change",
+        {"from": "running", "to": "succeeded"},
     )
     store.update_status(
-        task.id, TaskStatus.SUCCEEDED,
+        task.id,
+        TaskStatus.SUCCEEDED,
         pr_number=pr_number,
         cost_usd=result.cost_usd,
         iterations=result.iterations,
     )
     store.update_issue_work(
-        task.provider_instance, task.repo, task.issue_number,
-        last_summary=pr_description, last_summary_kind="submission",
+        task.provider_instance,
+        task.repo,
+        task.issue_number,
+        last_summary=pr_description,
+        last_summary_kind="submission",
     )
     _close_issue_work(
-        store, task, out.delivery_reason, pr_number=pr_number,
+        store,
+        task,
+        out.delivery_reason,
+        pr_number=pr_number,
         total_cost_usd=work.total_cost_usd + result.cost_usd,
         total_iterations=work.total_iterations + result.iterations,
     )
@@ -2819,7 +3060,11 @@ def run_task(
         },
     )
     observe_task_result(
-        "succeeded", task_duration, result.cost_usd, result.iterations, task.target_repo,
+        "succeeded",
+        task_duration,
+        result.cost_usd,
+        result.iterations,
+        task.target_repo,
         provider_instance=task.provider_instance,
     )
     task_log.info(

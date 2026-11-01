@@ -109,23 +109,17 @@ class TestClassifyLabelsConfigurableCategories:
 
     def test_custom_diagnose_categories_overrides_fix(self) -> None:
         assert (
-            classify_labels(["bug"], diagnose_categories=frozenset({"bug"}))
-            == LabelAction.DIAGNOSE
+            classify_labels(["bug"], diagnose_categories=frozenset({"bug"})) == LabelAction.DIAGNOSE
         )
 
     def test_custom_diagnose_categories_overrides_triage_only(self) -> None:
         assert (
-            classify_labels(
-                ["question"], diagnose_categories=frozenset({"question"})
-            )
+            classify_labels(["question"], diagnose_categories=frozenset({"question"}))
             == LabelAction.DIAGNOSE
         )
 
     def test_empty_triage_only_categories_falls_through_to_skip(self) -> None:
-        assert (
-            classify_labels(["question"], triage_only_categories=frozenset())
-            == LabelAction.SKIP
-        )
+        assert classify_labels(["question"], triage_only_categories=frozenset()) == LabelAction.SKIP
 
     def test_custom_triage_only_categories_promotes_a_fix_category(self) -> None:
         assert (
@@ -135,9 +129,7 @@ class TestClassifyLabelsConfigurableCategories:
 
     def test_agent_skip_still_overrides_diagnose(self) -> None:
         assert (
-            classify_labels(
-                ["agent-skip", "bug"], diagnose_categories=frozenset({"bug"})
-            )
+            classify_labels(["agent-skip", "bug"], diagnose_categories=frozenset({"bug"}))
             == LabelAction.SKIP
         )
 
@@ -149,7 +141,7 @@ class TestClassifyLabelsConfigurableCategories:
 
 
 class TestGetLabelCategory:
-    """Unified label -> category resolution (A7 / R5.8.2).
+    """Unified label -> category resolution.
 
     This is the single source of truth consumed by both `_classify_labels`
     (FIX/TRIAGE_ONLY/SKIP routing) and `Task.label_category` (which feeds

@@ -55,10 +55,7 @@ def _poll_for_bot_comment(
             if user and user.type == "Bot":
                 return comment
         time.sleep(interval)
-    pytest.fail(
-        f"Bot comment not found on issue #{issue_number} "
-        f"after {timeout}s timeout"
-    )
+    pytest.fail(f"Bot comment not found on issue #{issue_number} after {timeout}s timeout")
 
 
 @pytest.mark.e2e
@@ -71,15 +68,13 @@ def test_triage_comment_on_question_issue(e2e_settings: Any, e2e_test_repo: str)
         comment = _poll_for_bot_comment(repo, issue.number)
 
         assert e2e_settings.agent_name in comment.body, (
-            f"Comment should mention '{e2e_settings.agent_name}', "
-            f"got:\n{comment.body}"
+            f"Comment should mention '{e2e_settings.agent_name}', got:\n{comment.body}"
         )
         assert "Obrigado pela pergunta" in comment.body, (
             f"Comment should thank for the question, got:\n{comment.body}"
         )
         assert issue.user.login in comment.body, (
-            f"Comment should @mention the author @{issue.user.login}, "
-            f"got:\n{comment.body}"
+            f"Comment should @mention the author @{issue.user.login}, got:\n{comment.body}"
         )
     finally:
         issue.edit(state="closed")

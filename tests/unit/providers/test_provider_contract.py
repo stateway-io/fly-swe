@@ -35,7 +35,10 @@ ISSUES = "org/issues"
 
 class SettingsNoEnv(Settings):
     model_config = SettingsConfigDict(
-        env_file=None, env_prefix="", extra="ignore", yaml_file=None,
+        env_file=None,
+        env_prefix="",
+        extra="ignore",
+        yaml_file=None,
     )
 
 
@@ -241,9 +244,7 @@ class TestTransport:
         assert remote.startswith(ISSUES)
         assert remote.endswith(local)
 
-    def test_closing_reference_only_with_an_auto_close_keyword(
-        self, plugin: ProviderPlugin
-    ):
+    def test_closing_reference_only_with_an_auto_close_keyword(self, plugin: ProviderPlugin):
         transport = plugin.transport()
         closing = transport.closing_reference(ISSUES, 3, TARGET)
         keyword = plugin.capabilities.auto_close_keyword
@@ -253,9 +254,7 @@ class TestTransport:
         else:
             assert closing is not None
             assert closing.startswith(keyword)
-            assert closing.endswith(
-                transport.format_ref("issue", 3, repo=ISSUES, from_repo=TARGET)
-            )
+            assert closing.endswith(transport.format_ref("issue", 3, repo=ISSUES, from_repo=TARGET))
 
 
 class TestPullRequestPort:

@@ -6,11 +6,11 @@ not a single config gate: `config.yaml` controls *which repo* is watched and
 into an agent invocation is decided by a four-stage pipeline spread across the
 webhook handler, an ingestion-time comment filter, the SQLite task queue, and
 worker-time guards plus label classification. Several of these stages have
-defaults that are **not visible in the live `config.yaml`** because the file
-omits the sections that would override them.
+defaults that are **not visible in a `config.yaml`** that omits the sections
+that would override them.
 
-All line references are current as of this writing; re-check them if the
-referenced files have since changed.
+Code references name the module (and, where useful, the function); read the
+source for the exact lines.
 
 ## Pipeline overview
 
@@ -28,7 +28,7 @@ GitHub webhook → POST /webhooks/{instance_id} (the `github` instance)
   → worker dequeues (round-robin across repos)                       [worker.py, store.py]
   → worker-time guards: payload, repo, author, daily budget          [guards.py]
   → label classification: SKIP / TRIAGE_ONLY / DIAGNOSE / FIX         [label_router.py, config.py's policy: block]
-  → FIX path: R7.6 stale-closed re-check, then clone + LLM loop       [executor.py]
+  → FIX path: stale-closed re-check, then clone + LLM loop       [executor.py]
   → DIAGNOSE path: clone + read-only LLM loop, verdict comment only   [runner/diagnose.py]
 ```
 
@@ -98,7 +98,7 @@ GitHub webhook → POST /webhooks/{instance_id} (the `github` instance)
    - **Closed-issue filter**: a comment on an issue with `state=="closed"`
      is dropped.
    - **Comment-author allowlist**: `comment_author_allowed()`
-     (`policy/comment_filter.py:22-61`), controlled by
+     (`policy/comment_filter.py`), controlled by
      `comments.author_filter.*` in `config.yaml`. Passes if *any* of:
      filter disabled; commenter is the issue's original author (even if
      that author is itself a bot); the commenter's canonical
@@ -134,7 +134,7 @@ GitHub webhook → POST /webhooks/{instance_id} (the `github` instance)
 5. **Worker dequeue and guards** — `worker.py` polls every
    `worker.poll_interval_seconds` (2.0s in `config.yaml`) and processes one
    task at a time, round-robining across repos
-   (`queue/store.py:330-338`). `run_task()` (`worker.py:396-641`) runs, in
+   (`queue/store.py`). `run_task()` (`worker.py`) runs, in
    order, aborting on the first failure:
    1. `validate_task_payload()` — the task's canonical trigger
       (`Task.trigger`, deserialized from `tasks.trigger_json`) must exist
@@ -142,7 +142,7 @@ GitHub webhook → POST /webhooks/{instance_id} (the `github` instance)
       (`policy/guards.py`).
    2. `check_repo_allowed()` — re-checks `task.repo` against
       `settings.allowed_repos` (derived from `config.yaml`'s `repos:`
-      list) → `ABORTED_POLICY` if not (`guards.py:31-34`).
+      list) → `ABORTED_POLICY` if not (`guards.py`).
    3. `check_author_allowed()` — only enforced if `settings.allowed_authors`
       is non-empty (env var `ALLOWED_AUTHORS`; **not set** in this
       deployment) — otherwise a no-op. It checks `TriggerEvent.actor`,
@@ -158,12 +158,12 @@ GitHub webhook → POST /webhooks/{instance_id} (the `github` instance)
    5. `check_daily_budget()` — if the target repo's spend today is at or
       above `budgets.max_daily_cost_usd` (5.00 in `config.yaml`), the task
       is **requeued** (not aborted) and retried automatically once budget
-      allows (`guards.py:56-66`; `worker.py:459-507`).
+      allows (`guards.py`; `worker.py`).
 
    Every guard failure except the comment-author abort and the
    budget-requeue posts a
    `🤖 … task not processed` comment on the issue
-   (`worker.py:423,439,455`).
+   (`worker.py,439,455`).
 
 6. **Label classification** — `classify_labels()` (`policy/label_router.py`)
    over the trigger's current label set (`TriggerEvent.issue.labels`), run
@@ -186,28 +186,28 @@ GitHub webhook → POST /webhooks/{instance_id} (the `github` instance)
      `diagnose_categories` is checked before `triage_only_categories`
      before the built-in `FIX` set.
 
-7. **R7.6 stale-closed re-check** (`runner/executor.py:996-1008`):
+7. **Stale-closed re-check** (`runner/executor.py`):
    immediately before cloning/running the LLM loop on the `FIX` path, the
    executor re-reads the issue's work row; if it was closed with
    `closed_reason=="issue_closed"` while the task sat in the queue, the run
    aborts with zero cost — no clone, no agent call, no comment.
 
 8. **`issue_work` open/resume/reopen** — `_open_or_resume_issue_work()`
-   (`runner/executor.py:676-761`), run right after R7.6 passes. Three
+   (`runner/executor.py`), run right after the stale-closed re-check passes. Three
    distinct outcomes depending on the existing row for this issue:
    - **No row, or closed with `no_changes` / `max_attempts` /
      `terminal_failure`**: treated as a spent work item — deleted (if
      present) and a brand-new row opened with a freshly computed branch
-     name. The workspace clones from `base_branch` (`executor.py:1041`) and
+     name. The workspace clones from `base_branch` (`executor.py`) and
      checks out a new local branch from that clone's tip
-     (`executor.py:1085`); no prior `last_summary` is injected into the
+     (`executor.py`); no prior `last_summary` is injected into the
      prompt.
    - **Row still `open`** (a genuine in-flight resume, e.g. after an
      orphan-task restart): `attempts` is bumped, the workspace fetches and
      checks out the existing remote branch's tip when the WIP push
-     succeeded (`_remote_branch_exists`, `executor.py:1065-1085`), and
+     succeeded (`_remote_branch_exists`, `executor.py`), and
      `last_summary` rides into the next prompt as `resume_summary`
-     (`executor.py:1020-1026`) — both gated on `resume.enabled`.
+     (`executor.py`) — both gated on `resume.enabled`.
    - **Closed with `pr_opened`** (or `branch_published`, its counterpart on
      a forge with no PR API): reopened *in place* (not deleted) —
      `work_branch`, `pr_number`, `total_cost_usd`/`total_iterations`, and
@@ -219,7 +219,7 @@ GitHub webhook → POST /webhooks/{instance_id} (the `github` instance)
      `resume_summary` — both **regardless of `resume.enabled`**, via a
      `force_continue` flag this reopen case sets specifically because it's
      a distinct continuity feature the block-retry toggle shouldn't gate
-     (`executor.py:1020-1026,1066`). The executor
+     (`executor.py,1066`). The executor
      then finds the still-open PR by branch name
      (`PullRequestClient.find_open_pr`) and updates it instead of opening a
      duplicate. On a forge with no PR API there is no PR to find: the
@@ -254,24 +254,23 @@ GitHub webhook → POST /webhooks/{instance_id} (the `github` instance)
 | Comment author is not the issue author, not in `allow_associations` (default `OWNER`/`MEMBER`/`COLLABORATOR`), and not on the explicit allowlist | Silently dropped, `reason: comment_author_not_allowed` — no task, no reply, no cost | `comment_filter.py`; `policy/ingestion.py` |
 | Same, but the payload reported no association (`unknown`) | Task enqueued, then `ABORTED_POLICY` (`comment_author_not_allowed`) by the worker before any LLM call; no reply | `guards.py::check_comment_author_allowed`; `worker.py` |
 | `issues.labeled` where the current label set has no category label and no `agent-skip` (e.g. only `wontfix`) | Dropped, `reason: no_trigger_label` — no task, no comment. Before v0.10.0 this enqueued a task that aborted and posted a "blocked" comment | `label_router.py::labels_can_trigger`; `policy/ingestion.py` |
-| `issues.reopened` (always — this is a lifecycle event, never a task-creating trigger) | Handled inline: if the local `issue_work` row's `closed_reason=="issue_closed"`, the row is deleted so the *next* trigger starts clean; for any other `closed_reason` the row is left untouched — the reopen event itself never enqueues a Task either way. A *later* comment/label-added event still enqueues a Task normally, and what that Task's executor run does with the row then depends on `closed_reason`: fresh start for `no_changes`/`max_attempts`/`terminal_failure`, in-place continuation for `pr_opened` | `routes.py:59-80`; see [Known gaps](#known-gaps-in-the-current-implementation) item 3 |
+| `issues.reopened` (always — this is a lifecycle event, never a task-creating trigger) | Handled inline: if the local `issue_work` row's `closed_reason=="issue_closed"`, the row is deleted so the *next* trigger starts clean; for any other `closed_reason` the row is left untouched — the reopen event itself never enqueues a Task either way. A *later* comment/label-added event still enqueues a Task normally, and what that Task's executor run does with the row then depends on `closed_reason`: fresh start for `no_changes`/`max_attempts`/`terminal_failure`, in-place continuation for `pr_opened` | `routes.py`; see [Known gaps](#known-gaps-in-the-current-implementation) item 3 |
 | Label classification resolves to `SKIP` (`agent-skip` present, or an `issues.opened` with no recognized label) | `ABORTED_POLICY`, a "blocked" comment is posted, no LLM cost | `label_router.py`; `worker.py` (SKIP branch) |
 | Label classification resolves to `TRIAGE_ONLY` (default: `question`, `feature-request`, high/critical `bug` — configurable via `policy.triage_only_categories`) | A templated comment is posted; the coding agent never runs | `worker.py` (TRIAGE_ONLY branch); `triage/builder.py` |
 | Label classification resolves to `DIAGNOSE` (a category listed in `policy.diagnose_categories`, empty by default) | The coding agent runs read-only and posts a verdict comment; it never edits files, commits, or opens a PR | `runner/diagnose.py` |
-| `validate_task_payload`, `check_repo_allowed`, or (if configured) `check_author_allowed` fails at worker time | `FAILED_TERMINAL` / `ABORTED_POLICY`, "blocked" comment posted, agent never runs | `guards.py:13-53`; `worker.py:411-457` |
-| Daily budget for the task's target repo is at/above `budgets.max_daily_cost_usd` | Task requeued (not aborted); no comment spam per poll cycle; retried automatically once budget allows | `guards.py:56-66`; `worker.py:459-507` |
-| Issue was closed while the `FIX` task sat in the queue (R7.6) | Executor aborts before clone/LLM call, zero cost, no comment | `executor.py:996-1008` |
+| `validate_task_payload`, `check_repo_allowed`, or (if configured) `check_author_allowed` fails at worker time | `FAILED_TERMINAL` / `ABORTED_POLICY`, "blocked" comment posted, agent never runs | `guards.py`; `worker.py` |
+| Daily budget for the task's target repo is at/above `budgets.max_daily_cost_usd` | Task requeued (not aborted); no comment spam per poll cycle; retried automatically once budget allows | `guards.py`; `worker.py` |
+| Issue was closed while the `FIX` task sat in the queue  | Executor aborts before clone/LLM call, zero cost, no comment | `executor.py` |
 | Orphaned/failed task exceeds `budgets.max_task_retries` (3) | `FAILED_TERMINAL`, no further retries; if the work row is still open the comment names the saved branch and says a new comment resumes it | `worker.py` (`run_retry_recovery`) |
 | The LLM provider fails mid-run (`llm_error`: connection/SSL drop, timeout, 5xx, 429 after the retry layers) | WIP committed and pushed to the work branch, `issue_work` stays open, task `FAILED_RECOVERABLE` → re-queued automatically with backoff (`budgets.max_task_retries`); a new comment also resumes at once | `executor.py` (`_finish_salvaged_failure`) |
 | Any other agent crash / `format_error` | WIP pushed, `issue_work` stays open, task `FAILED_TERMINAL` (no auto-retry); a new comment resumes from the branch | `executor.py` (`_finish_salvaged_failure`) |
 
-## What the live `config.yaml` actually controls
+## What `config.yaml` actually controls
 
-The reference deployment's `config.yaml` (reproduced below, with the App id
-and repo names replaced by placeholders) has **no `comments:` block and
-no `resume:` block**. `config.yaml.example` documents both, but since they're
-absent from the live file, the comment-author filter and resume behavior run
-entirely on hard-coded Python defaults in `src/issue_agent/config.py:471-527`
+A minimal `config.yaml` like the one below has **no `comments:` block and
+no `resume:` block**. `config.yaml.example` documents both, but when they're
+absent from the deployed file, the comment-author filter and resume behavior run
+entirely on hard-coded Python defaults in `src/issue_agent/config.py`
 (`comments.author_filter.enabled=true`, `allow_issue_author=true`,
 `allow_associations=["OWNER","MEMBER","COLLABORATOR"]`, `allowlist=[]`) rather
 than an explicit, reviewable value in the file that's actually deployed.
@@ -288,8 +287,8 @@ providers:
 repos:
   - issues: example-org/issues
     target: example-org/app
-    base_branch: dev
-    workflow: gitflow
+    base_branch: main
+    workflow: trunk_based
     branch_prefix: agent
     draft: false
     labels: []
@@ -300,13 +299,13 @@ repos:
       protected_paths: []
 
 llm:
-  model: openrouter/deepseek/deepseek-v4-flash
+  model: <provider>/<model>
   # ... provider/base_url/retries/cost_tracking/temperature/fallback
 
 budgets:
-  max_iterations: 40
-  max_cost_per_task_usd: 0.50
-  max_daily_cost_usd: 5.00
+  max_iterations: 50
+  max_cost_per_task_usd: 2.00
+  max_daily_cost_usd: 50.00
   task_timeout_seconds: 900
   command_timeout_seconds: 120
   max_task_retries: 3
@@ -349,16 +348,16 @@ config-driven trigger gate that exists today is the repo allowlist
 2. **Label classification is deferred to worker time, inconsistently with
    the comment filter.** Concretely: a comment from a disallowed author is
    dropped *at the webhook layer* — no `Task` row is ever inserted, no
-   reply is posted, zero trace (`routes.py:226-241`). But an issue opened
+   reply is posted, zero trace (`routes.py`). But an issue opened
    with no recognized label (or a label like `enhancement` that isn't in
    `label_router.py`'s categories) **does** get a `Task` row inserted
-   immediately at webhook time (`routes.py:243-296`), because the
+   immediately at webhook time (`routes.py`), because the
    `issues.opened`/`issues.labeled` handler never looks at what the labels
    actually are — it always enqueues. Only when the worker later dequeues
    that task (up to `poll_interval_seconds` later) does `classify_labels()`
    inspect the labels, find nothing recognized, decide `SKIP`, and post a
    visible `🤖 … task not processed` comment on the issue
-   (`worker.py:511-536`). Two scenarios that both mean "this isn't agent
+   (`worker.py`). Two scenarios that both mean "this isn't agent
    work" produce opposite observable outcomes: one is silent, the other
    creates a DB row, a worker cycle, and a bot comment on every unlabeled
    or mis-labeled issue. *Partially addressed in v0.10.0:* an
@@ -373,11 +372,11 @@ config-driven trigger gate that exists today is the repo allowlist
 > This has since been addressed for the two outcomes where it mattered
 > most: `no_changes` and `pr_opened` closes now persist a `last_summary`
 > (`last_summary_kind="submission"`, the agent's own final report —
-> `_resolve_agent_summary()`, `executor.py:473-482`; persisted at
-> `executor.py:854-860` for the block/zero-WIP `no_changes` case,
-> `executor.py:1226-1229` for the completed/clean-tree `no_changes` case
-> — also surfaced in the posted comment, `executor.py:549-552`
-> — and `executor.py:1355` for `pr_opened`), and a
+> `_resolve_agent_summary()`, `executor.py`; persisted at
+> `executor.py` for the block/zero-WIP `no_changes` case,
+> `executor.py` for the completed/clean-tree `no_changes` case
+> — also surfaced in the posted comment, `executor.py`
+> — and `executor.py` for `pr_opened`), and a
 > `pr_opened` re-trigger reopens its `issue_work` row *in place* and
 > continues from the existing PR branch instead of re-cloning
 > (`_open_or_resume_issue_work`, pipeline stage 8 above) — regardless of
@@ -405,16 +404,16 @@ config-driven trigger gate that exists today is the repo allowlist
 
      | `closed_reason` | Meaning | Set at |
      |---|---|---|
-     | `issue_closed` | The GitHub issue was actually closed (any of the methods above), or a periodic reconciliation sweep caught a missed webhook | `routes.py:84`; `observability/cleanup.py:109` |
-     | `pr_opened` | Happy path: the agent succeeded and opened a PR. Also persists `last_summary` (the PR description) — see the note above; the only `closed_reason` a later re-trigger reopens *in place* rather than starting fresh | `runner/executor.py:1357` |
+     | `issue_closed` | The GitHub issue was actually closed (any of the methods above), or a periodic reconciliation sweep caught a missed webhook | `routes.py`; `observability/cleanup.py` |
+     | `pr_opened` | Happy path: the agent succeeded and opened a PR. Also persists `last_summary` (the PR description) — see the note above; the only `closed_reason` a later re-trigger reopens *in place* rather than starting fresh | `runner/executor.py` |
      | `branch_published` | Happy path on a forge with no PR API (PRD §3.7): the branch was pushed and the issue got a compare link instead of a PR; `pr_number` stays empty. Persists `last_summary` and is reopened *in place* on a re-trigger, exactly like `pr_opened` | `runner/executor.py` (`_close_issue_work(..., out.delivery_reason)`) |
-     | `no_changes` | The agent ran but produced a clean diff (nothing to change), or blocked with no WIP worth preserving. Also persists `last_summary` since the note above | `runner/executor.py:861,1231` |
-     | `max_attempts` | The agent hit a recoverable block (timeout/budget) repeatedly and exhausted its resume-retry ceiling (`resume.max_attempts`, default 3) | `runner/executor.py:893` |
+     | `no_changes` | The agent ran but produced a clean diff (nothing to change), or blocked with no WIP worth preserving. Also persists `last_summary` since the note above | `runner/executor.py,1231` |
+     | `max_attempts` | The agent hit a recoverable block (timeout/budget) repeatedly and exhausted its resume-retry ceiling (`resume.max_attempts`, default 3) | `runner/executor.py` |
      | `terminal_failure` | An unrecoverable error (e.g. a git-level failure), or a failed run with `resume.enabled: false` (nothing preserved). **Not** used for LLM/agent failures when resume is on: those push the WIP and leave the row open (see [operations.md § Failure handling](./operations.md)) | `runner/executor.py` (`_close_issue_work(..., "terminal_failure")`) |
 
-     The R7.6 stale-closed guard (`executor.py:1001`) is the *only* place
+     The stale-closed guard (`executor.py`) is the *only* place
      that re-checks `closed_reason`, and it only reacts to `issue_closed`.
-     So `issues.reopened` clearing the row (`routes.py:59-80`) only matters
+     So `issues.reopened` clearing the row (`routes.py`) only matters
      for that one value; for the other five, the row is simply left as-is —
      reopening the GitHub issue changes nothing by itself. This doesn't
      permanently block future work, though: a **new** comment or label
@@ -435,7 +434,7 @@ config-driven trigger gate that exists today is the repo allowlist
 ### Config-level (`config.yaml` schema/knobs)
 
 - **Make implicit defaults explicit.** Add the `comments:` and `resume:`
-  blocks to the live `config.yaml` (even if just restating the current
+  blocks to the deployed `config.yaml` (even if just restating the current
   defaults) so the deployed comment-author policy is reviewable in the file
   that's actually shipped, rather than requiring a read of
   `config.py`'s Python defaults to know what's enforced in production.

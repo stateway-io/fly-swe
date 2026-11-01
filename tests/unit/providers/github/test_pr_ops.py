@@ -42,7 +42,9 @@ class TestGitHubPRText:
         assert msg.startswith("fix(owner/issues#42): Fix typo in README")
 
     def test_pr_title(self) -> None:
-        assert pr_text.pr_title("#42", "Fix typo in README") == "[agent] fix(#42): Fix typo in README"
+        assert (
+            pr_text.pr_title("#42", "Fix typo in README") == "[agent] fix(#42): Fix typo in README"
+        )
 
     def test_pr_title_multiline_description(self) -> None:
         assert pr_text.pr_title("#1", "Fix\nsomething") == "[agent] fix(#1): Fix\nsomething"
@@ -60,10 +62,8 @@ class TestGitHubPRText:
         assert "Cost: $0.00" in body
         assert "Iterations: 0" in body
 
-    def test_cross_repo_body_closes_the_qualified_issue(
-        self, transport: GitHubTransport
-    ) -> None:
-        """Bug A4: an unqualified `Closes #N` would point GitHub's auto-close
+    def test_cross_repo_body_closes_the_qualified_issue(self, transport: GitHubTransport) -> None:
+        """An unqualified `Closes #N` would point GitHub's auto-close
         at issue #N of the target repo instead of the issue repo."""
         body = pr_text.pr_body(
             issue_ref="owner/issues#42",
@@ -78,7 +78,10 @@ class TestPRBodySections:
     @staticmethod
     def _body(**overrides) -> str:
         fields = dict(
-            issue_ref="#42", closing_reference="Closes #42", task_id="t1", description="Fixed",
+            issue_ref="#42",
+            closing_reference="Closes #42",
+            task_id="t1",
+            description="Fixed",
         )
         fields.update(overrides)
         return pr_text.pr_body(**fields)
@@ -92,7 +95,10 @@ class TestPRBodySections:
         for header in ("## Summary", "## Files changed", "## How I tested", "## Reviewer notes"):
             assert header in body
         for portuguese in (
-            "Resumo da mudança", "Arquivos alterados", "Como testei", "Notas para o revisor",
+            "Resumo da mudança",
+            "Arquivos alterados",
+            "Como testei",
+            "Notas para o revisor",
         ):
             assert portuguese not in body
 
@@ -146,20 +152,22 @@ def _pull(number: int, head: str) -> MagicMock:
 
 
 class TestCreatePR:
-    def test_creates_and_labels(
-        self, pulls: GitHubPullRequestClient, client: MagicMock
-    ) -> None:
+    def test_creates_and_labels(self, pulls: GitHubPullRequestClient, client: MagicMock) -> None:
         client.create_pr.return_value = _pull(99, "agent/issue-42-fix-typo")
         issue = client.get_repo.return_value.get_issue.return_value
 
         pr = pulls.create_pr(
-            head="agent/issue-42-fix-typo", base="main",
-            title="[agent] fix(#42): Fix typo", body="## Summary\nFixed a typo.",
-            draft=False, labels=[],
+            head="agent/issue-42-fix-typo",
+            base="main",
+            title="[agent] fix(#42): Fix typo",
+            body="## Summary\nFixed a typo.",
+            draft=False,
+            labels=[],
         )
 
         assert pr == PRRef(
-            number=99, url=f"https://github.com/{REPO}/pull/99",
+            number=99,
+            url=f"https://github.com/{REPO}/pull/99",
             head_ref="agent/issue-42-fix-typo",
         )
         client.create_pr.assert_called_once_with(
@@ -183,8 +191,12 @@ class TestCreatePR:
         issue = client.get_repo.return_value.get_issue.return_value
 
         pulls.create_pr(
-            head="dev-fix-typo", base="dev", title="t", body="b",
-            draft=True, labels=["needs-review"],
+            head="dev-fix-typo",
+            base="dev",
+            title="t",
+            body="b",
+            draft=True,
+            labels=["needs-review"],
         )
 
         assert client.create_pr.call_args.kwargs["draft"] is True
@@ -245,7 +257,7 @@ class TestPRHasConflicts:
     ) -> None:
         client.get_pull_request.side_effect = [
             self._state("old", False),  # stale answer for the previous head
-            self._state("abc", None),   # still computing
+            self._state("abc", None),  # still computing
             self._state("abc", True),
         ]
         assert pulls.pr_has_conflicts(self._PR, "abc") is False
@@ -258,8 +270,6 @@ class TestPRHasConflicts:
         assert pulls.pr_has_conflicts(self._PR, "abc") is None
         assert client.get_pull_request.call_count == 5
 
-    def test_api_error_is_unknown(
-        self, pulls: GitHubPullRequestClient, client: MagicMock
-    ) -> None:
+    def test_api_error_is_unknown(self, pulls: GitHubPullRequestClient, client: MagicMock) -> None:
         client.get_pull_request.side_effect = RuntimeError("boom")
         assert pulls.pr_has_conflicts(self._PR, "abc") is None

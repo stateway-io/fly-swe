@@ -52,7 +52,5 @@ def get_logger(*args, **kwargs) -> structlog.BoundLogger:
     return structlog.get_logger(*args, **kwargs)
 
 
-def bind_context(
-    logger: structlog.BoundLogger, **kwargs
-) -> structlog.BoundLogger:
+def bind_context(logger: structlog.BoundLogger, **kwargs) -> structlog.BoundLogger:
     return logger.bind(**kwargs)

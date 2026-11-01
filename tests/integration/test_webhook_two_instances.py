@@ -34,9 +34,7 @@ def two_instance_app(
         DATA_DIR=str(tmp_path / "webhook-data"),
         PROVIDERS={
             **github_providers(),
-            **github_providers(
-                "ghe", webhook_secret=GHE_SECRET, host="https://ghe.example.com"
-            ),
+            **github_providers("ghe", webhook_secret=GHE_SECRET, host="https://ghe.example.com"),
         },
         REPO_ROUTES=[
             {"issues": REPO, "provider": "github", "target": "stateway-io/public"},
@@ -79,10 +77,12 @@ class TestTwoGitHubInstances:
         github_task = store.get_task(github.json()["task_id"])
         ghe_task = store.get_task(ghe.json()["task_id"])
         assert (github_task.provider_instance, github_task.target_repo) == (
-            "github", "stateway-io/public",
+            "github",
+            "stateway-io/public",
         )
         assert (ghe_task.provider_instance, ghe_task.target_repo) == (
-            "ghe", "stateway-io/internal",
+            "ghe",
+            "stateway-io/internal",
         )
         assert store.is_delivery_processed("github", "same-delivery-id")
         assert store.is_delivery_processed("ghe", "same-delivery-id")

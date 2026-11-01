@@ -85,13 +85,9 @@ def _classify_labels(
         return LabelAction.SKIP
 
     triage_only = (
-        DEFAULT_TRIAGE_ONLY_CATEGORIES
-        if triage_only_categories is None
-        else triage_only_categories
+        DEFAULT_TRIAGE_ONLY_CATEGORIES if triage_only_categories is None else triage_only_categories
     )
-    diagnose = (
-        DEFAULT_DIAGNOSE_CATEGORIES if diagnose_categories is None else diagnose_categories
-    )
+    diagnose = DEFAULT_DIAGNOSE_CATEGORIES if diagnose_categories is None else diagnose_categories
 
     # diagnose is checked before triage_only so a category moved into
     # diagnose_categories (e.g. "bug", normally FIX) takes effect even if it
@@ -106,7 +102,6 @@ def _classify_labels(
         return LabelAction.FIX
 
     return LabelAction.SKIP
-
 
 
 def labels_can_trigger(labels: list[str]) -> bool:

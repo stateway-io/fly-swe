@@ -1,0 +1,15 @@
+# Dependabot security updates for Python deps (uv) are enabled in the repo
+# settings and need no entry here. This file adds version updates for the
+# GitHub Actions used in .github/workflows/, which are pinned to commit SHAs
+# and would otherwise never move.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: ci

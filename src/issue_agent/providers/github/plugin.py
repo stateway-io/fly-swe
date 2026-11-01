@@ -86,9 +86,7 @@ class GitHubProviderPlugin(ProviderPlugin):
         # ever needs the webhook adapter.
         if self._auth is None:
             if self._auth_factory is None:
-                raise RuntimeError(
-                    f"provider {self.instance_id!r} has no GitHub App credentials"
-                )
+                raise RuntimeError(f"provider {self.instance_id!r} has no GitHub App credentials")
             self._auth = self._auth_factory()
         return self._auth
 

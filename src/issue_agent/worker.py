@@ -48,21 +48,13 @@ _budget_alerted: dict[str, str] = {}
 
 def _utcnow() -> str:
     now = datetime.now(UTC)
-    return (
-        now.strftime("%Y-%m-%dT%H:%M:%S.")
-        + f"{now.microsecond:06d}"[:3]
-        + "Z"
-    )
+    return now.strftime("%Y-%m-%dT%H:%M:%S.") + f"{now.microsecond:06d}"[:3] + "Z"
 
 
 def _threshold_ts(seconds_ago: int) -> str:
     ts = datetime.now(UTC).timestamp() - seconds_ago
     dt = datetime.fromtimestamp(ts, tz=UTC)
-    return (
-        dt.strftime("%Y-%m-%dT%H:%M:%S.")
-        + f"{dt.microsecond:06d}"[:3]
-        + "Z"
-    )
+    return dt.strftime("%Y-%m-%dT%H:%M:%S.") + f"{dt.microsecond:06d}"[:3] + "Z"
 
 
 def _compute_backoff(retry_count: int, schedule: list[int]) -> int:
@@ -276,9 +268,7 @@ def _post_blocked_comment(
         task_log.warning("blocked_comment_failed", guard=guard)
 
 
-def run_retry_recovery(
-    store: SQLiteStore, settings: Settings, registry: ProviderRegistry
-) -> int:
+def run_retry_recovery(store: SQLiteStore, settings: Settings, registry: ProviderRegistry) -> int:
     tasks = store.find_recoverable_tasks()
     if not tasks:
         return 0
@@ -292,9 +282,7 @@ def run_retry_recovery(
         completed_at: datetime | None = None
         if task.completed_at:
             with contextlib.suppress(ValueError, AttributeError):
-                completed_at = datetime.fromisoformat(
-                    task.completed_at.replace("Z", "+00:00")
-                )
+                completed_at = datetime.fromisoformat(task.completed_at.replace("Z", "+00:00"))
 
         if completed_at is None:
             continue
@@ -340,9 +328,7 @@ def run_retry_recovery(
 
             try:
                 work = store.get_issue_work(task.provider_instance, task.repo, task.issue_number)
-                resumable_branch = (
-                    work.work_branch if work and work.state == "open" else None
-                )
+                resumable_branch = work.work_branch if work and work.state == "open" else None
                 comment = _build_retry_exhausted_comment(
                     task, settings.agent_name, resumable_branch or None
                 )
@@ -409,50 +395,56 @@ def run_task(
 
         ok, msg = validate_task_payload(task)
         if not ok:
-            store.update_status(
-                task.id, TaskStatus.FAILED_TERMINAL, error=msg
-            )
+            store.update_status(task.id, TaskStatus.FAILED_TERMINAL, error=msg)
             store.append_task_event(
                 task.id,
                 "state_change",
                 {"from": "running", "to": "failed_terminal", "reason": msg},
             )
-            _write_task_audit(settings, task, "failed_terminal", level="warn", guard="payload", error=msg)
+            _write_task_audit(
+                settings, task, "failed_terminal", level="warn", guard="payload", error=msg
+            )
             task_log.warning("guard_blocked", guard="payload", reason=msg)
             _post_blocked_comment(task, settings, plugin, "payload", task_log)
-            observe_task_result("failed", 0.0, 0.0, 0, task.target_repo, provider_instance=task.provider_instance)
+            observe_task_result(
+                "failed", 0.0, 0.0, 0, task.target_repo, provider_instance=task.provider_instance
+            )
             return
 
         ok, msg = check_repo_allowed(task, settings)
         if not ok:
-            store.update_status(
-                task.id, TaskStatus.ABORTED_POLICY, error=msg
-            )
+            store.update_status(task.id, TaskStatus.ABORTED_POLICY, error=msg)
             store.append_task_event(
                 task.id,
                 "state_change",
                 {"from": "running", "to": "aborted_policy", "reason": msg},
             )
-            _write_task_audit(settings, task, "aborted_policy", level="warn", guard="repo", error=msg)
+            _write_task_audit(
+                settings, task, "aborted_policy", level="warn", guard="repo", error=msg
+            )
             task_log.warning("guard_blocked", guard="repo", reason=msg)
             _post_blocked_comment(task, settings, plugin, "repo", task_log)
-            observe_task_result("aborted", 0.0, 0.0, 0, task.target_repo, provider_instance=task.provider_instance)
+            observe_task_result(
+                "aborted", 0.0, 0.0, 0, task.target_repo, provider_instance=task.provider_instance
+            )
             return
 
         ok, msg = check_author_allowed(task, settings)
         if not ok:
-            store.update_status(
-                task.id, TaskStatus.ABORTED_POLICY, error=msg
-            )
+            store.update_status(task.id, TaskStatus.ABORTED_POLICY, error=msg)
             store.append_task_event(
                 task.id,
                 "state_change",
                 {"from": "running", "to": "aborted_policy", "reason": msg},
             )
-            _write_task_audit(settings, task, "aborted_policy", level="warn", guard="author", error=msg)
+            _write_task_audit(
+                settings, task, "aborted_policy", level="warn", guard="author", error=msg
+            )
             task_log.warning("guard_blocked", guard="author", reason=msg)
             _post_blocked_comment(task, settings, plugin, "author", task_log)
-            observe_task_result("aborted", 0.0, 0.0, 0, task.target_repo, provider_instance=task.provider_instance)
+            observe_task_result(
+                "aborted", 0.0, 0.0, 0, task.target_repo, provider_instance=task.provider_instance
+            )
             return
 
         ok, msg = check_comment_author_allowed(
@@ -461,19 +453,21 @@ def run_task(
             lambda login: plugin.client(task.repo).author_permission(login),
         )
         if not ok:
-            store.update_status(
-                task.id, TaskStatus.ABORTED_POLICY, error=msg
-            )
+            store.update_status(task.id, TaskStatus.ABORTED_POLICY, error=msg)
             store.append_task_event(
                 task.id,
                 "state_change",
                 {"from": "running", "to": "aborted_policy", "reason": msg},
             )
-            _write_task_audit(settings, task, "aborted_policy", level="warn", guard="comment_author", error=msg)
+            _write_task_audit(
+                settings, task, "aborted_policy", level="warn", guard="comment_author", error=msg
+            )
             task_log.warning("guard_blocked", guard="comment_author", reason=msg)
             # No _post_blocked_comment: the ingestion filter this stands in
-            # for drops silently (R2.3, D5), and so does this.
-            observe_task_result("aborted", 0.0, 0.0, 0, task.target_repo, provider_instance=task.provider_instance)
+            # for drops silently, and so does this.
+            observe_task_result(
+                "aborted", 0.0, 0.0, 0, task.target_repo, provider_instance=task.provider_instance
+            )
             return
 
         ok, msg = check_daily_budget(store, settings, scope=task.target_repo)
@@ -559,7 +553,9 @@ def run_task(
             )
             task_log.info("task_skipped", action=action.value)
             _post_blocked_comment(task, settings, plugin, "skip", task_log)
-            observe_task_result("aborted", 0.0, 0.0, 0, task.target_repo, provider_instance=task.provider_instance)
+            observe_task_result(
+                "aborted", 0.0, 0.0, 0, task.target_repo, provider_instance=task.provider_instance
+            )
             return
 
         elif action is LabelAction.TRIAGE_ONLY:
@@ -568,9 +564,7 @@ def run_task(
                 # time (webhook/routes.py), via the single unified
                 # get_label_category() — no need to recompute it here.
                 category = task.label_category
-                comment = build_triage_comment(
-                    category, trigger, settings.agent_name
-                )
+                comment = build_triage_comment(category, trigger, settings.agent_name)
 
                 store.update_status(task.id, TaskStatus.SUCCEEDED)
                 store.append_task_event(
@@ -599,7 +593,14 @@ def run_task(
                     action=action.value,
                     category=category,
                 )
-                observe_task_result("succeeded", 0.0, 0.0, 0, task.target_repo, provider_instance=task.provider_instance)
+                observe_task_result(
+                    "succeeded",
+                    0.0,
+                    0.0,
+                    0,
+                    task.target_repo,
+                    provider_instance=task.provider_instance,
+                )
             except Exception:
                 task_log.exception("triage_comment_failed")
                 store.append_task_event(
@@ -615,7 +616,14 @@ def run_task(
                     action=action.value,
                     error="triage_comment_failed",
                 )
-                observe_task_result("succeeded", 0.0, 0.0, 0, task.target_repo, provider_instance=task.provider_instance)
+                observe_task_result(
+                    "succeeded",
+                    0.0,
+                    0.0,
+                    0,
+                    task.target_repo,
+                    provider_instance=task.provider_instance,
+                )
 
         elif action is LabelAction.DIAGNOSE:
             from issue_agent.runner.diagnose import run_diagnosis
@@ -649,7 +657,9 @@ def run_task(
             level="error",
             error="unhandled_worker_exception",
         )
-        observe_task_result("failed", 0.0, 0.0, 0, task.target_repo, provider_instance=task.provider_instance)
+        observe_task_result(
+            "failed", 0.0, 0.0, 0, task.target_repo, provider_instance=task.provider_instance
+        )
 
 
 def main() -> None:
@@ -681,9 +691,7 @@ def main() -> None:
     )
 
     pruned_count = len(
-        prune_old_audit_files(
-            settings.data_dir, max_days=settings.audit_retention_days
-        )
+        prune_old_audit_files(settings.data_dir, max_days=settings.audit_retention_days)
     )
     if pruned_count:
         log.info("audit_pruned", files=pruned_count)
@@ -709,10 +717,7 @@ def main() -> None:
                 run_maintenance(store, settings)
                 _last_maintenance = now
 
-            if (
-                now - _last_reconcile
-                > settings.resume_reconcile_interval_minutes * 60
-            ):
+            if now - _last_reconcile > settings.resume_reconcile_interval_minutes * 60:
                 reconcile_issue_work(store, settings, registry)
                 _last_reconcile = now
 

@@ -72,7 +72,7 @@ class IssueWork(BaseModel):
     `tasks` stays the webhook-delivery queue; this is the business-state
     entity that answers "has the agent already worked this issue, on which
     branch, with what result". `work_branch` is frozen at open time and
-    read from here on every subsequent run (fixes C4).
+    read from here on every subsequent run.
     """
 
     provider_instance: str = "github"

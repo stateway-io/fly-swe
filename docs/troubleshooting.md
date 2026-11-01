@@ -75,7 +75,7 @@ raw webhook payload is not stored. The payload guard rejects a task whose
 A missing trigger only happens on a database upgraded straight from a
 release older than v0.10. Those releases enqueued tasks with only the raw
 payload, and the startup backfill that re-normalized them was removed in
-v1.1.10. Upgrade through any 1.x release up to v1.1.9 first to keep such
+v1.1.10. Upgrade through any release from v0.10.0 to v1.1.9 first to keep such
 in-flight tasks.
 
 Neither is expected for deliveries GitHub actually sent. To retry the

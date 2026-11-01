@@ -37,13 +37,11 @@ class Workspace:
 
     @property
     def path(self) -> Path:
-        return Path(
-            self._settings.data_dir, "workspaces", self._task_id, *self._repo_parts
-        )
+        return Path(self._settings.data_dir, "workspaces", self._task_id, *self._repo_parts)
 
     @property
     def _remote_url(self) -> str:
-        # Deliberately tokenless (A2): git persists whatever URL it's given
+        # Deliberately tokenless: git persists whatever URL it's given
         # into .git/config, so a tokened URL here would leak the write
         # credential to anything that can read the cloned workspace — the
         # agent included. Authentication for the clone itself travels via

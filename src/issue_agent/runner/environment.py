@@ -16,7 +16,7 @@ from issue_agent.runner.guards import SANDBOX_MARKER_ENV, reap_tagged_processes
 
 logger = get_logger(__name__)
 
-# Allowlist for the agent's bash subprocess environment (finding A2).
+# Allowlist for the agent's bash subprocess environment.
 #
 # `LocalEnvironment.execute` (mini-swe-agent 2.2.8) runs every agent command
 # with `env=os.environ | self.config.env` — `config.env` can only ADD keys,
@@ -64,7 +64,7 @@ _SUBMISSION_MARKER = "COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT"
 #
 # These are *additions* to the environment, not ``_ENV_ALLOWLIST`` entries:
 # every value is a literal, none is read from ``os.environ``, so they open no
-# path for a secret to reach the agent (A2).
+# path for a secret to reach the agent.
 _NONINTERACTIVE_ENV = {
     "PAGER": "cat",
     "MANPAGER": "cat",
@@ -94,7 +94,9 @@ def _warn_if_submission_marker_orphaned(output: dict) -> None:
     if _SUBMISSION_MARKER not in text:
         return
     lines = text.lstrip().splitlines(keepends=True)
-    matched = bool(lines) and lines[0].strip() == _SUBMISSION_MARKER and output.get("returncode") == 0
+    matched = (
+        bool(lines) and lines[0].strip() == _SUBMISSION_MARKER and output.get("returncode") == 0
+    )
     if not matched:
         logger.warning(
             "submission_marker_present_but_not_recognized",
@@ -147,11 +149,17 @@ class SandboxedLocalEnvironment(LocalEnvironment):
         try:
             env = _sandboxed_env(self.config.env) | {SANDBOX_MARKER_ENV: self.marker}
             result = _run(command, cwd, env, timeout or self.config.timeout)
-            output = {"output": result.stdout, "returncode": result.returncode, "exception_info": ""}
+            output = {
+                "output": result.stdout,
+                "returncode": result.returncode,
+                "exception_info": "",
+            }
         except Exception as e:
             raw_output = getattr(e, "output", None)
             raw_output = (
-                raw_output.decode("utf-8", errors="replace") if isinstance(raw_output, bytes) else (raw_output or "")
+                raw_output.decode("utf-8", errors="replace")
+                if isinstance(raw_output, bytes)
+                else (raw_output or "")
             )
             output = {
                 "output": raw_output,
@@ -185,25 +193,31 @@ class SandboxedLocalEnvironment(LocalEnvironment):
         )
 
     def get_template_vars(self, **kwargs) -> dict[str, Any]:
-        # Drop os.environ from the Jinja namespace entirely (A1 defense in
+        # Drop os.environ from the Jinja namespace entirely (defense in
         # depth): upstream's get_template_vars merges the full worker
         # environment into every rendered template.
         return recursive_merge(self.config.model_dump(), platform.uname()._asdict(), kwargs)
 
 
-def _run(command: str, cwd: str, env: dict[str, str], timeout: int) -> subprocess.CompletedProcess[str]:
+def _run(
+    command: str, cwd: str, env: dict[str, str], timeout: int
+) -> subprocess.CompletedProcess[str]:
     """Like subprocess.run, but kills the whole process group on timeout so no children are orphaned.
     The command runs as ``nice -n 19 /bin/sh -c`` (plain ``/bin/sh -c`` where ``nice`` is missing).
 
-    Verbatim port of ``minisweagent.environments.local._run`` (2.3.0+, see A6):
+    Verbatim port of ``minisweagent.environments.local._run`` (2.3.0+):
     upstream's own ``LocalEnvironment.execute`` calls this, but our
     ``execute()`` override above can't call it directly without also
-    inheriting ``os.environ | self.config.env`` (the A2 secrets leak), so the
+    inheriting ``os.environ | self.config.env`` (which leaked secrets into the agent), so the
     helper is duplicated here with an explicit ``env`` parameter instead.
     """
     nice = shutil.which("nice")
     # ``nice`` execs the shell, so the pid (and the process group below) is the shell's.
-    argv = [nice, "-n", str(_NICE_LEVEL), "/bin/sh", "-c", command] if nice else ["/bin/sh", "-c", command]
+    argv = (
+        [nice, "-n", str(_NICE_LEVEL), "/bin/sh", "-c", command]
+        if nice
+        else ["/bin/sh", "-c", command]
+    )
     process = subprocess.Popen(
         argv,
         text=True,

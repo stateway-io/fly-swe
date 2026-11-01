@@ -225,10 +225,15 @@ budgets:
   # Maximum LLM spend per day and target repo, in USD. Once reached, new tasks
   # for that repo wait in the queue until the next day (UTC). Default: 50.00.
   max_daily_cost_usd: 50.00
-  # Maximum wall-clock time of one task, in seconds. Default: 900.
+  # Maximum wall-clock time of one agent run, in seconds. The clone, the
+  # toolchain setup and the harness wrap-up (push, PR) are not counted, and
+  # each in-task test retry starts a new run with the full limit (see
+  # docs/operations.md § How task and command timeouts are counted).
+  # Default: 900.
   task_timeout_seconds: 900
   # Maximum time of a single shell command run by the agent (and of the test
-  # run after the push), in seconds. Default: 120.
+  # run after the push), in seconds. Counted per command; it is not capped by
+  # the time left of task_timeout_seconds. Default: 120.
   command_timeout_seconds: 120
   # How many times a task that failed with a recoverable error is retried,
   # waiting worker.backoff_schedule_seconds between attempts, before it is

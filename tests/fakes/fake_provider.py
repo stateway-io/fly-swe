@@ -67,9 +67,7 @@ def sign(body: bytes, secret: str) -> str:
 
 
 class FakeWebhookAdapter(WebhookAdapter):
-    def __init__(
-        self, *, instance_id: str, secret: str, reports_association: bool
-    ) -> None:
+    def __init__(self, *, instance_id: str, secret: str, reports_association: bool) -> None:
         self._instance_id = instance_id
         self._secret = secret
         self._reports_association = reports_association
@@ -77,9 +75,7 @@ class FakeWebhookAdapter(WebhookAdapter):
     def delivery_key(self, headers: Mapping[str, str], body: bytes) -> str:
         key = (headers.get(DELIVERY_HEADER) or "").strip()
         if not key:
-            raise WebhookRejectedError(
-                "missing delivery id", log_event="missing_delivery_header"
-            )
+            raise WebhookRejectedError("missing delivery id", log_event="missing_delivery_header")
         return key
 
     def verify_signature(self, headers: Mapping[str, str], body: bytes) -> None:
@@ -93,9 +89,7 @@ class FakeWebhookAdapter(WebhookAdapter):
     def parse_event(self, headers: Mapping[str, str], body: bytes) -> ParsedDelivery:
         event = self.event_name(headers)
         if event not in _EVENTS:
-            return ParsedDelivery(
-                event, "unsupported_event", Ignored("unsupported_event", None)
-            )
+            return ParsedDelivery(event, "unsupported_event", Ignored("unsupported_event", None))
         try:
             data = json.loads(body)
             if not isinstance(data, dict):
@@ -112,9 +106,7 @@ class FakeWebhookAdapter(WebhookAdapter):
         login = raw.get("login", "")
         return Author(
             login=login,
-            association=raw.get("association", "none")
-            if self._reports_association
-            else "unknown",
+            association=raw.get("association", "none") if self._reports_association else "unknown",
             is_self=login == FAKE_BOT_LOGIN,
         )
 
@@ -156,9 +148,7 @@ class FakeWebhookAdapter(WebhookAdapter):
 class FakeForge:
     """The fake forge's whole state, shared by every client of a provider."""
 
-    issue_states: dict[tuple[str, int], Literal["open", "closed"]] = field(
-        default_factory=dict
-    )
+    issue_states: dict[tuple[str, int], Literal["open", "closed"]] = field(default_factory=dict)
     comments: dict[tuple[str, int], list[Comment]] = field(default_factory=dict)
     labels: dict[tuple[str, int], list[str]] = field(default_factory=dict)
     default_branches: dict[str, str] = field(default_factory=dict)
@@ -241,7 +231,10 @@ class FakePullRequestClient(PullRequestClient):
         prs.append(pr)
         self._forge.labels[(self._repo, number)] = list(labels)
         self._forge.pr_details[(self._repo, number)] = {
-            "title": title, "body": body, "base": base, "draft": draft,
+            "title": title,
+            "body": body,
+            "base": base,
+            "draft": draft,
         }
         return pr
 
@@ -284,9 +277,7 @@ class FakeTransport(GitTransport):
         ref = f"{'!' if kind == 'pr' else '#'}{number}"
         return ref if repo == from_repo else f"{repo}{ref}"
 
-    def closing_reference(
-        self, issue_repo: str, number: int, target_repo: str
-    ) -> str | None:
+    def closing_reference(self, issue_repo: str, number: int, target_repo: str) -> str | None:
         return None
 
 

@@ -15,9 +15,7 @@ class TestMissingDeliveryHeader:
     @pytest.mark.asyncio
     async def test_returns_400(self, app: AsyncClient) -> None:
         body = make_github_payload()
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as c:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
             resp = await c.post(
                 "/webhooks/github",
                 content=body,
@@ -38,9 +36,7 @@ class TestProviderDispatch:
         self, app: AsyncClient, store
     ) -> None:
         body = make_github_payload()
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as c:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
             resp = await c.post(
                 "/webhooks/gitlab",
                 content=body,
@@ -60,9 +56,7 @@ class TestProviderDispatch:
         self, app: AsyncClient, store
     ) -> None:
         body = make_github_payload(labels=["bug"])
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as c:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
             resp = await c.post(
                 "/webhooks/github",
                 content=body,
@@ -92,9 +86,7 @@ class TestUnsupportedEvent:
         self, app: AsyncClient, store, event: str
     ) -> None:
         body = make_github_payload()
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as c:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
             resp = await c.post(
                 "/webhooks/github",
                 content=body,
@@ -122,9 +114,7 @@ class TestUnsupportedEvent:
             "X-GitHub-Event": "push",
             "X-Hub-Signature-256": sign_payload(body),
         }
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as c:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
             first = await c.post("/webhooks/github", content=body, headers=headers)
             second = await c.post("/webhooks/github", content=body, headers=headers)
         assert first.json() == {"status": "ignored", "reason": "unsupported_event"}
@@ -137,9 +127,7 @@ class TestUnsupportedEvent:
         self, app: AsyncClient, store
     ) -> None:
         body = make_github_payload()
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as c:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
             resp = await c.post(
                 "/webhooks/github",
                 content=body,
@@ -156,9 +144,7 @@ class TestUnsupportedEvent:
     async def test_unsupported_event_is_logged(self, app: AsyncClient) -> None:
         body = make_github_payload()
         with patch("issue_agent.webhook.routes.logger") as mock_logger:
-            async with AsyncClient(
-                transport=ASGITransport(app=app), base_url="http://test"
-            ) as c:
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
                 await c.post(
                     "/webhooks/github",
                     content=body,
@@ -180,9 +166,7 @@ class TestInvalidSignature:
     async def test_wrong_secret_returns_400(self, app: AsyncClient) -> None:
         body = make_github_payload()
         wrong_sig = sign_payload(body, secret="wrong-secret")
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as c:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
             resp = await c.post(
                 "/webhooks/github",
                 content=body,
@@ -200,9 +184,7 @@ class TestInvalidSignature:
         body = make_github_payload()
         sig = sign_payload(body)
         tampered = body.replace(b"opened", b"closed")
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as c:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
             resp = await c.post(
                 "/webhooks/github",
                 content=tampered,
@@ -218,9 +200,7 @@ class TestInvalidSignature:
 
 class TestDuplicateDelivery:
     @pytest.mark.asyncio
-    async def test_second_request_returns_200_duplicate(
-        self, app: AsyncClient, store
-    ) -> None:
+    async def test_second_request_returns_200_duplicate(self, app: AsyncClient, store) -> None:
         body = make_github_payload()
         sig = sign_payload(body)
         headers = {
@@ -229,9 +209,7 @@ class TestDuplicateDelivery:
             "X-Hub-Signature-256": sig,
         }
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as c:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
             first = await c.post("/webhooks/github", content=body, headers=headers)
             second = await c.post("/webhooks/github", content=body, headers=headers)
 
@@ -246,9 +224,7 @@ class TestInvalidJson:
     @pytest.mark.asyncio
     async def test_non_json_body_returns_400(self, app: AsyncClient) -> None:
         body = b"not json at all"
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as c:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
             resp = await c.post(
                 "/webhooks/github",
                 content=body,
@@ -268,9 +244,7 @@ class TestInvalidPayload:
         self, app: AsyncClient, store
     ) -> None:
         body = b'{"action": "opened", "issue": {"number": "not-a-number"}}'
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as c:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
             resp = await c.post(
                 "/webhooks/github",
                 content=body,
@@ -295,9 +269,7 @@ class TestRejectionsAreLogged:
 
     @staticmethod
     async def _post(app, body: bytes, headers: dict[str, str]):
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as c:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
             return await c.post("/webhooks/github", content=body, headers=headers)
 
     @pytest.mark.asyncio
@@ -326,9 +298,7 @@ class TestRejectionsAreLogged:
                 },
             )
         assert resp.status_code == 400
-        mock_logger.bind.assert_any_call(
-            delivery_id="delivery-log-sig", event="pull_request"
-        )
+        mock_logger.bind.assert_any_call(delivery_id="delivery-log-sig", event="pull_request")
         mock_logger.bind.return_value.warning.assert_any_call("invalid_signature")
 
     @pytest.mark.asyncio
@@ -350,13 +320,9 @@ class TestRejectionsAreLogged:
 
 class TestRepoNotAllowed:
     @pytest.mark.asyncio
-    async def test_unknown_repo_returns_200_ignored(
-        self, app: AsyncClient
-    ) -> None:
+    async def test_unknown_repo_returns_200_ignored(self, app: AsyncClient) -> None:
         body = make_github_payload(repo="some-other/repo")
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as c:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
             resp = await c.post(
                 "/webhooks/github",
                 content=body,
@@ -371,11 +337,8 @@ class TestRepoNotAllowed:
         assert data["status"] == "ignored"
         assert data["reason"] == "repo_not_allowed"
 
-
     @pytest.mark.asyncio
-    async def test_unknown_repo_wins_over_comment_filters(
-        self, app: AsyncClient
-    ) -> None:
+    async def test_unknown_repo_wins_over_comment_filters(self, app: AsyncClient) -> None:
         # The repo route is checked before the parser's ingestion filters,
         # as it was when they lived inline in the handler.
         body = make_github_payload(
@@ -385,9 +348,7 @@ class TestRepoNotAllowed:
             is_pull_request=True,
             comment={"user": {"type": "User", "login": "octocat"}},
         )
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as c:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
             resp = await c.post(
                 "/webhooks/github",
                 content=body,
@@ -403,13 +364,9 @@ class TestRepoNotAllowed:
 
 class TestUnhandledEventAction:
     @pytest.mark.asyncio
-    async def test_deleted_issue_returns_200_ignored(
-        self, app: AsyncClient
-    ) -> None:
+    async def test_deleted_issue_returns_200_ignored(self, app: AsyncClient) -> None:
         body = make_github_payload(action="deleted")
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as c:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
             resp = await c.post(
                 "/webhooks/github",
                 content=body,
@@ -426,14 +383,12 @@ class TestUnhandledEventAction:
 
 
 class TestIssueLifecycle:
-    """R7.1, R7.2: issues.closed / issues.reopened are handled in
+    """issues.closed / issues.reopened are handled in
     the webhook process — closing or touching the ``issue_work`` row — with
     no Task enqueued, no GitHub API call and no LLM."""
 
     async def _post(self, app, body, delivery):
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as c:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
             return await c.post(
                 "/webhooks/github",
                 content=body,
@@ -445,13 +400,14 @@ class TestIssueLifecycle:
             )
 
     @pytest.mark.asyncio
-    async def test_closed_with_open_work_closes_it_without_a_task(
-        self, app, store
-    ) -> None:
+    async def test_closed_with_open_work_closes_it_without_a_task(self, app, store) -> None:
         store.open_issue_work(
             "github",
-            "stateway-io/stateway-issues", 7,
-            "stateway-io/stateway-agent-fixtures", "main", "agent/issue-7-x",
+            "stateway-io/stateway-issues",
+            7,
+            "stateway-io/stateway-agent-fixtures",
+            "main",
+            "agent/issue-7-x",
         )
         body = make_github_payload(action="closed", issue_number=7)
 
@@ -476,13 +432,14 @@ class TestIssueLifecycle:
         assert store.get_issue_work("github", "stateway-io/stateway-issues", 8) is None
 
     @pytest.mark.asyncio
-    async def test_closed_with_already_closed_work_is_a_noop(
-        self, app, store
-    ) -> None:
+    async def test_closed_with_already_closed_work_is_a_noop(self, app, store) -> None:
         store.open_issue_work(
             "github",
-            "stateway-io/stateway-issues", 9,
-            "stateway-io/stateway-agent-fixtures", "main", "agent/issue-9-x",
+            "stateway-io/stateway-issues",
+            9,
+            "stateway-io/stateway-agent-fixtures",
+            "main",
+            "agent/issue-9-x",
         )
         store.close_issue_work("github", "stateway-io/stateway-issues", 9, "pr_opened", pr_number=5)
         body = make_github_payload(action="closed", issue_number=9)
@@ -494,13 +451,14 @@ class TestIssueLifecycle:
         assert work.closed_reason == "pr_opened"  # unchanged
 
     @pytest.mark.asyncio
-    async def test_reopened_does_not_reopen_work_and_enqueues_nothing(
-        self, app, store
-    ) -> None:
+    async def test_reopened_does_not_reopen_work_and_enqueues_nothing(self, app, store) -> None:
         store.open_issue_work(
             "github",
-            "stateway-io/stateway-issues", 10,
-            "stateway-io/stateway-agent-fixtures", "main", "agent/issue-10-x",
+            "stateway-io/stateway-issues",
+            10,
+            "stateway-io/stateway-agent-fixtures",
+            "main",
+            "agent/issue-10-x",
         )
         store.close_issue_work("github", "stateway-io/stateway-issues", 10, "max_attempts")
         body = make_github_payload(action="reopened", issue_number=10)
@@ -517,15 +475,11 @@ class TestIssueLifecycle:
 
 class TestValidWebhook:
     @pytest.mark.asyncio
-    async def test_returns_202_with_task_id(
-        self, app: AsyncClient, store
-    ) -> None:
+    async def test_returns_202_with_task_id(self, app: AsyncClient, store) -> None:
         body = make_github_payload(
             issue_number=42,
         )
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as c:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
             resp = await c.post(
                 "/webhooks/github",
                 content=body,
@@ -543,15 +497,11 @@ class TestValidWebhook:
         assert data["task_id"]
 
     @pytest.mark.asyncio
-    async def test_task_persisted_in_store(
-        self, app: AsyncClient, store
-    ) -> None:
+    async def test_task_persisted_in_store(self, app: AsyncClient, store) -> None:
         body = make_github_payload(
             issue_number=99,
         )
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as c:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
             resp = await c.post(
                 "/webhooks/github",
                 content=body,
@@ -570,8 +520,7 @@ class TestValidWebhook:
         assert task.repo == "stateway-io/stateway-issues"
         assert task.trigger_kind == TriggerKind.ISSUE_OPENED
         assert task.status == TaskStatus.PENDING
-        # Populated from the resolved RepoRoute + webhook payload
-        # (R5.2/R5.3, Task 2 of the multi-repo migration).
+        # Populated from the resolved RepoRoute + webhook payload.
         assert task.target_repo == "stateway-io/stateway-agent-fixtures"
         assert task.base_branch == "main"
         assert task.workflow == "trunk_based"
@@ -586,15 +535,11 @@ class TestValidWebhook:
         assert task.credentials_ref == "12345"
 
     @pytest.mark.asyncio
-    async def test_delivery_marked_processed(
-        self, app: AsyncClient, store
-    ) -> None:
+    async def test_delivery_marked_processed(self, app: AsyncClient, store) -> None:
         body = make_github_payload(
             issue_number=77,
         )
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as c:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
             resp = await c.post(
                 "/webhooks/github",
                 content=body,
@@ -608,13 +553,9 @@ class TestValidWebhook:
         assert store.is_delivery_processed("github", "delivery-009") is True
 
     @pytest.mark.asyncio
-    async def test_bug_label_sets_label_category(
-        self, app: AsyncClient, store
-    ) -> None:
+    async def test_bug_label_sets_label_category(self, app: AsyncClient, store) -> None:
         body = make_github_payload(issue_number=102, labels=["bug"])
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as c:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
             resp = await c.post(
                 "/webhooks/github",
                 content=body,
@@ -629,13 +570,9 @@ class TestValidWebhook:
         assert task.label_category == "bug"
 
     @pytest.mark.asyncio
-    async def test_docs_label_sets_label_category(
-        self, app: AsyncClient, store
-    ) -> None:
+    async def test_docs_label_sets_label_category(self, app: AsyncClient, store) -> None:
         body = make_github_payload(issue_number=103, labels=["docs"])
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as c:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
             resp = await c.post(
                 "/webhooks/github",
                 content=body,
@@ -650,13 +587,9 @@ class TestValidWebhook:
         assert task.label_category == "docs"
 
     @pytest.mark.asyncio
-    async def test_no_labels_leaves_label_category_none(
-        self, app: AsyncClient, store
-    ) -> None:
+    async def test_no_labels_leaves_label_category_none(self, app: AsyncClient, store) -> None:
         body = make_github_payload(issue_number=104)
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as c:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
             resp = await c.post(
                 "/webhooks/github",
                 content=body,
@@ -671,17 +604,13 @@ class TestValidWebhook:
         assert task.label_category is None
 
     @pytest.mark.asyncio
-    async def test_labeled_event_creates_task(
-        self, app: AsyncClient, store
-    ) -> None:
+    async def test_labeled_event_creates_task(self, app: AsyncClient, store) -> None:
         body = make_github_payload(
             action="labeled",
             issue_number=101,
             labels=["bug"],
         )
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as c:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
             resp = await c.post(
                 "/webhooks/github",
                 content=body,
@@ -699,9 +628,7 @@ class TestValidWebhook:
 
     async def _post_labeled(self, app, delivery_id: str, labels: list[str]):
         body = make_github_payload(action="labeled", issue_number=102, labels=labels)
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as c:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
             return await c.post(
                 "/webhooks/github",
                 content=body,
@@ -745,12 +672,8 @@ class TestValidWebhook:
     ) -> None:
         # Simulate the GitHub double-delivery when an issue is opened with a
         # label: opened creates the first task, labeled is dropped as redundant.
-        opened_body = make_github_payload(
-            action="opened", issue_number=110, labels=["bug"]
-        )
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as c:
+        opened_body = make_github_payload(action="opened", issue_number=110, labels=["bug"])
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
             opened_resp = await c.post(
                 "/webhooks/github",
                 content=opened_body,
@@ -762,12 +685,8 @@ class TestValidWebhook:
             )
         assert opened_resp.status_code == 202
 
-        labeled_body = make_github_payload(
-            action="labeled", issue_number=110, labels=["bug"]
-        )
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as c:
+        labeled_body = make_github_payload(action="labeled", issue_number=110, labels=["bug"])
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
             labeled_resp = await c.post(
                 "/webhooks/github",
                 content=labeled_body,
@@ -788,12 +707,8 @@ class TestValidWebhook:
     ) -> None:
         # A label added later (when the issue has no pending/running task)
         # should still create a task.
-        labeled_body = make_github_payload(
-            action="labeled", issue_number=111, labels=["bug"]
-        )
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as c:
+        labeled_body = make_github_payload(action="labeled", issue_number=111, labels=["bug"])
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
             resp = await c.post(
                 "/webhooks/github",
                 content=labeled_body,
@@ -817,12 +732,8 @@ class TestValidWebhook:
         for the same issue (GitHub gives no delivery-order guarantee between
         the two), `opened` must be the one dropped as redundant instead of
         creating a second task."""
-        labeled_body = make_github_payload(
-            action="labeled", issue_number=112, labels=["bug"]
-        )
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as c:
+        labeled_body = make_github_payload(action="labeled", issue_number=112, labels=["bug"])
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
             labeled_resp = await c.post(
                 "/webhooks/github",
                 content=labeled_body,
@@ -834,12 +745,8 @@ class TestValidWebhook:
             )
         assert labeled_resp.status_code == 202
 
-        opened_body = make_github_payload(
-            action="opened", issue_number=112, labels=["bug"]
-        )
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as c:
+        opened_body = make_github_payload(action="opened", issue_number=112, labels=["bug"])
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
             opened_resp = await c.post(
                 "/webhooks/github",
                 content=opened_body,
@@ -863,17 +770,11 @@ class TestValidWebhook:
         for the issue, whichever request the server happens to process
         first — this is what insert_task_unless_active_creation_task()'s
         atomic check-then-insert closes (see queue/store.py)."""
-        opened_body = make_github_payload(
-            action="opened", issue_number=113, labels=["bug"]
-        )
-        labeled_body = make_github_payload(
-            action="labeled", issue_number=113, labels=["bug"]
-        )
+        opened_body = make_github_payload(action="opened", issue_number=113, labels=["bug"])
+        labeled_body = make_github_payload(action="labeled", issue_number=113, labels=["bug"])
 
         async def _post(body: bytes, delivery: str, event: str = "issues"):
-            async with AsyncClient(
-                transport=ASGITransport(app=app), base_url="http://test"
-            ) as c:
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
                 return await c.post(
                     "/webhooks/github",
                     content=body,
@@ -921,9 +822,7 @@ class TestValidWebhook:
                 "author_association": "NONE",
             },
         )
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as c:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
             comment_resp = await c.post(
                 "/webhooks/github",
                 content=comment_body,
@@ -937,12 +836,8 @@ class TestValidWebhook:
         comment_task = store.get_task(comment_resp.json()["task_id"])
         assert comment_task.trigger_kind == TriggerKind.COMMENT_COMMAND
 
-        labeled_body = make_github_payload(
-            action="labeled", issue_number=114, labels=["bug"]
-        )
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as c:
+        labeled_body = make_github_payload(action="labeled", issue_number=114, labels=["bug"])
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
             labeled_resp = await c.post(
                 "/webhooks/github",
                 content=labeled_body,
@@ -958,9 +853,7 @@ class TestValidWebhook:
 
 class TestCommentFiltering:
     async def _post(self, app, body, delivery):
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as c:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
             return await c.post(
                 "/webhooks/github",
                 content=body,
@@ -1002,7 +895,9 @@ class TestCommentFiltering:
         assert store.get_queue_depth() == 0
 
     @pytest.mark.asyncio
-    async def test_own_bot_comment_without_performed_via_app_is_ignored(self, app_with_bot_login, store) -> None:
+    async def test_own_bot_comment_without_performed_via_app_is_ignored(
+        self, app_with_bot_login, store
+    ) -> None:
         # Regression: when performed_via_github_app is absent and agent.name
         # does not match the real bot login, app_bot_login must still identify
         # the bot and drop its own comments.
@@ -1106,17 +1001,11 @@ class TestCommentFiltering:
         assert store.get_queue_depth() == 0
 
     @pytest.mark.asyncio
-    async def test_allowlisted_bot_comment_creates_task(
-        self, app, store, monkeypatch
-    ) -> None:
+    async def test_allowlisted_bot_comment_creates_task(self, app, store, monkeypatch) -> None:
         from .conftest import _make_settings
 
-        settings = _make_settings(
-            COMMENTS_AUTHOR_FILTER_ALLOWLIST=["dependabot[bot]"]
-        )
-        monkeypatch.setattr(
-            "issue_agent.webhook.routes.get_settings", lambda: settings
-        )
+        settings = _make_settings(COMMENTS_AUTHOR_FILTER_ALLOWLIST=["dependabot[bot]"])
+        monkeypatch.setattr("issue_agent.webhook.routes.get_settings", lambda: settings)
         body = make_github_payload(
             event="issue_comment",
             action="created",
@@ -1133,11 +1022,9 @@ class TestCommentFiltering:
         assert task.trigger_kind == TriggerKind.COMMENT_COMMAND
 
     @pytest.mark.asyncio
-    async def test_bot_that_opened_the_issue_keeps_its_channel(
-        self, app, store
-    ) -> None:
+    async def test_bot_that_opened_the_issue_keeps_its_channel(self, app, store) -> None:
         # The reporter is a bot; a maintainer just reopened the issue. Its
-        # follow-up comment must still create a task (user directive, R2.1).
+        # follow-up comment must still create a task.
         body = make_github_payload(
             event="issue_comment",
             action="created",
@@ -1156,7 +1043,7 @@ class TestCommentFiltering:
 
 
 class TestCredentialsHint:
-    """R5.2 / PRD §7 risk 2: the webhook never makes a network call to resolve
+    """PRD §7 risk 2: the webhook never makes a network call to resolve
     the installation; a task without one is resolved later by the worker."""
 
     @pytest.mark.asyncio
@@ -1165,9 +1052,7 @@ class TestCredentialsHint:
     ) -> None:
         body = make_github_payload(issue_number=200, installation_id=555)
         with patch("issue_agent.providers.github.auth.GithubIntegration") as mock_auth:
-            async with AsyncClient(
-                transport=ASGITransport(app=app), base_url="http://test"
-            ) as c:
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
                 resp = await c.post(
                     "/webhooks/github",
                     content=body,
@@ -1190,9 +1075,7 @@ class TestCredentialsHint:
     ) -> None:
         body = make_github_payload(issue_number=201, installation_id=None)
         with patch("issue_agent.providers.github.auth.GithubIntegration") as mock_auth:
-            async with AsyncClient(
-                transport=ASGITransport(app=app), base_url="http://test"
-            ) as c:
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
                 resp = await c.post(
                     "/webhooks/github",
                     content=body,
@@ -1226,9 +1109,7 @@ class TestInvalidSignatureDoesNotBurnTheDelivery:
         body = make_github_payload(issue_number=301)
         delivery = {"X-GitHub-Delivery": "delivery-forged", "X-GitHub-Event": "issues"}
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as c:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
             forged = await c.post(
                 "/webhooks/github",
                 content=body,
@@ -1269,9 +1150,7 @@ class TestDeliveryNotMarkedProcessedOnMidFlightFailure:
             "insert_task_unless_active_creation_task",
             side_effect=RuntimeError("database is locked"),
         ):
-            async with AsyncClient(
-                transport=ASGITransport(app=app), base_url="http://test"
-            ) as c:
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
                 with pytest.raises(RuntimeError, match="database is locked"):
                     await c.post(
                         "/webhooks/github",
@@ -1302,17 +1181,13 @@ class TestDeliveryNotMarkedProcessedOnMidFlightFailure:
             "insert_task_unless_active_creation_task",
             side_effect=RuntimeError("transient"),
         ):
-            async with AsyncClient(
-                transport=ASGITransport(app=app), base_url="http://test"
-            ) as c:
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
                 with pytest.raises(RuntimeError):
                     await c.post("/webhooks/github", content=body, headers=headers)
 
         assert store.is_delivery_processed("github", "delivery-insert-retry") is False
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as c:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
             retry_resp = await c.post("/webhooks/github", content=body, headers=headers)
 
         assert retry_resp.status_code == 202

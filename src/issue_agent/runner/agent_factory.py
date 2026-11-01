@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 # Called after an agent step with ``(iteration, cost_usd)`` — posts the
-# "still working" comment (R6). Injected by the executor, which owns the
+# "still working" comment. Injected by the executor, which owns the
 # GitHub client.
 ProgressCallback = Callable[[int, float], None]
 
@@ -30,11 +30,11 @@ ProgressCallback = Callable[[int, float], None]
 class ProgressReportingAgent(DefaultAgent):
     """``DefaultAgent`` that posts a progress comment every
     ``progress_every_iterations`` steps, at most ``progress_max_per_run``
-    times per run (R6.1, R6.3). The counter is per instance = per run.
+    times per run. The counter is per instance = per run.
 
     ``step()`` is the only override; the check is best-effort — a failed
     post is logged, still counts against the per-run cap (anti-spam), and
-    never interrupts the run (R6.4)."""
+    never interrupts the run."""
 
     def __init__(
         self,
@@ -116,7 +116,7 @@ def _model_kwargs(profile: LlmProfile) -> dict:
     if profile.fallback_model:
         fallback: dict = {
             "model": profile.fallback_model,
-            # The fallback key is never part of a per-repo override (R5.1.3 /
+            # The fallback key is never part of a per-repo override (
             # RepoLlmOverride has no api_key field) — always the global pair.
             "api_key": profile.fallback_api_key or profile.api_key,
         }
@@ -154,12 +154,10 @@ def build_agent(
             )
         # cost_tracking: strict (default) makes CostAwareLitellmModel raise
         # when a step's cost can't be determined — a masked 0.0 is how the
-        # budget guards failed in production (R5.5.3). lenient keeps the old
+        # budget guards failed in production. lenient keeps the old
         # warn-and-carry-on behavior.
         cost_tracking = "default" if profile.cost_tracking == "strict" else "ignore_errors"
-        set_cache_control = (
-            "default_end" if profile.prompt_caching == "default_end" else None
-        )
+        set_cache_control = "default_end" if profile.prompt_caching == "default_end" else None
         model_kwargs = _model_kwargs(profile)
         if settings.llm_request_timeout_seconds > 0:
             model_kwargs["timeout"] = settings.llm_request_timeout_seconds
@@ -189,12 +187,10 @@ def build_agent(
         env=toolchain_env or {},
     )
 
-    # R6.2: a progress-reporting subclass only when there is somewhere to
+    # A progress-reporting subclass only when there is somewhere to
     # report to (on_progress) and reporting is enabled (threshold > 0);
     # otherwise the plain agent, unchanged.
-    progress_on = (
-        on_progress is not None and settings.comments_progress_every_iterations > 0
-    )
+    progress_on = on_progress is not None and settings.comments_progress_every_iterations > 0
     agent_cls = ProgressReportingAgent if progress_on else DefaultAgent
     extra_agent_kwargs: dict = (
         {
@@ -212,7 +208,7 @@ def build_agent(
         config_class=AgentConfig,
         system_template=system_template
         or load_system_prompt(task.label_category, settings.prompt_category_map),
-        # Static template — issue text is never embedded here (A1). It is
+        # Static template — issue text is never embedded here. It is
         # passed in later as the `task` value via agent.run(task=...),
         # which MiniSWERunner does.
         instance_template=INSTANCE_TEMPLATE,
@@ -226,18 +222,18 @@ def build_agent(
     # Always set unconditionally: the prompt templates use Jinja's
     # StrictUndefined, which raises if any of these names is referenced but
     # missing — so every key must be present even when the value is an
-    # empty string/list (R5.4.1/R5.4.2, R5.6.1).
+    # empty string/list.
     agent.extra_template_vars = {
         "bot_name": settings.agent_name,
         "test_command": route.project.test_command,
         "lint_command": route.project.lint_command,
         "protected_paths": route.project.protected_paths,
         "relevant_extensions": route.project.relevant_extensions,
-        # INSTANCE_TEMPLATE's <comments> block (R3/D8). Seeded empty here so
+        # INSTANCE_TEMPLATE's <comments> block. Seeded empty here so
         # StrictUndefined is satisfied for every caller; MiniSWERunner
         # overwrites it with the filtered discussion thread before agent.run().
         "comments": "",
-        # INSTANCE_TEMPLATE's <previous_work> block (R5.6). Seeded empty;
+        # INSTANCE_TEMPLATE's <previous_work> block. Seeded empty;
         # MiniSWERunner fills it with issue_work.last_summary on a resume.
         "resume_summary": "",
         # INSTANCE_TEMPLATE's <branch_status> block. Seeded empty (a fresh

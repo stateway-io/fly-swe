@@ -83,7 +83,9 @@ class TestBuildAgent:
         kwargs = mock_model_cls.call_args[1]
         assert kwargs["model_name"] == "anthropic/claude-sonnet-4-7"
         assert kwargs["model_kwargs"] == {
-            "api_key": "k", "max_retries": 3, "timeout": 120,
+            "api_key": "k",
+            "max_retries": 3,
+            "timeout": 120,
         }
         # LitellmModelConfig's own defaults cap nothing and reduce a format
         # error to "{{ error }}"; the YAML-equivalent templates must be passed
@@ -97,7 +99,7 @@ class TestBuildAgent:
 
 
 class TestProgressReportingAgent:
-    """R6: a DefaultAgent subclass that posts a progress comment
+    """A DefaultAgent subclass that posts a progress comment
     every N iterations, capped per run, best-effort."""
 
     def _agent(self, on_progress, every: int = 20, mx: int = 2) -> ProgressReportingAgent:
@@ -152,12 +154,8 @@ class TestProgressReportingAgent:
     def test_step_runs_the_progress_check(self) -> None:
         agent = self._agent(lambda i, c: None)
         with (
-            patch(
-                "minisweagent.agents.default.DefaultAgent.step", return_value=[]
-            ) as mock_super,
-            patch.object(
-                ProgressReportingAgent, "_maybe_report_progress"
-            ) as mock_check,
+            patch("minisweagent.agents.default.DefaultAgent.step", return_value=[]) as mock_super,
+            patch.object(ProgressReportingAgent, "_maybe_report_progress") as mock_check,
         ):
             agent.step()
         mock_super.assert_called_once()
@@ -207,9 +205,7 @@ class TestModelKwargsAndTracking:
         assert kwargs["model_kwargs"]["custom_llm_provider"] == "openrouter"
 
     def test_sampling_params_passed_only_when_set(self):
-        kwargs = self._build(
-            _make_settings(LLM_TEMPERATURE="0.3", LLM_MAX_OUTPUT_TOKENS="1234")
-        )
+        kwargs = self._build(_make_settings(LLM_TEMPERATURE="0.3", LLM_MAX_OUTPUT_TOKENS="1234"))
         assert kwargs["model_kwargs"]["temperature"] == 0.3
         assert kwargs["model_kwargs"]["max_tokens"] == 1234
 
@@ -312,7 +308,9 @@ class TestModelKwargsAndTracking:
             mock_agent_cls.return_value = MagicMock()
             mock_load.return_value = ""
 
-            build_agent(task, Path("/workspaces/task-007/stateway"), settings, _make_route(), terms=TERMS)
+            build_agent(
+                task, Path("/workspaces/task-007/stateway"), settings, _make_route(), terms=TERMS
+            )
 
         mock_env_cls.assert_called_once()
         kwargs = mock_env_cls.call_args[1]
@@ -403,7 +401,9 @@ class TestModelKwargsAndTracking:
 
         mock_agent_cls.assert_called_once()
         kwargs = mock_agent_cls.call_args[1]
-        assert kwargs["output_path"] == Path("/tmp/agent-factory-data/events/task-007/trajectory.json")
+        assert kwargs["output_path"] == Path(
+            "/tmp/agent-factory-data/events/task-007/trajectory.json"
+        )
 
     def test_loads_system_prompt_via_label_category(self) -> None:
         settings = _make_settings()
@@ -426,7 +426,7 @@ class TestModelKwargsAndTracking:
         assert mock_agent_cls.call_args[1]["system_template"] == "docs prompt"
 
     def test_instance_template_is_the_static_task_template(self) -> None:
-        """A1 fix: instance_template must never be issue-derived text — it is
+        """instance_template must never be issue-derived text — it is
         always the static INSTANCE_TEMPLATE ({{ task }}), regardless of the task.
         build_user_message() is no longer called here; MiniSWERunner passes the
         issue-derived message through agent.run(task=...) instead."""
@@ -492,8 +492,12 @@ class TestModelKwargsAndTracking:
             patch("issue_agent.runner.agent_factory.load_system_prompt", return_value="p"),
         ):
             agent = build_agent(
-                _make_task(), Path("/ws"), settings, _make_route(),
-                terms=TERMS, on_progress=lambda i, c: None,
+                _make_task(),
+                Path("/ws"),
+                settings,
+                _make_route(),
+                terms=TERMS,
+                on_progress=lambda i, c: None,
             )
         assert isinstance(agent, ProgressReportingAgent)
 
@@ -505,8 +509,12 @@ class TestModelKwargsAndTracking:
             patch("issue_agent.runner.agent_factory.load_system_prompt", return_value="p"),
         ):
             agent = build_agent(
-                _make_task(), Path("/ws"), settings, _make_route(),
-                terms=TERMS, on_progress=lambda i, c: None,
+                _make_task(),
+                Path("/ws"),
+                settings,
+                _make_route(),
+                terms=TERMS,
+                on_progress=lambda i, c: None,
             )
         assert not isinstance(agent, ProgressReportingAgent)
 

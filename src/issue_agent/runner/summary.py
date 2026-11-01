@@ -1,4 +1,4 @@
-"""Block summaries for work resumption (R5).
+"""Block summaries for work resumption.
 
 When a run blocks on a timeout or a budget/cost stop, the partial work is
 pushed to the work branch and a short summary of what was done / what remains
@@ -6,15 +6,14 @@ is persisted on ``issue_work`` and injected into the next run's prompt. Two
 sources, per ``resume.summary_on_block``:
 
 - ``mechanical`` — ``git diff`` against HEAD plus the last few turns of the
-  trajectory the agent already produced. Zero extra tokens (R5.3), and the
+  trajectory the agent already produced. Zero extra tokens, and the
   default.
 - ``llm`` — one extra model call over the trajectory. Counted against the
-  task cost and the daily budget like any other call (R5.4).
+  task cost and the daily budget like any other call.
 
 An LLM summary that fails — including ``CostUnavailableError`` under strict
 cost tracking, the expected outcome when the block itself was a cost stop —
-degrades to the mechanical summary; the block is never left without one
-(R5.4).
+degrades to the mechanical summary; the block is never left without one.
 """
 
 from __future__ import annotations
@@ -33,7 +32,7 @@ _MECHANICAL = "mechanical"
 _LLM = "llm"
 
 # Blocks where an extra LLM call is exactly what must not happen under
-# ``llm_unless_budget`` (R5.2).
+# ``llm_unless_budget``.
 _COST_BLOCKS = {"budget_exceeded", "cost_unavailable"}
 
 _RECENT_ACTION_LIMIT = 6
@@ -52,9 +51,7 @@ _LLM_SUMMARY_SYSTEM = (
 
 
 def _git(ws_path: Path, *args: str) -> str:
-    result = subprocess.run(
-        ["git", *args], capture_output=True, text=True, cwd=ws_path
-    )
+    result = subprocess.run(["git", *args], capture_output=True, text=True, cwd=ws_path)
     return result.stdout.strip() if result.returncode == 0 else ""
 
 
@@ -76,8 +73,7 @@ def _recent_actions(messages: list[dict[str, Any]]) -> str:
     ]
     turns = turns[-_RECENT_ACTION_LIMIT:]
     return "\n\n".join(
-        f"[recent step {i}]\n{t[:_RECENT_ACTION_CHARS]}"
-        for i, t in enumerate(turns, 1)
+        f"[recent step {i}]\n{t[:_RECENT_ACTION_CHARS]}" for i, t in enumerate(turns, 1)
     )
 
 
@@ -144,21 +140,17 @@ def summarize_block(
 ) -> tuple[str, str, float]:
     """Produce the block summary. Returns ``(text, kind, extra_cost_usd)``
     where ``kind`` is ``'' | 'mechanical' | 'llm'`` — a policy that asked for
-    an LLM summary but degraded reports ``'mechanical'`` (R5.4)."""
+    an LLM summary but degraded reports ``'mechanical'``."""
     if policy == "never":
         return "", "", 0.0
 
-    want_llm = policy == _LLM or (
-        policy == "llm_unless_budget" and block_error not in _COST_BLOCKS
-    )
+    want_llm = policy == _LLM or (policy == "llm_unless_budget" and block_error not in _COST_BLOCKS)
 
     if want_llm:
         try:
             text, cost = build_llm_summary(model, messages)
             return _truncate(text, max_chars), _LLM, cost
         except Exception as exc:
-            logger.warning(
-                "llm_block_summary_degraded", error=str(exc), block_error=block_error
-            )
+            logger.warning("llm_block_summary_degraded", error=str(exc), block_error=block_error)
 
     return _truncate(build_mechanical_summary(ws_path, messages), max_chars), _MECHANICAL, 0.0

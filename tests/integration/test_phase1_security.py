@@ -1,8 +1,8 @@
 """Acceptance tests for the baseline security guarantees:
 
-1. An issue body containing Jinja syntax is never rendered/evaluated (A1).
-2. The agent's bash environment carries none of the five secrets (A2).
-3. The workspace's .git/config never contains a git credential (A2).
+1. An issue body containing Jinja syntax is never rendered/evaluated.
+2. The agent's bash environment carries none of the five secrets.
+3. The workspace's .git/config never contains a git credential.
 """
 
 from __future__ import annotations
@@ -109,14 +109,15 @@ class TestIssueBodyTemplateInjectionIsInert:
         monkeypatch.setenv("LLM_API_KEY", "sk-PHASE1-SECRET")
 
         malicious_body = (
-            "{{ LLM_API_KEY }} {{ 7*7 }} "
-            "{% for x in y %}{% endfor %} {{ model_kwargs }}"
+            "{{ LLM_API_KEY }} {{ 7*7 }} {% for x in y %}{% endfor %} {{ model_kwargs }}"
         )
         task = _make_task(malicious_body)
         settings = _make_settings()
         route = settings.repo_routes[0]
 
-        agent = build_agent(task, tmp_path, settings, route, terms=TERMS, model=FakeModel([exit_response()]))
+        agent = build_agent(
+            task, tmp_path, settings, route, terms=TERMS, model=FakeModel([exit_response()])
+        )
 
         # Must not raise TemplateSyntaxError / UndefinedError, and must not
         # crash the task.
@@ -183,25 +184,41 @@ class TestWorkspaceGitConfigHasNoCredential:
         remotes_root = tmp_path / "remotes"
         bare = remotes_root / owner / f"{repo}.git"
         bare.mkdir(parents=True)
-        subprocess.run(["git", "init", "--bare", "-b", "main"], cwd=bare, check=True, capture_output=True)
+        subprocess.run(
+            ["git", "init", "--bare", "-b", "main"], cwd=bare, check=True, capture_output=True
+        )
 
         seed = tmp_path / "seed"
         seed.mkdir()
         subprocess.run(["git", "init", "-b", "main"], cwd=seed, check=True, capture_output=True)
-        subprocess.run(["git", "config", "user.email", "bot@test.com"], cwd=seed, check=True, capture_output=True)
-        subprocess.run(["git", "config", "user.name", "Test Bot"], cwd=seed, check=True, capture_output=True)
+        subprocess.run(
+            ["git", "config", "user.email", "bot@test.com"],
+            cwd=seed,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "Test Bot"], cwd=seed, check=True, capture_output=True
+        )
         (seed / "README.md").write_text("seed\n")
         subprocess.run(["git", "add", "-A"], cwd=seed, check=True, capture_output=True)
         subprocess.run(["git", "commit", "-m", "seed"], cwd=seed, check=True, capture_output=True)
-        subprocess.run(["git", "remote", "add", "origin", str(bare)], cwd=seed, check=True, capture_output=True)
-        subprocess.run(["git", "push", "-u", "origin", "main"], cwd=seed, check=True, capture_output=True)
+        subprocess.run(
+            ["git", "remote", "add", "origin", str(bare)], cwd=seed, check=True, capture_output=True
+        )
+        subprocess.run(
+            ["git", "push", "-u", "origin", "main"], cwd=seed, check=True, capture_output=True
+        )
 
         gitconfig = tmp_path / "redirect.gitconfig"
         gitconfig.write_text(f'[url "{remotes_root}/"]\n\tinsteadOf = https://github.com/\n')
         return owner, repo, gitconfig
 
     def test_real_clone_leaves_no_credential_in_git_config(
-        self, redirected_github: tuple[str, str, Path], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+        self,
+        redirected_github: tuple[str, str, Path],
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         owner, repo, gitconfig = redirected_github
         monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(gitconfig))
@@ -229,7 +246,10 @@ class TestWorkspaceGitConfigHasNoCredential:
         assert "github.com" in git_config_text  # sanity: origin is the real, unpatched URL
 
     def test_agent_reading_git_config_sees_no_credential(
-        self, redirected_github: tuple[str, str, Path], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+        self,
+        redirected_github: tuple[str, str, Path],
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         owner, repo, gitconfig = redirected_github
         monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(gitconfig))

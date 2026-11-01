@@ -35,9 +35,7 @@ def _allowed(
     settings=None,
 ) -> bool:
     return comment_author_allowed(
-        author=make_author(
-            login=author_login, association=author_association, is_self=is_self
-        ),
+        author=make_author(login=author_login, association=author_association, is_self=is_self),
         issue_author_login=issue_author_login,
         settings=settings or _settings(),
     )
@@ -71,7 +69,7 @@ class TestIssueAuthor:
     def test_bot_issue_author_passes_despite_none_association(self):
         # The reporter is a bot (e.g. a monitoring integration). Its follow-up
         # comments must keep reaching the agent for as long as the issue is
-        # open — a maintainer may reopen it (R2.1, user directive).
+        # open — a maintainer may reopen it.
         assert (
             _allowed(
                 author_login="watchdog[bot]",
@@ -115,10 +113,7 @@ class TestUnknownAssociation:
 
     def test_unknown_allowlisted_login_passes(self):
         s = _settings(COMMENTS_AUTHOR_FILTER_ALLOWLIST=["maint"])
-        assert (
-            _allowed(author_login="maint", author_association="unknown", settings=s)
-            is True
-        )
+        assert _allowed(author_login="maint", author_association="unknown", settings=s) is True
 
 
 class TestOwnComment:

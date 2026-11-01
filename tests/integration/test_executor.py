@@ -77,7 +77,19 @@ def _make_task(**overrides: dict) -> Task:
 class FakeFileWriterRunner:
     """Writes a file to the workspace simulating what a real agent would do."""
 
-    def run(self, workspace_path: str, task: Task, settings: Settings, route=None, resume_summary=None, on_progress=None, toolchain_env=None, branch_status=None, comment_history=None, terms=None) -> AgentResult:
+    def run(
+        self,
+        workspace_path: str,
+        task: Task,
+        settings: Settings,
+        route=None,
+        resume_summary=None,
+        on_progress=None,
+        toolchain_env=None,
+        branch_status=None,
+        comment_history=None,
+        terms=None,
+    ) -> AgentResult:
         ws = Path(workspace_path)
         (ws / "src").mkdir(parents=True, exist_ok=True)
         (ws / "src" / "fix.md").write_text("fixed by agent\n")
@@ -90,7 +102,19 @@ class FakeFileAndSentinelWriterRunner:
     simulating an agent that discovered/ran its own test command, plus a
     check it could not run, and is reporting both back."""
 
-    def run(self, workspace_path: str, task: Task, settings: Settings, route=None, resume_summary=None, on_progress=None, toolchain_env=None, branch_status=None, comment_history=None, terms=None) -> AgentResult:
+    def run(
+        self,
+        workspace_path: str,
+        task: Task,
+        settings: Settings,
+        route=None,
+        resume_summary=None,
+        on_progress=None,
+        toolchain_env=None,
+        branch_status=None,
+        comment_history=None,
+        terms=None,
+    ) -> AgentResult:
         ws = Path(workspace_path)
         (ws / "src").mkdir(parents=True, exist_ok=True)
         (ws / "src" / "fix.md").write_text("fixed by agent\n")
@@ -106,7 +130,19 @@ class SentinelOnlyRunner:
     confirm the sentinel can't be mistaken for a real change and bypass the
     ``no_changes`` abort (Finding 1)."""
 
-    def run(self, workspace_path: str, task: Task, settings: Settings, route=None, resume_summary=None, on_progress=None, toolchain_env=None, branch_status=None, comment_history=None, terms=None) -> AgentResult:
+    def run(
+        self,
+        workspace_path: str,
+        task: Task,
+        settings: Settings,
+        route=None,
+        resume_summary=None,
+        on_progress=None,
+        toolchain_env=None,
+        branch_status=None,
+        comment_history=None,
+        terms=None,
+    ) -> AgentResult:
         (Path(workspace_path) / TEST_COMMAND_SENTINEL_FILENAME).write_text("true\n")
         return AgentResult(success=True, cost_usd=0.10, iterations=3)
 
@@ -138,17 +174,23 @@ def git_workspace(tmp_path: Path) -> Path:
     subprocess.run(["git", "init", "-b", "main"], cwd=repo, check=True, capture_output=True)
     subprocess.run(
         ["git", "config", "user.email", "bot@test.com"],
-        cwd=repo, check=True, capture_output=True,
+        cwd=repo,
+        check=True,
+        capture_output=True,
     )
     subprocess.run(
         ["git", "config", "user.name", "Test Bot"],
-        cwd=repo, check=True, capture_output=True,
+        cwd=repo,
+        check=True,
+        capture_output=True,
     )
     (repo / "README.md").write_text("# Stateway\n\nWelcome.")
     subprocess.run(["git", "add", "-A"], cwd=repo, check=True, capture_output=True)
     subprocess.run(
         ["git", "commit", "-m", "initial commit"],
-        cwd=repo, check=True, capture_output=True,
+        cwd=repo,
+        check=True,
+        capture_output=True,
     )
 
     bare = tmp_path / "remote.git"
@@ -156,11 +198,15 @@ def git_workspace(tmp_path: Path) -> Path:
     subprocess.run(["git", "init", "--bare"], cwd=bare, check=True, capture_output=True)
     subprocess.run(
         ["git", "remote", "add", "origin", str(bare)],
-        cwd=repo, check=True, capture_output=True,
+        cwd=repo,
+        check=True,
+        capture_output=True,
     )
     subprocess.run(
         ["git", "push", "-u", "origin", "main"],
-        cwd=repo, check=True, capture_output=True,
+        cwd=repo,
+        check=True,
+        capture_output=True,
     )
     return repo
 
@@ -221,25 +267,31 @@ class TestExecutorIntegration:
 
         result = subprocess.run(
             ["git", "rev-parse", "--abbrev-ref", "HEAD"],
-            capture_output=True, text=True, cwd=git_workspace,
+            capture_output=True,
+            text=True,
+            cwd=git_workspace,
         )
         branch = result.stdout.strip()
         assert branch.startswith("agent/issue-42-")
 
         result = subprocess.run(
             ["git", "log", "--oneline", "-1"],
-            capture_output=True, text=True, cwd=git_workspace,
+            capture_output=True,
+            text=True,
+            cwd=git_workspace,
         )
         # task.repo ("stateway-io/stateway-issues") differs from
         # task.target_repo ("stateway-io/stateway-agent-fixtures") in this
         # fixture, so the commit message's issue ref must be qualified with
-        # the issue's own repo (bug A4) rather than a bare "#42" that would
+        # the issue's own repo rather than a bare "#42" that would
         # point at the wrong repo's issue tracker.
         assert "fix(stateway-io/stateway-issues#42)" in result.stdout
 
         result = subprocess.run(
             ["git", "status", "--porcelain"],
-            capture_output=True, text=True, cwd=git_workspace,
+            capture_output=True,
+            text=True,
+            cwd=git_workspace,
         )
         assert result.stdout.strip() == "", f"Expected clean workspace, got: {result.stdout}"
 
@@ -260,10 +312,20 @@ class TestExecutorIntegration:
         )
 
         class NoOpRunner:
-            def run(self, workspace_path: str, task: Task, settings: Settings, route=None, resume_summary=None, on_progress=None, toolchain_env=None, branch_status=None, comment_history=None, terms=None) -> AgentResult:
-                return AgentResult(
-                    success=True, cost_usd=0.10, iterations=3, submission=report
-                )
+            def run(
+                self,
+                workspace_path: str,
+                task: Task,
+                settings: Settings,
+                route=None,
+                resume_summary=None,
+                on_progress=None,
+                toolchain_env=None,
+                branch_status=None,
+                comment_history=None,
+                terms=None,
+            ) -> AgentResult:
+                return AgentResult(success=True, cost_usd=0.10, iterations=3, submission=report)
 
         with (
             patch("issue_agent.runner.executor.Workspace") as mock_ws_cls,
@@ -282,7 +344,7 @@ class TestExecutorIntegration:
         assert updated is not None
         assert updated.status is TaskStatus.ABORTED_POLICY
 
-        # initial "started work" comment (R1) + the outcome comment
+        # initial "started work" comment + the outcome comment
         assert mock_create_comment.call_count == 2
 
         # The outcome comment is what a reviewer reads. It has to
@@ -347,7 +409,9 @@ class TestExecutorIntegration:
         # ...must not appear in the commit that was made...
         result = subprocess.run(
             ["git", "show", "--stat", "--oneline", "HEAD"],
-            capture_output=True, text=True, cwd=git_workspace,
+            capture_output=True,
+            text=True,
+            cwd=git_workspace,
         )
         assert TEST_COMMAND_SENTINEL_FILENAME not in result.stdout
         assert CHECKS_SENTINEL_FILENAME not in result.stdout
@@ -355,7 +419,9 @@ class TestExecutorIntegration:
         # ...the workspace must be fully clean (no stray untracked file)...
         result = subprocess.run(
             ["git", "status", "--porcelain"],
-            capture_output=True, text=True, cwd=git_workspace,
+            capture_output=True,
+            text=True,
+            cwd=git_workspace,
         )
         assert result.stdout.strip() == "", f"Expected clean workspace, got: {result.stdout}"
 
@@ -402,7 +468,7 @@ class TestExecutorIntegration:
         assert updated.status is TaskStatus.ABORTED_POLICY
         assert updated.error == "no_changes"
 
-        # initial "started work" comment (R1) + the outcome comment
+        # initial "started work" comment + the outcome comment
         assert mock_create_comment.call_count == 2
         assert not (git_workspace / TEST_COMMAND_SENTINEL_FILENAME).exists()
 
@@ -417,8 +483,22 @@ class TestExecutorIntegration:
         fetched = store.fetch_next()
 
         class FailingRunner:
-            def run(self, workspace_path: str, task: Task, settings: Settings, route=None, resume_summary=None, on_progress=None, toolchain_env=None, branch_status=None, comment_history=None, terms=None) -> AgentResult:
-                return AgentResult(success=False, error="agent_crashed", cost_usd=0.05, iterations=2)
+            def run(
+                self,
+                workspace_path: str,
+                task: Task,
+                settings: Settings,
+                route=None,
+                resume_summary=None,
+                on_progress=None,
+                toolchain_env=None,
+                branch_status=None,
+                comment_history=None,
+                terms=None,
+            ) -> AgentResult:
+                return AgentResult(
+                    success=False, error="agent_crashed", cost_usd=0.05, iterations=2
+                )
 
         with (
             patch("issue_agent.runner.executor.Workspace") as mock_ws_cls,
@@ -455,11 +535,26 @@ class TestExecutorIntegration:
         fetched = store.fetch_next()
 
         class DroppedConnectionRunner:
-            def run(self, workspace_path: str, task: Task, settings: Settings, route=None, resume_summary=None, on_progress=None, toolchain_env=None, branch_status=None, comment_history=None, terms=None) -> AgentResult:
+            def run(
+                self,
+                workspace_path: str,
+                task: Task,
+                settings: Settings,
+                route=None,
+                resume_summary=None,
+                on_progress=None,
+                toolchain_env=None,
+                branch_status=None,
+                comment_history=None,
+                terms=None,
+            ) -> AgentResult:
                 (Path(workspace_path) / "src").mkdir(parents=True, exist_ok=True)
                 (Path(workspace_path) / "src" / "fix.md").write_text("half-done fix\n")
                 return AgentResult(
-                    success=False, error="llm_error", cost_usd=0.06, iterations=49,
+                    success=False,
+                    error="llm_error",
+                    cost_usd=0.06,
+                    iterations=49,
                     error_detail="APIError: [SSL: UNEXPECTED_EOF_WHILE_READING]",
                 )
 
@@ -494,13 +589,19 @@ class TestExecutorIntegration:
 
         # The edit is committed on the work branch, not just left in the tree.
         head_msg = subprocess.run(
-            ["git", "log", "-1", "--format=%s"], cwd=git_workspace,
-            check=True, capture_output=True, text=True,
+            ["git", "log", "-1", "--format=%s"],
+            cwd=git_workspace,
+            check=True,
+            capture_output=True,
+            text=True,
         ).stdout
         assert "WIP" in head_msg and "llm_error" in head_msg
         tracked = subprocess.run(
-            ["git", "ls-tree", "-r", "--name-only", "HEAD"], cwd=git_workspace,
-            check=True, capture_output=True, text=True,
+            ["git", "ls-tree", "-r", "--name-only", "HEAD"],
+            cwd=git_workspace,
+            check=True,
+            capture_output=True,
+            text=True,
         ).stdout
         assert "src/fix.md" in tracked
         assert pushes, "the WIP branch was never pushed"
@@ -546,16 +647,25 @@ class TestResumedBranchAlreadyAhead:
         task = _make_task()
         store.insert_task(task)
         store.open_issue_work(
-            "github",
-            task.repo, task.issue_number, task.target_repo, task.base_branch, self.BRANCH
+            "github", task.repo, task.issue_number, task.target_repo, task.base_branch, self.BRANCH
         )
         fetched = store.fetch_next()
 
         class NoOpRunner:
-            def run(self, workspace_path: str, task: Task, settings: Settings, route=None, resume_summary=None, on_progress=None, toolchain_env=None, branch_status=None, comment_history=None, terms=None) -> AgentResult:
-                return AgentResult(
-                    success=True, cost_usd=0.10, iterations=3, submission=report
-                )
+            def run(
+                self,
+                workspace_path: str,
+                task: Task,
+                settings: Settings,
+                route=None,
+                resume_summary=None,
+                on_progress=None,
+                toolchain_env=None,
+                branch_status=None,
+                comment_history=None,
+                terms=None,
+            ) -> AgentResult:
+                return AgentResult(success=True, cost_usd=0.10, iterations=3, submission=report)
 
         with (
             patch("issue_agent.runner.executor.Workspace") as mock_ws_cls,
@@ -636,7 +746,9 @@ class TestResumedBranchAlreadyAhead:
         is `no_changes` and must stay one."""
         subprocess.run(
             ["git", "push", "origin", f"main:{self.BRANCH}"],
-            cwd=git_workspace, check=True, capture_output=True,
+            cwd=git_workspace,
+            check=True,
+            capture_output=True,
         )
 
         task, mock_create_pr, mock_create_comment = self._run(
@@ -655,7 +767,19 @@ class TestExecutorOnAnotherForge:
     so nothing GitHub-shaped can be left in the executor's path."""
 
     class _VerboseRunner:
-        def run(self, workspace_path: str, task: Task, settings: Settings, route=None, resume_summary=None, on_progress=None, toolchain_env=None, branch_status=None, comment_history=None, terms=None) -> AgentResult:
+        def run(
+            self,
+            workspace_path: str,
+            task: Task,
+            settings: Settings,
+            route=None,
+            resume_summary=None,
+            on_progress=None,
+            toolchain_env=None,
+            branch_status=None,
+            comment_history=None,
+            terms=None,
+        ) -> AgentResult:
             (Path(workspace_path) / "fix.md").write_text("fixed\n")
             return AgentResult(
                 success=True, cost_usd=0.1, iterations=2, submission="Long report. " * 200
@@ -711,7 +835,10 @@ class TestExecutorOnAnotherForge:
 
         log = subprocess.run(
             ["git", "log", "-1", "--format=%s"],
-            capture_output=True, text=True, cwd=git_workspace, check=True,
+            capture_output=True,
+            text=True,
+            cwd=git_workspace,
+            check=True,
         ).stdout
         assert log.startswith("fix(stateway-io/stateway-issues#42)")
         # The push authenticated with a credential the transport minted.
@@ -719,4 +846,7 @@ class TestExecutorOnAnotherForge:
 
         comments = forge.posted("stateway-io/stateway-issues", 42)
         assert len(comments) == 2  # initial + fix
-        assert "https://forge.example/stateway-io/stateway-agent-fixtures/-/merge_requests/100" in comments[-1]
+        assert (
+            "https://forge.example/stateway-io/stateway-agent-fixtures/-/merge_requests/100"
+            in comments[-1]
+        )

@@ -60,8 +60,13 @@ def _no_backoff_sleep(monkeypatch):
     monkeypatch.setattr("time.sleep", lambda _s: None)
 
 
-def _model(clock: _Clock, *, model_name="openrouter/~deepseek/deepseek-v4-flash-latest",
-           wall: int = 0, **model_kwargs) -> CostAwareLitellmModel:
+def _model(
+    clock: _Clock,
+    *,
+    model_name="openrouter/~deepseek/deepseek-v4-flash-latest",
+    wall: int = 0,
+    **model_kwargs,
+) -> CostAwareLitellmModel:
     model = CostAwareLitellmModel(
         config_class=LitellmModelConfig,
         model_name=model_name,
@@ -265,8 +270,10 @@ class TestStickyRoutingReset:
 
         with pytest.raises(litellm.Timeout):
             _model(
-                clock, model_name="deepseek/deepseek-v4-flash",
-                custom_llm_provider="openrouter", max_retries=1,
+                clock,
+                model_name="deepseek/deepseek-v4-flash",
+                custom_llm_provider="openrouter",
+                max_retries=1,
             ).query(_MESSAGES)
 
         assert "session_id" in fake.calls[1]["extra_body"]
@@ -294,8 +301,10 @@ class TestProviderBudgetAbort:
 
     def test_budget_error_is_not_retried(self, monkeypatch):
         exc = litellm.APIError(
-            status_code=500, message=f"OpenrouterException - {self._BODY}",
-            llm_provider="openrouter", model="m",
+            status_code=500,
+            message=f"OpenrouterException - {self._BODY}",
+            llm_provider="openrouter",
+            model="m",
         )
         completion, calls = self._failing(exc)
         monkeypatch.setattr("litellm.completion", completion)
@@ -309,8 +318,10 @@ class TestProviderBudgetAbort:
 
     def test_other_api_errors_are_still_retried(self, monkeypatch):
         exc = litellm.APIError(
-            status_code=500, message="OpenrouterException - [SSL: UNEXPECTED_EOF]",
-            llm_provider="openrouter", model="m",
+            status_code=500,
+            message="OpenrouterException - [SSL: UNEXPECTED_EOF]",
+            llm_provider="openrouter",
+            model="m",
         )
         completion, calls = self._failing(exc)
         monkeypatch.setattr("litellm.completion", completion)

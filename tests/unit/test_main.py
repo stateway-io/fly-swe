@@ -138,13 +138,15 @@ class TestMainAppLifespan:
             async with lifespan(app):
                 pass
 
-        warned = [c for c in fake_logger.warning.call_args_list if c.args[:1] == ("llm_function_calling_unsupported",)]
+        warned = [
+            c
+            for c in fake_logger.warning.call_args_list
+            if c.args[:1] == ("llm_function_calling_unsupported",)
+        ]
         assert warned
 
     @pytest.mark.asyncio
-    async def test_lifespan_warns_for_a_model_only_a_repo_override_uses(
-        self, monkeypatch
-    ) -> None:
+    async def test_lifespan_warns_for_a_model_only_a_repo_override_uses(self, monkeypatch) -> None:
         """A repo's `llm.model` override must be checked even when the global
         default model supports function calling fine — it isn't hidden behind
         a healthy global default."""
@@ -169,9 +171,7 @@ class TestMainAppLifespan:
             monkeypatch.setattr(
                 main_mod,
                 "check_function_calling",
-                lambda model, provider: (
-                    "no tools" if model == "repo/model-without-tools" else None
-                ),
+                lambda model, provider: "no tools" if model == "repo/model-without-tools" else None,
             )
             fake_logger = MagicMock()
             monkeypatch.setattr(main_mod, "logger", fake_logger)
@@ -239,9 +239,7 @@ class TestMainAppLifespan:
 class TestHealthEndpoints:
     @pytest.mark.asyncio
     async def test_healthz_returns_200(self) -> None:
-        async with AsyncClient(
-            transport=ASGITransport(app=real_app), base_url="http://test"
-        ) as c:
+        async with AsyncClient(transport=ASGITransport(app=real_app), base_url="http://test") as c:
             resp = await c.get("/healthz")
         assert resp.status_code == 200
         assert resp.json()["status"] == "healthy"
@@ -252,8 +250,6 @@ class TestHealthEndpoints:
         from issue_agent.webhook.health import router as health_router
 
         app.include_router(health_router)
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as c:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
             resp = await c.get("/healthz")
         assert resp.status_code == 200

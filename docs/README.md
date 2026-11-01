@@ -10,6 +10,8 @@
 | [deploy/telegram-webhook.md](./deploy/telegram-webhook.md) | Wiring a Discord or Telegram webhook for budget-exceeded alerts. |
 | [research/agent-landscape.md](./research/agent-landscape.md) | *(Historical snapshot)* Survey of reusable coding-agent engines and deploy targets considered for this project. |
 | [research/mini-swe-agent-api.md](./research/mini-swe-agent-api.md) | *(Historical snapshot)* A reference dig through the mini-swe-agent API as integrated here. |
+| [plans/litefs-ha.md](./plans/litefs-ha.md) | *(Proposal)* High availability across regions with LiteFS for the SQLite queue. |
+| [research/coding-benchmarks.md](./research/coding-benchmarks.md) | *(Snapshot)* Public coding-agent leaderboards, for picking `LLM_MODEL`. |
 | [research/entire.md](./research/entire.md) | *(Snapshot)* What Entire (agent session capture + forge) is, whether it fits fly-swe, where it would plug in, and mini-swe-agent compatibility. |
 
 See the [README](../README.md) for the project overview, quickstart, and

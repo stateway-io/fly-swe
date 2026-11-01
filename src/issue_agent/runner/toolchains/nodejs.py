@@ -110,7 +110,7 @@ class NodejsPlugin(ToolchainPlugin):
         requested = requested.strip()
 
         # Already exact, e.g. "20.17.0"
-        match = _VERSION_RE.fullmatch(requested.lstrip("v").lstrip("=") )
+        match = _VERSION_RE.fullmatch(requested.lstrip("v").lstrip("="))
         if match:
             major = match.group(1)
             minor = match.group(2)

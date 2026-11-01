@@ -40,7 +40,11 @@ class _SettingsNoEnv(Settings):
 
 def _make_settings(**overrides: dict) -> Settings:
     defaults = dict(
-        PROVIDERS=github_providers(app_id="123", app_private_key="-----BEGIN RSA PRIVATE KEY-----\nMOCKKEY\n-----END RSA PRIVATE KEY-----", webhook_secret="test-webhook-secret"),
+        PROVIDERS=github_providers(
+            app_id="123",
+            app_private_key="-----BEGIN RSA PRIVATE KEY-----\nMOCKKEY\n-----END RSA PRIVATE KEY-----",
+            webhook_secret="test-webhook-secret",
+        ),
         LLM_API_KEY="sk-test-anthropic",
         REPO_ROUTES=[
             {
@@ -100,9 +104,7 @@ class TestAuthClientWiring:
     def client(self, auth: GitHubAppAuth) -> GitHubClient:
         return GitHubClient(auth, TEST_INSTALLATION_ID)
 
-    def test_get_repo_propagates_to_github(
-        self, settings: Settings
-    ) -> None:
+    def test_get_repo_propagates_to_github(self, settings: Settings) -> None:
         with (
             patch("issue_agent.providers.github.auth.GithubIntegration") as mi,
             patch("issue_agent.providers.github.auth.Github") as mg,
@@ -124,9 +126,7 @@ class TestAuthClientWiring:
         assert result is mock_repo
         mock_gh.get_repo.assert_called_once_with("owner/test-repo")
 
-    def test_token_cached_across_calls(
-        self, settings: Settings
-    ) -> None:
+    def test_token_cached_across_calls(self, settings: Settings) -> None:
         with (
             patch("issue_agent.providers.github.auth.GithubIntegration") as mi,
             patch("issue_agent.providers.github.auth.Github") as mg,
@@ -149,9 +149,7 @@ class TestAuthClientWiring:
         # GithubIntegration.get_access_token called once (cached)
         mi.return_value.get_access_token.assert_called_once_with(98765)
 
-    def test_get_issue_through_full_stack(
-        self, settings: Settings
-    ) -> None:
+    def test_get_issue_through_full_stack(self, settings: Settings) -> None:
         with (
             patch("issue_agent.providers.github.auth.GithubIntegration") as mi,
             patch("issue_agent.providers.github.auth.Github") as mg,
@@ -206,12 +204,17 @@ class TestPullRequestsFullStack:
 
     def test_create_pr_adds_label(self, settings: Settings, github) -> None:
         mock_repo, mock_issue, _ = github
-        pulls = GitHubProviderPlugin.from_settings("github", settings.providers["github"], settings).pulls(self.REPO)
+        pulls = GitHubProviderPlugin.from_settings(
+            "github", settings.providers["github"], settings
+        ).pulls(self.REPO)
 
         pr = pulls.create_pr(
-            head="agent/issue-42-fix-typo", base="main",
-            title="[agent] fix(#42): Fix typo", body="## Summary\nFixed a typo.",
-            draft=False, labels=[],
+            head="agent/issue-42-fix-typo",
+            base="main",
+            title="[agent] fix(#42): Fix typo",
+            body="## Summary\nFixed a typo.",
+            draft=False,
+            labels=[],
         )
 
         assert pr.number == 42
@@ -227,7 +230,9 @@ class TestPullRequestsFullStack:
         existing.html_url = f"https://github.com/{self.REPO}/pull/7"
         existing.head.ref = "agent/issue-42-fix-typo"
         mock_repo.get_pulls.return_value = [existing]
-        pulls = GitHubProviderPlugin.from_settings("github", settings.providers["github"], settings).pulls(self.REPO)
+        pulls = GitHubProviderPlugin.from_settings(
+            "github", settings.providers["github"], settings
+        ).pulls(self.REPO)
 
         pr = pulls.find_open_pr("agent/issue-42-fix-typo")
 
@@ -236,13 +241,19 @@ class TestPullRequestsFullStack:
 
     def test_create_pr_passes_arguments_correctly(self, settings: Settings, github) -> None:
         mock_repo, _, _ = github
-        pulls = GitHubProviderPlugin.from_settings("github", settings.providers["github"], settings).pulls(self.REPO)
+        pulls = GitHubProviderPlugin.from_settings(
+            "github", settings.providers["github"], settings
+        ).pulls(self.REPO)
 
         title = "[agent] fix(#7): Update deps"
         body = "## Summary\nUpdated dependencies."
         pulls.create_pr(
-            head="agent/issue-7-update-deps", base="develop",
-            title=title, body=body, draft=False, labels=[],
+            head="agent/issue-7-update-deps",
+            base="develop",
+            title=title,
+            body=body,
+            draft=False,
+            labels=[],
         )
 
         mock_repo.create_pull.assert_called_once_with(
@@ -255,7 +266,9 @@ class TestPullRequestsFullStack:
 
     def test_comment_on_issue(self, settings: Settings, github) -> None:
         _, mock_issue, _ = github
-        forge = GitHubProviderPlugin.from_settings("github", settings.providers["github"], settings).client(self.REPO)
+        forge = GitHubProviderPlugin.from_settings(
+            "github", settings.providers["github"], settings
+        ).client(self.REPO)
 
         url = forge.post_comment(42, "Hello from agent")
 
@@ -264,7 +277,9 @@ class TestPullRequestsFullStack:
 
     def test_comment_on_pr(self, settings: Settings, github) -> None:
         _, mock_issue, _ = github
-        pulls = GitHubProviderPlugin.from_settings("github", settings.providers["github"], settings).pulls(self.REPO)
+        pulls = GitHubProviderPlugin.from_settings(
+            "github", settings.providers["github"], settings
+        ).pulls(self.REPO)
 
         pulls.comment_on_pr(PRRef(number=99, url="u", head_ref="b"), "PR review comment")
 
@@ -279,16 +294,12 @@ class TestWorkerTriageWithGithubStack:
     mocking only PyGithub (not mocked at the worker level)."""
 
     @pytest.mark.asyncio
-    async def test_triage_comment_posts_to_github(
-        self, store, app, worker_settings
-    ) -> None:
+    async def test_triage_comment_posts_to_github(self, store, app, worker_settings) -> None:
         body = make_github_payload(
             issue_number=20,
             labels=["question"],
         )
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as c:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
             resp = await c.post(
                 "/webhooks/github",
                 content=body,
@@ -320,9 +331,7 @@ class TestWorkerTriageWithGithubStack:
             mock_repo.get_issue.return_value = mock_issue
             mock_issue.create_comment.return_value = mock_comment
 
-            run_task(
-                store, task, worker_settings, ProviderRegistry.from_settings(worker_settings)
-            )
+            run_task(store, task, worker_settings, ProviderRegistry.from_settings(worker_settings))
 
         final = store.get_task(task.id)
         assert final is not None
@@ -334,16 +343,12 @@ class TestWorkerTriageWithGithubStack:
         assert "@test-user" in comment_body
 
     @pytest.mark.asyncio
-    async def test_triage_comment_uses_correct_category(
-        self, store, app, worker_settings
-    ) -> None:
+    async def test_triage_comment_uses_correct_category(self, store, app, worker_settings) -> None:
         body = make_github_payload(
             issue_number=21,
             labels=["question"],
         )
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as c:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
             resp = await c.post(
                 "/webhooks/github",
                 content=body,
@@ -375,24 +380,18 @@ class TestWorkerTriageWithGithubStack:
             mock_repo.get_issue.return_value = mock_issue
             mock_issue.create_comment.return_value = mock_comment
 
-            run_task(
-                store, task, worker_settings, ProviderRegistry.from_settings(worker_settings)
-            )
+            run_task(store, task, worker_settings, ProviderRegistry.from_settings(worker_settings))
 
         comment_body = mock_issue.create_comment.call_args[0][0]
         assert "question" in comment_body.lower()
 
     @pytest.mark.asyncio
-    async def test_github_exception_does_not_crash_task(
-        self, store, app, worker_settings
-    ) -> None:
+    async def test_github_exception_does_not_crash_task(self, store, app, worker_settings) -> None:
         body = make_github_payload(
             issue_number=22,
             labels=["question"],
         )
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as c:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
             resp = await c.post(
                 "/webhooks/github",
                 content=body,
@@ -421,25 +420,19 @@ class TestWorkerTriageWithGithubStack:
             mock_gh.get_repo.return_value = mock_repo
             mock_repo.get_issue.side_effect = Exception("GitHub API error")
 
-            run_task(
-                store, task, worker_settings, ProviderRegistry.from_settings(worker_settings)
-            )
+            run_task(store, task, worker_settings, ProviderRegistry.from_settings(worker_settings))
 
         final = store.get_task(task.id)
         assert final is not None
         assert final.status is TaskStatus.SUCCEEDED
 
     @pytest.mark.asyncio
-    async def test_triage_with_docs_label_posts_comment(
-        self, store, app, worker_settings
-    ) -> None:
+    async def test_triage_with_docs_label_posts_comment(self, store, app, worker_settings) -> None:
         body = make_github_payload(
             issue_number=23,
             labels=["question"],
         )
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as c:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
             resp = await c.post(
                 "/webhooks/github",
                 content=body,

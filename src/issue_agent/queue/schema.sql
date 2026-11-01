@@ -57,7 +57,7 @@ CREATE TABLE daily_budget (
 -- Per-issue work state: one row per (provider_instance, issue_repo,
 -- issue_number), spanning as many tasks as the work takes. Introduced by
 -- _migrate_v4 for pre-existing DBs — a pure additive
--- CREATE TABLE (P4) — and rebuilt by _migrate_v7 to key it by instance.
+-- CREATE TABLE — and rebuilt by _migrate_v7 to key it by instance.
 CREATE TABLE issue_work (
   provider_instance TEXT    NOT NULL DEFAULT 'github',
   issue_repo        TEXT    NOT NULL,

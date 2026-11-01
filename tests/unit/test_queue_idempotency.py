@@ -46,9 +46,7 @@ class TestDeliveryIdempotency:
         assert store.is_delivery_processed("github", "d2") is True
         assert store.is_delivery_processed("github", "d3") is False
 
-    def test_delivery_stores_event_type_and_action(
-        self, store: SQLiteStore
-    ) -> None:
+    def test_delivery_stores_event_type_and_action(self, store: SQLiteStore) -> None:
         store.mark_delivery_processed("github", "delivery-xyz", "issue_comment", "created")
         row = store.conn.execute(
             "SELECT event_type, action FROM processed_deliveries WHERE delivery_id = ?",
@@ -70,24 +68,18 @@ class TestTaskUniqueConstraint:
     def test_different_trigger_kind_allowed(self, store: SQLiteStore) -> None:
         task = _make_task(delivery_id="d1", trigger_kind=TriggerKind.ISSUE_OPENED)
         store.insert_task(task)
-        task2 = _make_task(
-            delivery_id="d2", trigger_kind=TriggerKind.LABEL_ADDED
-        )
+        task2 = _make_task(delivery_id="d2", trigger_kind=TriggerKind.LABEL_ADDED)
         store.insert_task(task2)
         assert store.get_queue_depth() == 2
 
-    def test_same_trigger_different_issue_allowed(
-        self, store: SQLiteStore
-    ) -> None:
+    def test_same_trigger_different_issue_allowed(self, store: SQLiteStore) -> None:
         t1 = _make_task(delivery_id="d1", issue_number=1)
         store.insert_task(t1)
         t2 = _make_task(delivery_id="d2", issue_number=2)
         store.insert_task(t2)
         assert store.get_queue_depth() == 2
 
-    def test_task_allowed_after_terminal_status(
-        self, store: SQLiteStore
-    ) -> None:
+    def test_task_allowed_after_terminal_status(self, store: SQLiteStore) -> None:
         t1 = _make_task(delivery_id="d1")
         store.insert_task(t1)
         store.update_status(t1.id, TaskStatus.SUCCEEDED)
@@ -95,9 +87,7 @@ class TestTaskUniqueConstraint:
         store.insert_task(t2)
         assert store.get_queue_depth() == 1
 
-    def test_task_allowed_after_different_status(
-        self, store: SQLiteStore
-    ) -> None:
+    def test_task_allowed_after_different_status(self, store: SQLiteStore) -> None:
         t1 = _make_task(delivery_id="d1")
         store.insert_task(t1)
         store.update_status(t1.id, TaskStatus.FAILED_TERMINAL)
@@ -107,9 +97,7 @@ class TestTaskUniqueConstraint:
 
 
 class TestConcurrentSafety:
-    def test_double_fetch_returns_same_task_once(
-        self, store: SQLiteStore
-    ) -> None:
+    def test_double_fetch_returns_same_task_once(self, store: SQLiteStore) -> None:
         t1 = _make_task(delivery_id="d1", issue_number=1)
         t2 = _make_task(delivery_id="d2", issue_number=2)
         store.insert_task(t1)

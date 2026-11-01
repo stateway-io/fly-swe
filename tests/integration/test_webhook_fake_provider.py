@@ -49,12 +49,8 @@ def worker_settings(worker_settings: Settings) -> Settings:
 
 
 @pytest.fixture
-def fake_app(
-    store: SQLiteStore, monkeypatch: pytest.MonkeyPatch, tmp_path: object
-) -> FastAPI:
-    settings = _route_on_fake_instances(
-        _make_settings(DATA_DIR=str(tmp_path / "webhook-data"))
-    )
+def fake_app(store: SQLiteStore, monkeypatch: pytest.MonkeyPatch, tmp_path: object) -> FastAPI:
+    settings = _route_on_fake_instances(_make_settings(DATA_DIR=str(tmp_path / "webhook-data")))
     monkeypatch.setattr("issue_agent.webhook.routes.get_settings", lambda: settings)
     app = FastAPI()
     app.state.store = store
@@ -120,9 +116,7 @@ class TestFakeProviderIngestion:
         assert not store.is_delivery_processed("fake", "fake-1")
 
     @pytest.mark.asyncio
-    async def test_redelivery_is_a_duplicate(
-        self, fake_app: FastAPI, store: SQLiteStore
-    ) -> None:
+    async def test_redelivery_is_a_duplicate(self, fake_app: FastAPI, store: SQLiteStore) -> None:
         await _post(fake_app, "fake", fake_body())
         again = await _post(fake_app, "fake", fake_body())
 
@@ -147,9 +141,7 @@ class TestFakeProviderIngestion:
         assert resp.json() == {"status": "ignored", "reason": "repo_not_allowed"}
 
     @pytest.mark.asyncio
-    async def test_unsupported_event_is_acked(
-        self, fake_app: FastAPI, store: SQLiteStore
-    ) -> None:
+    async def test_unsupported_event_is_acked(self, fake_app: FastAPI, store: SQLiteStore) -> None:
         resp = await _post(fake_app, "fake", fake_body(), event="wiki")
 
         assert resp.json() == {"status": "ignored", "reason": "unsupported_event"}

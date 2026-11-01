@@ -34,9 +34,13 @@ def install_project_dependencies(
     env = env_with_system_path(toolchain_env)
 
     if (workspace_path / "pnpm-lock.yaml").exists():
-        _run_best_effort(workspace_path, ["pnpm", "install", "--frozen-lockfile"], env, timeout_seconds)
+        _run_best_effort(
+            workspace_path, ["pnpm", "install", "--frozen-lockfile"], env, timeout_seconds
+        )
     elif (workspace_path / "yarn.lock").exists():
-        _run_best_effort(workspace_path, ["yarn", "install", "--frozen-lockfile"], env, timeout_seconds)
+        _run_best_effort(
+            workspace_path, ["yarn", "install", "--frozen-lockfile"], env, timeout_seconds
+        )
     elif (workspace_path / "package-lock.json").exists():
         _run_best_effort(workspace_path, ["npm", "ci"], env, timeout_seconds)
     elif (workspace_path / "package.json").exists():

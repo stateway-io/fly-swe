@@ -52,12 +52,12 @@ def _handle_issue_lifecycle(
     store: SQLiteStore, settings: Settings, trigger: TriggerEvent
 ) -> tuple[str, str]:
     """React to ``issues.closed`` / ``issues.reopened`` without enqueuing a
-    Task (R7.1, R7.2) — zero GitHub API calls, zero LLM.
+    Task — zero GitHub API calls, zero LLM.
 
     ``closed`` closes an open ``issue_work`` row with reason ``issue_closed``;
     reopening never restarts paid work (§3.3). Every close/drop here leaves
-    the same audit + metric trail the executor-driven closes do (R8.1/R8.3):
-    ``issues.closed`` is the primary close path (D6), so it can't be the one
+    the same audit + metric trail the executor-driven closes do:
+    ``issues.closed`` is the primary close path, so it can't be the one
     the ``issue_work_attempts`` histogram and the audit log never see.
     Returns ``(status, reason)`` for the response.
     """
@@ -68,7 +68,7 @@ def _handle_issue_lifecycle(
     if trigger.kind is TriggerKind.ISSUE_REOPENED:
         if work is None:
             return "ignored", "issue_reopened"
-        # A row closed with ``issue_closed`` makes the executor's R7.6 guard
+        # A row closed with ``issue_closed`` makes the executor's closed-issue guard
         # abort every future run on this issue. Reopening the issue means
         # that close is no longer true: drop the spent row so a later
         # comment/label starts fresh work instead of being aborted (§3.3).
@@ -92,9 +92,7 @@ def _handle_issue_lifecycle(
     # ISSUE_CLOSED
     if work is not None and work.state == "open":
         store.close_issue_work(instance, repo, issue_number, "issue_closed")
-        observe_issue_work_closed(
-            work.target_repo, work.attempts, provider_instance=instance
-        )
+        observe_issue_work_closed(work.target_repo, work.attempts, provider_instance=instance)
         write_audit_entry(
             settings.data_dir,
             {
@@ -154,9 +152,7 @@ async def handle_webhook(instance_id: str, request: Request) -> Response:
     except WebhookRejectedError as rejected:
         # Never recorded as processed: an unauthenticated request must not
         # be able to burn a real delivery id.
-        bind_context(logger, delivery_id=delivery_id, event=event).warning(
-            rejected.log_event
-        )
+        bind_context(logger, delivery_id=delivery_id, event=event).warning(rejected.log_event)
         return JSONResponse(
             status_code=rejected.status,
             content={"error": rejected.error},
@@ -175,9 +171,7 @@ async def handle_webhook(instance_id: str, request: Request) -> Response:
     except WebhookRejectedError as rejected:
         if rejected.mark_reason is not None:
             store.mark_delivery_processed(instance_id, delivery_id, event, rejected.mark_reason)
-        bind_context(logger, delivery_id=delivery_id, event=event).warning(
-            rejected.log_event
-        )
+        bind_context(logger, delivery_id=delivery_id, event=event).warning(rejected.log_event)
         return JSONResponse(
             status_code=rejected.status,
             content={"error": rejected.error},
@@ -216,9 +210,9 @@ async def handle_webhook(instance_id: str, request: Request) -> Response:
     if reason is not None:
         # No network call follows on this path — safe to mark immediately.
         store.mark_delivery_processed(instance_id, delivery_id, event, action)
-        bind_context(
-            logger, delivery_id=delivery_id, event=event, action=action
-        ).info(_IGNORED_LOG_EVENTS.get(reason, "ignored_event"))
+        bind_context(logger, delivery_id=delivery_id, event=event, action=action).info(
+            _IGNORED_LOG_EVENTS.get(reason, "ignored_event")
+        )
         return JSONResponse(
             status_code=200,
             content={"status": "ignored", "reason": reason},

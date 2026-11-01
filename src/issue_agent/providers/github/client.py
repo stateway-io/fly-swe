@@ -17,9 +17,7 @@ if TYPE_CHECKING:
     from issue_agent.providers.github.normalize import BotIdentity
 
 
-def _canonical_comments(
-    comments: list[IssueComment], identity: BotIdentity
-) -> list[Comment]:
+def _canonical_comments(comments: list[IssueComment], identity: BotIdentity) -> list[Comment]:
     normalized: list[Comment] = []
     for c in comments:
         user = c.user
@@ -33,9 +31,9 @@ def _canonical_comments(
                         "type": getattr(user, "type", None),
                     },
                     association=raw.get("author_association"),
-                    performed_via_github_app_id=(
-                        raw.get("performed_via_github_app") or {}
-                    ).get("id"),
+                    performed_via_github_app_id=(raw.get("performed_via_github_app") or {}).get(
+                        "id"
+                    ),
                     identity=identity,
                 ),
                 body=c.body or "",
@@ -59,16 +57,14 @@ class GitHubClient:
     def get_issue(self, full_name: str, issue_number: int) -> Issue:
         return self.get_repo(full_name).get_issue(issue_number)
 
-    def get_issue_comments(
-        self, full_name: str, issue_number: int
-    ) -> list[IssueComment]:
+    def get_issue_comments(self, full_name: str, issue_number: int) -> list[IssueComment]:
         return list(self.get_issue(full_name, issue_number).get_comments())
 
     def list_issue_comments(
         self, full_name: str, issue_number: int, limit: int, identity: BotIdentity
     ) -> list[Comment]:
         """The issue's ``limit`` most recent comments as canonical
-        ``Comment``s (R3.2, PRD §3.1).
+        ``Comment``s.
 
         Returned in chronological order. Plain models — not PyGithub objects —
         so the run-context assembly downstream stays a pure, testable function
@@ -78,9 +74,7 @@ class GitHubClient:
         comments = list(self.get_issue(full_name, issue_number).get_comments())
         return _canonical_comments(comments[-limit:] if limit > 0 else [], identity)
 
-    def find_pr_by_branch(
-        self, full_name: str, branch_name: str
-    ) -> PullRequest | None:
+    def find_pr_by_branch(self, full_name: str, branch_name: str) -> PullRequest | None:
         """Return the open PR whose head is ``branch_name``, or ``None``.
 
         ``head`` MUST be qualified as ``owner:ref``. GitHub does not reject a
@@ -100,9 +94,7 @@ class GitHubClient:
     def get_pull_request(self, full_name: str, pr_number: int) -> PullRequest:
         return self.get_repo(full_name).get_pull(pr_number)
 
-    def create_comment(
-        self, full_name: str, issue_number: int, body: str
-    ) -> IssueComment:
+    def create_comment(self, full_name: str, issue_number: int, body: str) -> IssueComment:
         return self.get_issue(full_name, issue_number).create_comment(body)
 
     def create_pr(
@@ -140,9 +132,7 @@ class GitHubForgeClient(ForgeClient):
         return "closed" if (state or "").lower() == "closed" else "open"
 
     def list_comments(self, number: int, limit: int) -> list[Comment]:
-        return self._client().list_issue_comments(
-            self._repo_name, number, limit, self._identity
-        )
+        return self._client().list_issue_comments(self._repo_name, number, limit, self._identity)
 
     def post_comment(self, number: int, body: str) -> str:
         return self._client().create_comment(self._repo_name, number, body).html_url

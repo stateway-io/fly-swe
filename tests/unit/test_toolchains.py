@@ -265,7 +265,9 @@ class TestSiblingScratchDirsDoNotCollide:
 
         with (
             patch("issue_agent.runner.toolchains._utils.download_file", side_effect=_fake_download),
-            patch("issue_agent.runner.toolchains._utils.extract_archive", side_effect=_fake_extract),
+            patch(
+                "issue_agent.runner.toolchains._utils.extract_archive", side_effect=_fake_extract
+            ),
         ):
             download_and_install(spec_a)
             download_and_install(spec_b)

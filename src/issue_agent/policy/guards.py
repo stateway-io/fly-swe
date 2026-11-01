@@ -88,9 +88,7 @@ def check_comment_author_allowed(
     return False, "comment_author_not_allowed"
 
 
-def check_daily_budget(
-    store: SQLiteStore, settings: Settings, scope: str
-) -> tuple[bool, str]:
+def check_daily_budget(store: SQLiteStore, settings: Settings, scope: str) -> tuple[bool, str]:
     today = datetime.now(UTC).strftime("%Y-%m-%d")
     budget = store.get_daily_budget(today, scope)
     if budget.total_cost_usd >= settings.max_daily_budget_usd:

@@ -1,28 +1,52 @@
 name: CI
 
-# Runs on every PR (not path-filtered): `lint-test` is a required status check on
-# `main`, so it must be able to report on docs-only PRs too, otherwise those PRs
-# sit blocked on a check that never starts. Also runs on push to `main` so the
-# pre-release state has a green-check history.
+# Runs on every PR (not path-filtered) and on push to `main`.
 #
-# Docs-only changes still start the job, but the `changes` step detects that only
-# Markdown was touched and every expensive step is skipped — the check reports
-# green in seconds without installing Python or running the suite. Do NOT replace
-# this with `paths-ignore`: that stops the workflow from running at all, and the
-# required check never reports.
+# Layout:
+#
+#   changes ──┬── lint    (ruff check + ruff format --check)
+#             ├── test    (unit + integration, coverage floor from pyproject.toml)
+#             └── docker  (build only, no push)
+#                    └── ci-ok   (aggregator — the ONLY required status check)
+#
+# `ci-ok` exists so the `main` ruleset requires a single, stable check name:
+# adding, renaming or splitting jobs never means editing the ruleset again.
+# It runs `if: always()` and fails when any upstream job failed or was
+# cancelled; `skipped` counts as success.
+#
+# Docs-only changes still start the workflow, but `changes` detects that only
+# Markdown was touched, the expensive jobs are skipped, and `ci-ok` reports
+# green in seconds. Do NOT replace this with `paths-ignore`: that stops the
+# workflow from running at all, and the required check never reports.
+#
+# Public-repo safety: fork PRs run under `pull_request` (never
+# `pull_request_target`) with a read-only token and no secrets; this workflow
+# needs no secrets. Actions are pinned to commit SHAs (Dependabot bumps them).
 on:
   pull_request:
     branches: [main]
   push:
     branches: [main]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  # Supersede stale PR runs; never cancel a run on `main`.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
-  lint-test:
+  changes:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.changes.outputs.code }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Detect non-Markdown changes
         id: changes
@@ -58,36 +82,114 @@ jobs:
           if [ -n "${non_md}" ] || [ -n "${prompt_md}" ]; then
             echo "code=true" >> "$GITHUB_OUTPUT"
           else
-            echo "docs-only change — skipping lint and tests"
+            echo "docs-only change — skipping lint, tests and docker build"
             echo "code=false" >> "$GITHUB_OUTPUT"
           fi
 
+  lint:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
       - name: Install uv
-        if: steps.changes.outputs.code == 'true'
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
         with:
           python-version: "3.12"
 
       - name: Install dependencies
-        if: steps.changes.outputs.code == 'true'
         run: uv sync --frozen
 
-      - name: Lint (ruff)
-        if: steps.changes.outputs.code == 'true'
-        run: uv run ruff check
+      - name: Lint (ruff check)
+        run: uv run ruff check --output-format=github
 
-      - name: Unit tests
-        if: steps.changes.outputs.code == 'true'
-        run: uv run pytest tests/unit/ -v
+      - name: Format (ruff format --check)
+        run: uv run ruff format --check
 
-      - name: Integration tests
-        if: steps.changes.outputs.code == 'true'
-        run: uv run pytest tests/integration/ -v
+  test:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
-      # Gating build only — no push, no registry. `flyctl deploy` builds the
-      # image on Fly's remote builder at release time, which is too late to
-      # catch a broken Dockerfile (finding A3). The build context is the repo
-      # root, same as `flyctl deploy` (see docs/deploy/fly-agent-deploy-issues.md).
+      - name: Install uv
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      # One pytest run so coverage is measured once over unit + integration.
+      # The floor (`fail_under`) lives in pyproject.toml, so a local
+      # `uv run pytest tests/unit tests/integration --cov` enforces the same gate.
+      - name: Unit + integration tests with coverage
+        run: >-
+          uv run pytest tests/unit tests/integration
+          --cov
+          --cov-report=term-missing
+          --cov-report=xml
+          --cov-report=html
+
+      - name: Coverage summary
+        if: always()
+        run: |
+          [ -f .coverage ] || { echo "no coverage data (tests did not run)"; exit 0; }
+          {
+            echo "## Coverage (unit + integration)"
+            echo
+            uv run coverage report --format=markdown --fail-under=0
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload coverage report
+        if: always() && hashFiles('coverage.xml') != ''
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: coverage-report
+          path: |
+            htmlcov/
+            coverage.xml
+          retention-days: 14
+
+  # Gating build only — no push, no registry. `flyctl deploy` builds the
+  # image on Fly's remote builder at release time, which is too late to
+  # catch a broken Dockerfile. The build context is the repo root, same as
+  # `flyctl deploy`.
+  docker:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
       - name: Docker build
-        if: steps.changes.outputs.code == 'true'
         run: docker build -t fly-swe:ci .
+
+  ci-ok:
+    needs: [changes, lint, test, docker]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: All required jobs passed or were skipped
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "upstream results: ${RESULTS}"
+          for r in ${RESULTS}; do
+            case "$r" in
+              success|skipped) ;;
+              *) echo "::error::an upstream job finished with '${r}'"; exit 1 ;;
+            esac
+          done

@@ -349,7 +349,7 @@ git clone https://github.com/stateway-io/fly-swe.git && cd fly-swe
 uv sync
 uv run honcho start        # runs web + worker locally
 uv run pytest               # unit + integration tests
-uv run ruff check
+uv run ruff check && uv run ruff format --check
 ```
 
 ```

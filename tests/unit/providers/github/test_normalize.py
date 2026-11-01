@@ -71,9 +71,7 @@ class TestAuthorFromGithub:
         assert author.association == "unknown"
 
     def test_explicit_bot_login_override(self):
-        identity = BotIdentity(
-            app_id=APP_ID, app_name="issue-agent", app_bot_login="Custom[bot]"
-        )
+        identity = BotIdentity(app_id=APP_ID, app_name="issue-agent", app_bot_login="Custom[bot]")
         author = author_from_github(
             {"login": "custom[bot]", "type": "Bot"},
             association=None,

@@ -25,7 +25,7 @@ def git_auth_env(token: str, *, host: str) -> dict[str, str]:
     on purpose: a caller that forgets it would silently authenticate
     github.com only, which is how GitHub Enterprise went unnoticed.
 
-    Fixes A2's second half: with the remote URL always tokenless
+    Keeps credentials out of the workspace: with the remote URL always tokenless
     (`Workspace._remote_url`), `.git/config` in the agent's workspace never
     contains a credential, at any point the agent can read it.
 
@@ -66,14 +66,12 @@ class GitHubTransport(GitTransport):
         self, kind: Literal["issue", "pr"], number: int, *, repo: str, from_repo: str
     ) -> str:
         # Issues and PRs share one number space and one syntax on GitHub. A
-        # bare `#N` in another repo's text points at *that* repo (bug A4).
+        # bare `#N` in another repo's text points at *that* repo.
         if repo != from_repo:
             return f"{repo}#{number}"
         return f"#{number}"
 
-    def closing_reference(
-        self, issue_repo: str, number: int, target_repo: str
-    ) -> str | None:
+    def closing_reference(self, issue_repo: str, number: int, target_repo: str) -> str | None:
         ref = self.format_ref("issue", number, repo=issue_repo, from_repo=target_repo)
         return f"Closes {ref}"
 

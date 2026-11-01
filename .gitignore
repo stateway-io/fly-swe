@@ -28,17 +28,6 @@ virtualenv/
 .claude/
 .superpowers/
 
-# Internal planning/history docs — not part of the public repo. See
-# docs/research/ for the material that *is* published.
-/PRD-Issue-Agent.md
-/PRD-Issue-Agent-Continuidade.md
-/active-context.md
-/docs/history/
-/docs/estudo-openhands-sdk.md
-/docs/deploy/learned-lessons.md
-/docs/deploy/fly-agent-deploy-issues.md
-/docs/plans/public-release.md
-
 # IDE
 .vscode/
 .idea/
@@ -61,3 +50,9 @@ secrets/
 *.db
 *.db-wal
 *.db-shm
+
+# Coverage
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/

@@ -21,9 +21,9 @@ _CORE_INSTRUCTIONS_FILES = ("AGENTS.md", "CLAUDE.md")
 # agent.extra_template_vars), never concatenated into template text that gets
 # parsed. A single-pass render never re-parses a value, so {{ 7*7 }} or
 # {% for %} inside an issue body, a comment, a resume summary OR a file path
-# in the branch status renders as inert literal text. This is the A1 fix
-# (issue body) extended to the discussion thread (D8) and the resume
-# summary (R5.6). The {{ terms.* }} placeholders are the
+# in the branch status renders as inert literal text. This is the injection fix
+# (issue body) extended to the discussion thread and the resume
+# summary. The {{ terms.* }} placeholders are the
 # forge's vocabulary, from the plugin's static capabilities (prompt_vars()),
 # never from a payload. There are no statement tags in this template.
 INSTANCE_TEMPLATE = (
@@ -129,7 +129,7 @@ def build_branch_status(
             "`git commit` or `git checkout --ours/--theirs`: the harness records "
             "the merge commit after you finish, and refuses to push if any "
             "marker is left in those files. Do not edit other files just to "
-            "\"sync\" them with the target branch — the merge already did that. "
+            '"sync" them with the target branch — the merge already did that. '
             "List the files you resolved, and how, in your final summary."
         )
     elif status == "merged":
@@ -165,9 +165,7 @@ def load_system_prompt(category: str | None, category_prompt_map: dict[str, str]
     system = _read_prompt_file("system.md")
 
     prompt_file = category_prompt_map.get(category) if category else None
-    label_instructions = (
-        _read_prompt_file(prompt_file) if prompt_file else ""
-    )
+    label_instructions = _read_prompt_file(prompt_file) if prompt_file else ""
 
     return system.replace("{label_instructions}", label_instructions)
 
@@ -184,8 +182,11 @@ def load_diagnose_system_prompt() -> str:
 def _extract_issue_info(trigger: TriggerEvent | None) -> dict[str, Any]:
     if trigger is None:
         return {
-            "title": "(no title)", "body": "", "number": 0,
-            "author": "unknown", "labels": [],
+            "title": "(no title)",
+            "body": "",
+            "number": 0,
+            "author": "unknown",
+            "labels": [],
         }
     issue = trigger.issue
     return {
@@ -240,13 +241,13 @@ def _render_comment(*, header: str, body: str, max_chars: int) -> str:
 
 def build_comments_block(task: Task, history: list[Comment], settings: Settings) -> str:
     """Assemble the ``{{ comments }}`` value: the comment that triggered this
-    run (ignored until now — C1) plus the filtered discussion history (R3).
+    run (ignored until now) plus the filtered discussion history.
 
     A history comment is kept only if it would itself have been allowed to
-    trigger a run (same predicate as ingestion, R3.3) or if the agent wrote
+    trigger a run (same predicate as ingestion) or if the agent wrote
     it — a comment not worth a run is not worth context window either. The
     result is a plain string; its inertness is guaranteed by the single-pass
-    render of ``INSTANCE_TEMPLATE`` (D8), not by anything done here.
+    render of ``INSTANCE_TEMPLATE``, not by anything done here.
     """
     from issue_agent.policy.comment_filter import comment_author_allowed
 
@@ -273,7 +274,9 @@ def build_comments_block(task: Task, history: list[Comment], settings: Settings)
 
         created_at = c.created_at.isoformat() if c.created_at else ""
         if is_own:
-            header = f"@{c.author.login or settings.agent_name} · you wrote this earlier · {created_at}"
+            header = (
+                f"@{c.author.login or settings.agent_name} · you wrote this earlier · {created_at}"
+            )
         else:
             header = f"@{c.author.login or 'unknown'} · {_association_label(c.author.association)} · {created_at}"
         entries.append(_render_comment(header=header, body=c.body, max_chars=max_chars))
@@ -288,8 +291,6 @@ def build_comments_block(task: Task, history: list[Comment], settings: Settings)
             f"{_association_label(trigger.author.association)} · "
             f"{created_at} · triggered this run"
         )
-        entries.append(
-            _render_comment(header=header, body=trigger.body, max_chars=max_chars)
-        )
+        entries.append(_render_comment(header=header, body=trigger.body, max_chars=max_chars))
 
     return "\n\n".join(entries)
