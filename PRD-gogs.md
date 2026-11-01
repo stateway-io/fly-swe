@@ -198,7 +198,7 @@ HTTP errors: 401/403 ⇒ credential error (no retry); 404 ⇒ missing resource;
 | Method | Value |
 |---|---|
 | `clone_url(repo)` | `{host}/{repo}.git` |
-| `git_auth_env(repo)` | `http.<host>.extraHeader: Authorization: Basic base64("<bot_login>:<token>")` via `GIT_CONFIG_*` (same technique as `runner/git_auth.py`: the token is never in the URL or on disk) |
+| `git_auth_env(repo)` | `http.<host>.extraHeader: Authorization: Basic base64("<bot_login>:<token>")` via `GIT_CONFIG_*` (same technique as `providers/github/transport.py`: the token is never in the URL or on disk) |
 | `compare_url(repo, base, head)` | `{host}/{repo}/compare/{base}...{head}` |
 | `pr_url(repo, n)` | `{host}/{repo}/pulls/{n}`; only used if a human provides the PR (there is no automatic flow) |
 | `format_ref("issue", n, from_repo)` | `#n`, or `owner/repo#n` across repos |
