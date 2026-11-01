@@ -9,6 +9,7 @@ Revised on 2026-10-24 with the generic prerequisites for forges with no PR API.
 
 | Date | Change |
 |---|---|
+| 2026-10-31 | Legacy cleanup (v1.1.10): the trigger backfill (`webhook/backfill.py`, the last core module importing the GitHub plugin) is removed, the webhook no longer stores the raw payload, and migration v8 drops `tasks.payload_json`/`installation_id` (§3.6); `runner/delegators/` removed (§2.6); `tests/unit/test_architecture.py` guards the core against forge imports. |
 | 2026-10-28 | Phase 4 done (v1.1.0): §1.1 updated; prompts and `INSTANCE_TEMPLATE` free of forge vocabulary (`terms.*` and `instructions_files` in `runner/prompts.py::prompt_vars`); `provider_instance` in metrics and audit; health/readiness already iterated the instances since Phase 3; "Provider plugins" section in `AGENTS.md`. |
 | 2026-10-27 | Phase 3 done (v1.0.0): §1.1 updated; implementation addendum in §3.5/§3.6 (migration v7 instead of "v6b", `from_settings` with the instance config and the root `Settings`, `AGENT_NAME`, `default_commit_email`, legacy sections and secrets in the YAML rejected, rule P4 documented); the semver decision in §8 settled on 1.0.0. |
 | 2026-10-19 | Original version. |
@@ -221,9 +222,8 @@ Historical record; the line references are the ones from before the fix.
    `executor.py`), but only arrived as a transitive dependency of mini-swe-agent.
    *Fixed:* declared in `pyproject.toml`.
 4. ✅ `github_installation_id` had no consumer in `src/`. *Removed.*
-   (`runner/delegators/` also has no consumer in `src/`, only a test
-   helper in `tests/helpers/fake_delegator.py`; it remains out of scope for this
-   PRD.)
+   (`runner/delegators/` also had no consumer in `src/`, only a test
+   helper in `tests/helpers/fake_delegator.py`; *removed* in v1.1.10.)
 
 ### 2.7 Risk concentration
 
@@ -784,7 +784,9 @@ v4–v5; no `user_version`), and `store.py:98-100` cites a "v2.0 §4.3
   through the GitHub plugin's parser (the raw payload is stored, so **every
   in-flight task can be re-normalized** — nothing is "unrecoverable" anymore).
   `installation_id` and `payload_json` are no longer read (legacy columns,
-  removed in a future cleanup).
+  removed in a future cleanup). *Done in v1.1.10:* the backfill was removed
+  and migration `_migrate_v8` rebuilds `tasks` without both columns (another
+  P4 exception, like v7).
 - The **unique pending index** now includes `provider_instance`:
   `(provider_instance, repo, issue_number, trigger_kind) WHERE status='pending'`.
 - **`processed_deliveries` and `issue_work` — rebuild** (v2-style): the PK becomes

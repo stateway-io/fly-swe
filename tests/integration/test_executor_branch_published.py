@@ -181,7 +181,6 @@ class BranchEnv:
                 trigger_comment=None,
             ).model_dump_json(),
             target_repo=TARGET_REPO,
-            installation_id=1,
             base_branch="main",
             workflow="trunk_based",
         )

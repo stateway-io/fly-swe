@@ -359,7 +359,7 @@ src/issue_agent/
 ├── config.py           → Pydantic Settings (env > config.yaml > default)
 ├── core/               → canonical model (TriggerEvent, IssueRef, Author, Comment), PR text
 ├── providers/          → provider ports, registry, settings union, github/ (webhook adapter, App auth, API client, PR ops, git transport)
-├── webhook/            → dispatcher POST /webhooks/{instance_id}, backfill, health
+├── webhook/            → dispatcher POST /webhooks/{instance_id}, health
 ├── queue/              → SQLite store, models, schema
 ├── policy/             → label router, guards, ingestion filters, comment-author filter
 ├── runner/             → workspace, agent_factory, prompts, executor, diagnose, toolchains/

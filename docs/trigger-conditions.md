@@ -139,7 +139,7 @@ GitHub webhook → POST /webhooks/{instance_id} (the `github` instance)
    1. `validate_task_payload()` — the task's canonical trigger
       (`Task.trigger`, deserialized from `tasks.trigger_json`) must exist
       and name an issue number and repo, else `FAILED_TERMINAL`
-      (`policy/guards.py`). The raw `payload_json` is never read here.
+      (`policy/guards.py`).
    2. `check_repo_allowed()` — re-checks `task.repo` against
       `settings.allowed_repos` (derived from `config.yaml`'s `repos:`
       list) → `ABORTED_POLICY` if not (`guards.py:31-34`).

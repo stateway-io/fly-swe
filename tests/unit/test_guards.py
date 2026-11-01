@@ -80,7 +80,7 @@ class TestValidateTaskPayload:
         assert msg == "invalid_trigger"
 
     def test_missing_trigger(self) -> None:
-        # A legacy row the backfill couldn't re-normalize.
+        # A legacy row created before trigger_json existed.
         task = _make_task(trigger_json=None)
         ok, msg = validate_task_payload(task)
         assert not ok
@@ -103,12 +103,6 @@ class TestValidateTaskPayload:
         ok, msg = validate_task_payload(make_task(trigger))
         assert not ok
         assert msg == "trigger_missing_repo"
-
-    def test_ignores_legacy_payload_json(self) -> None:
-        # payload_json is only kept for the backfill; it's never read here.
-        task = _make_task(payload_json="{{{{invalid")
-        ok, _ = validate_task_payload(task)
-        assert ok
 
 
 # ── check_repo_allowed ───────────────────────────────────────

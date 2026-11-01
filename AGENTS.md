@@ -24,7 +24,7 @@ src/issue_agent/
 ├── logging.py          → structlog setup
 ├── core/               → canonical model (TriggerEvent, IssueRef, Author, Comment), PR text (pr_text.py)
 ├── providers/          → provider ports (base.py), registry, per-instance settings union (settings.py), github/ (settings, webhook adapter, App auth, API client, PR ops, git transport)
-├── webhook/            → generic dispatcher POST /webhooks/{instance_id}, backfill, health
+├── webhook/            → generic dispatcher POST /webhooks/{instance_id}, health
 ├── queue/              → SQLite store, models, schema
 ├── policy/             → label router, guards, ingestion filters, comment-author filter
 ├── runner/             → workspace, agent_factory, prompts, executor, diagnose, toolchains/

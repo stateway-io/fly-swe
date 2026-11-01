@@ -14,7 +14,6 @@ from issue_agent.observability.prometheus_metrics import (
 from issue_agent.providers.registry import ProviderRegistry
 from issue_agent.queue.store import SQLiteStore
 from issue_agent.runner.llm_support import check_function_calling, resolve_provider
-from issue_agent.webhook.backfill import backfill_trigger_json
 from issue_agent.webhook.health import router as health_router
 from issue_agent.webhook.metrics import router as metrics_router
 from issue_agent.webhook.routes import router as webhook_router
@@ -33,7 +32,6 @@ async def lifespan(app: FastAPI):
     db_path = str(data_dir / "issue_agent.db")
     store = SQLiteStore(db_path)
     store.init()
-    backfill_trigger_json(store, settings)
 
     app.state.store = store
     app.state.registry = ProviderRegistry.from_settings(settings)
