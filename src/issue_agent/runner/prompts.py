@@ -21,9 +21,9 @@ _CORE_INSTRUCTIONS_FILES = ("AGENTS.md", "CLAUDE.md")
 # agent.extra_template_vars), never concatenated into template text that gets
 # parsed. A single-pass render never re-parses a value, so {{ 7*7 }} or
 # {% for %} inside an issue body, a comment, a resume summary OR a file path
-# in the branch status renders as inert literal text. This is the A1 fix
-# (issue body) extended to the discussion thread (D8) and the resume
-# summary (R5.6). The {{ terms.* }} placeholders are the
+# in the branch status renders as inert literal text. This is the injection fix
+# (issue body) extended to the discussion thread and the resume
+# summary. The {{ terms.* }} placeholders are the
 # forge's vocabulary, from the plugin's static capabilities (prompt_vars()),
 # never from a payload. There are no statement tags in this template.
 INSTANCE_TEMPLATE = (
@@ -241,13 +241,13 @@ def _render_comment(*, header: str, body: str, max_chars: int) -> str:
 
 def build_comments_block(task: Task, history: list[Comment], settings: Settings) -> str:
     """Assemble the ``{{ comments }}`` value: the comment that triggered this
-    run (ignored until now — C1) plus the filtered discussion history (R3).
+    run (ignored until now) plus the filtered discussion history.
 
     A history comment is kept only if it would itself have been allowed to
-    trigger a run (same predicate as ingestion, R3.3) or if the agent wrote
+    trigger a run (same predicate as ingestion) or if the agent wrote
     it — a comment not worth a run is not worth context window either. The
     result is a plain string; its inertness is guaranteed by the single-pass
-    render of ``INSTANCE_TEMPLATE`` (D8), not by anything done here.
+    render of ``INSTANCE_TEMPLATE``, not by anything done here.
     """
     from issue_agent.policy.comment_filter import comment_author_allowed
 

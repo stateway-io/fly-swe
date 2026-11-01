@@ -57,7 +57,7 @@ class TestLoadFromEnvFile:
         reason="no local config.yaml (cp config.yaml.example config.yaml)",
     )
     def test_repo_routes_loaded_from_config_yaml(self):
-        # repo_routes comes only from config.yaml's `repos:` (D3: static
+        # repo_routes comes only from config.yaml's `repos:` (static
         # list, YAML-only). This just proves get_settings() resolves the
         # local config.yaml's repos list rather than raising/being empty.
         get_settings.cache_clear()
@@ -244,7 +244,7 @@ class TestTypes:
 
 
 class TestLlmConfigFields:
-    """R5.5.1 — provider, cost_tracking, prompt_caching, sampling and the
+    """Provider, cost_tracking, prompt_caching, sampling and the
     optional failover are all parameters, none inferred from the API key."""
 
     def _settings(self, **overrides) -> Settings:
@@ -396,7 +396,7 @@ class TestLlmConfigFields:
 
 
 class TestCommentsConfig:
-    """`comments` block, starting with `comments.initial_comment` (R1.6)."""
+    """`comments` block, starting with `comments.initial_comment`."""
 
     def _settings(self, **overrides) -> Settings:
         base = dict(
@@ -423,7 +423,7 @@ class TestCommentsConfig:
 
         assert "COMMENTS_INITIAL_COMMENT" not in flatten_yaml_config({})
 
-    # --- comments.author_filter / comments.context (R2.7, R3) ---
+    # --- comments.author_filter / comments.context ---
 
     def test_author_filter_defaults(self):
         s = self._settings()
@@ -441,7 +441,7 @@ class TestCommentsConfig:
         assert s.comments_context_max_comments == 20
         assert s.comments_context_max_chars_per_comment == 2000
 
-    # --- comments.progress_* (R6) ---
+    # --- comments.progress_* ---
 
     def test_progress_defaults(self):
         s = self._settings()
@@ -512,7 +512,7 @@ class TestCommentsConfig:
 
 class TestResumeConfig:
     """`resume` block. Governs WIP preservation
-    on a block, the block summary policy (R5), and the retry ceiling (R4.7)."""
+    on a block, the block summary policy, and the retry ceiling."""
 
     def _settings(self, **overrides) -> Settings:
         base = dict(
@@ -709,7 +709,7 @@ class _SettingsIsolated(Settings):
 
 
 class TestYamlSourcePrecedence:
-    """env > YAML > default (R5.1.4), via the CONFIG_FILE override."""
+    """env > YAML > default, via the CONFIG_FILE override."""
 
     _BASE_KWARGS = dict(LLM_API_KEY="k")
 

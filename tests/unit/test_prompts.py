@@ -566,8 +566,7 @@ class TestInstanceTemplate:
         # {{ task }}, {{ comments }}, {{ resume_summary }} and
         # {{ branch_status }} are the ONLY Jinja expressions carrying data,
         # plus the plugin's static vocabulary, and there are no statement
-        # tags — anything else would be a second injection surface
-        # (A1 / D8 / R5.6).
+        # tags — anything else would be a second injection surface.
         names = set(re.findall(r"\{\{ ([\w.]+) \}\}", INSTANCE_TEMPLATE))
         assert names == {
             "task",

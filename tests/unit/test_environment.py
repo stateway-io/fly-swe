@@ -155,7 +155,7 @@ class TestNonInteractiveEnv:
     def test_defaults_are_literals_not_read_from_the_environment(
         self, env: SandboxedLocalEnvironment, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """The A2 allowlist property still holds: nothing added here copies a
+        """The env allowlist property still holds: nothing added here copies a
         value out of the worker's environment."""
         monkeypatch.setenv("PAGER", "sekret-pager")
         result = env.execute({"command": "printenv PAGER"})
@@ -178,7 +178,7 @@ class TestGetTemplateVarsExcludesOsEnviron:
 
 
 class TestExecuteKillsProcessGroupOnTimeout:
-    """A6: a command that outlives its timeout must not leave a live
+    """A command that outlives its timeout must not leave a live
     grandchild process behind — mirrors the fix mini-swe-agent 2.3.0+ ships
     in LocalEnvironment._run() (start_new_session + os.killpg)."""
 

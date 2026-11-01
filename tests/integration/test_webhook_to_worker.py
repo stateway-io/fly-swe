@@ -61,7 +61,7 @@ class TestNoLabels:
         assert task.id == task_id
         assert task.status is TaskStatus.RUNNING
         # Populated at webhook-ingestion time from the resolved RepoRoute /
-        # payload installation — R5.2/R5.3, Task 2 of the multi-repo migration.
+        # payload installation.
         assert task.target_repo == "stateway-io/stateway-agent-fixtures"
         assert task.base_branch == "main"
         assert task.workflow == "trunk_based"
@@ -167,7 +167,7 @@ class TestBugLabel:
     async def test_label_category_reaches_bug_fix_prompt(
         self, store: SQLiteStore, app: AsyncClient, worker_settings: Settings
     ) -> None:
-        """End-to-end proof for A7: a `bug`-labeled webhook payload results in
+        """End-to-end proof: a `bug`-labeled webhook payload results in
         `Task.label_category == "bug"`, and that value actually resolves
         bug_fix.md's content via `load_system_prompt` — closing the
         structural dead path where `label_category` was always `None` and

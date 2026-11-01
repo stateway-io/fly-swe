@@ -48,7 +48,7 @@ class CostUnavailableError(RuntimeError):
     determined from either the provider response or LiteLLM's price map.
 
     Proceeding with ``0.0`` would silently disarm all three budget controls
-    (per-task, daily, and the alert), so the task is aborted instead (R5.5.3).
+    (per-task, daily, and the alert), so the task is aborted instead.
     """
 
 
@@ -202,7 +202,7 @@ class CostAwareLitellmModel(LitellmModel):
 
     def _cost_unavailable(self, reason: str) -> dict[str, float]:
         """Strict (``cost_tracking != "ignore_errors"``) aborts the task;
-        lenient logs and carries on with ``0.0`` (the pre-R5.5 behavior)."""
+        lenient logs and carries on with ``0.0`` (the original behavior)."""
         if self.config.cost_tracking == "ignore_errors":
             logger.warning("llm_cost_unavailable", model=self.config.model_name, error=reason)
             return {"cost": 0.0}
@@ -226,7 +226,7 @@ class CostAwareLitellmModel(LitellmModel):
     _TEMPLATE_SAFE_MODEL_KWARGS = ("max_retries",)
 
     def get_template_vars(self, **kwargs) -> dict:
-        # Defense in depth for A1: model_kwargs carries LLM credentials
+        # Defense in depth against prompt/template injection: model_kwargs carries LLM credentials
         # (api_key, and api_base when set — see agent_factory._model_kwargs).
         # Strip everything but the allowlisted fields from the namespace
         # Jinja renders system_template/instance_template with, so a

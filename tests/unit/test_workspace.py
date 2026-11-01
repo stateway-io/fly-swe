@@ -216,7 +216,7 @@ class TestWorkspace:
     def test_clone_url_never_contains_a_token(
         self, workspace: Workspace, mock_auth: MagicMock
     ) -> None:
-        """A2: the remote URL is always tokenless — git persists whatever URL
+        """The remote URL is always tokenless — git persists whatever URL
         it's given into .git/config, so a tokened URL here would leak the
         credential to anything (including the agent) that can read the
         cloned workspace."""

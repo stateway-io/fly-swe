@@ -1,8 +1,8 @@
 """Acceptance tests for the baseline security guarantees:
 
-1. An issue body containing Jinja syntax is never rendered/evaluated (A1).
-2. The agent's bash environment carries none of the five secrets (A2).
-3. The workspace's .git/config never contains a git credential (A2).
+1. An issue body containing Jinja syntax is never rendered/evaluated.
+2. The agent's bash environment carries none of the five secrets.
+3. The workspace's .git/config never contains a git credential.
 """
 
 from __future__ import annotations

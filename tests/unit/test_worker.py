@@ -898,7 +898,7 @@ class TestMainLoopBudget:
 
 
 class TestReconcileSweepInMain:
-    """R7.3: main() runs the issue_work reconciliation sweep once at
+    """Main() runs the issue_work reconciliation sweep once at
     startup and then on its own interval timer."""
 
     @patch("issue_agent.worker.time.sleep")

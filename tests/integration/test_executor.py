@@ -283,7 +283,7 @@ class TestExecutorIntegration:
         # task.repo ("stateway-io/stateway-issues") differs from
         # task.target_repo ("stateway-io/stateway-agent-fixtures") in this
         # fixture, so the commit message's issue ref must be qualified with
-        # the issue's own repo (bug A4) rather than a bare "#42" that would
+        # the issue's own repo rather than a bare "#42" that would
         # point at the wrong repo's issue tracker.
         assert "fix(stateway-io/stateway-issues#42)" in result.stdout
 
@@ -344,7 +344,7 @@ class TestExecutorIntegration:
         assert updated is not None
         assert updated.status is TaskStatus.ABORTED_POLICY
 
-        # initial "started work" comment (R1) + the outcome comment
+        # initial "started work" comment + the outcome comment
         assert mock_create_comment.call_count == 2
 
         # The outcome comment is what a reviewer reads. It has to
@@ -468,7 +468,7 @@ class TestExecutorIntegration:
         assert updated.status is TaskStatus.ABORTED_POLICY
         assert updated.error == "no_changes"
 
-        # initial "started work" comment (R1) + the outcome comment
+        # initial "started work" comment + the outcome comment
         assert mock_create_comment.call_count == 2
         assert not (git_workspace / TEST_COMMAND_SENTINEL_FILENAME).exists()
 

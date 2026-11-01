@@ -15,7 +15,6 @@ from issue_agent.providers.registry import ProviderRegistry
 from issue_agent.queue.store import SQLiteStore
 from issue_agent.runner.llm_support import check_function_calling, resolve_provider
 from issue_agent.webhook.health import router as health_router
-from issue_agent.webhook.metrics import router as metrics_router
 from issue_agent.webhook.routes import router as webhook_router
 
 logger = get_logger(__name__)
@@ -90,4 +89,3 @@ def _app_title() -> str:
 app = FastAPI(title=_app_title(), lifespan=lifespan)
 app.include_router(webhook_router)
 app.include_router(health_router)
-app.include_router(metrics_router)

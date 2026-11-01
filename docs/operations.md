@@ -200,7 +200,7 @@ There is a salvage path — the executor detects commits the agent made on
 top of the clone point and folds them back into the tree (logged as
 `agent_self_committed`) — but it is a safety net, not the design.
 
-The agent's sandbox has **no push credential and no `gh`** (finding A2), so
+The agent's sandbox has **no push credential and no `gh`**, so
 it can never actually push or open a PR; the only failure mode is a local
 commit.
 
@@ -700,7 +700,7 @@ Both `/healthz` and `/readyz` carry a `version` field — the installed
 fastest way to confirm a given release actually reached production:
 
 ```bash
-curl -s https://<app-name>.fly.dev/healthz | jq .version   # e.g. "0.2.1"
+curl -s https://<app-name>.fly.dev/healthz | jq .version   # e.g. "1.1.15"
 ```
 
 Compare it against the tag of the release you just published
@@ -833,20 +833,19 @@ with no app to target.
 |---|---|---|
 | `GET /healthz` | 200 | Liveness — always 200 while the process is up |
 | `GET /readyz` | 200 / 503 | SQLite reachable, required settings present, each provider instance's own health check (GitHub: private key looks like a PEM), model function-calling support (advisory) |
-| `GET /metrics` | 200 | Prometheus metrics in OpenMetrics format |
 
 **`/healthz` response** (`service` is the slugified `agent.name`; `version` is
 the installed `fly-swe` distribution version, resolved once at startup via
 `importlib.metadata`):
 ```json
-{"status": "healthy", "service": "issue-agent", "version": "0.2.1"}
+{"status": "healthy", "service": "issue-agent", "version": "1.1.15"}
 ```
 
 **`/readyz` response (healthy):**
 ```json
 {
   "status": "ready",
-  "version": "0.2.1",
+  "version": "1.1.15",
   "checks": {
     "sqlite": "ok",
     "settings": "ok",
@@ -861,7 +860,7 @@ the installed `fly-swe` distribution version, resolved once at startup via
 ```json
 {
   "status": "not_ready",
-  "version": "0.2.1",
+  "version": "1.1.15",
   "checks": {
     "sqlite": "ok",
     "settings": "missing: providers.github.app_id, REPO_ROUTES (config.yaml: repos), LLM_API_KEY",
@@ -904,7 +903,10 @@ issue_agent_issue_work_attempts{provider_instance="<id>", repo="owner/name"}   (
 `owner/name` can exist on two forges. Queries that only `sum by (repo)` keep
 working; add `provider_instance` to tell the instances apart.
 
-Access via `fly proxy` (since metrics port is internal):
+Metrics are **not** served on the public port (8080): `GET /metrics` there
+returns 404. They are exposed only by the internal Prometheus exporter on
+`metrics.port` (default 9090), which `fly.toml` does not publish. Access it via
+`fly proxy`:
 
 ```bash
 fly proxy 9090:9090 --app <app-name>

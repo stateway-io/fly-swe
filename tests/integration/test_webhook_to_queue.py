@@ -383,7 +383,7 @@ class TestUnhandledEventAction:
 
 
 class TestIssueLifecycle:
-    """R7.1, R7.2: issues.closed / issues.reopened are handled in
+    """issues.closed / issues.reopened are handled in
     the webhook process — closing or touching the ``issue_work`` row — with
     no Task enqueued, no GitHub API call and no LLM."""
 
@@ -520,8 +520,7 @@ class TestValidWebhook:
         assert task.repo == "stateway-io/stateway-issues"
         assert task.trigger_kind == TriggerKind.ISSUE_OPENED
         assert task.status == TaskStatus.PENDING
-        # Populated from the resolved RepoRoute + webhook payload
-        # (R5.2/R5.3, Task 2 of the multi-repo migration).
+        # Populated from the resolved RepoRoute + webhook payload.
         assert task.target_repo == "stateway-io/stateway-agent-fixtures"
         assert task.base_branch == "main"
         assert task.workflow == "trunk_based"
@@ -1025,7 +1024,7 @@ class TestCommentFiltering:
     @pytest.mark.asyncio
     async def test_bot_that_opened_the_issue_keeps_its_channel(self, app, store) -> None:
         # The reporter is a bot; a maintainer just reopened the issue. Its
-        # follow-up comment must still create a task (user directive, R2.1).
+        # follow-up comment must still create a task.
         body = make_github_payload(
             event="issue_comment",
             action="created",
@@ -1044,7 +1043,7 @@ class TestCommentFiltering:
 
 
 class TestCredentialsHint:
-    """R5.2 / PRD §7 risk 2: the webhook never makes a network call to resolve
+    """PRD §7 risk 2: the webhook never makes a network call to resolve
     the installation; a task without one is resolved later by the worker."""
 
     @pytest.mark.asyncio

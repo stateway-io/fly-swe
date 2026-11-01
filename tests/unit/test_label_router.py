@@ -141,7 +141,7 @@ class TestClassifyLabelsConfigurableCategories:
 
 
 class TestGetLabelCategory:
-    """Unified label -> category resolution (A7 / R5.8.2).
+    """Unified label -> category resolution.
 
     This is the single source of truth consumed by both `_classify_labels`
     (FIX/TRIAGE_ONLY/SKIP routing) and `Task.label_category` (which feeds

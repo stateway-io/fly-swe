@@ -1,8 +1,8 @@
 # PRD — Gogs Provider
 
-**Status:** Draft for future implementation. **Blocked** by Phases 1–3
-of the [provider plugins PRD](./PRD.md), by the Phase 4 `terms`, and by the
-generic prerequisites in §3.1/§3.7 of that PRD.
+**Status:** Draft, not scheduled. Its prerequisites — Phases 0–4 of the
+[provider plugins PRD](./PRD.md), including the `terms` vocabulary and the
+generic prerequisites in §3.1/§3.7 — are done (v1.1.0).
 **Date:** 2026-10-24
 **Type:** `feat` (new provider; no change to the core)
 
@@ -198,7 +198,7 @@ HTTP errors: 401/403 ⇒ credential error (no retry); 404 ⇒ missing resource;
 | Method | Value |
 |---|---|
 | `clone_url(repo)` | `{host}/{repo}.git` |
-| `git_auth_env(repo)` | `http.<host>.extraHeader: Authorization: Basic base64("<bot_login>:<token>")` via `GIT_CONFIG_*` (same technique as `runner/git_auth.py`: the token is never in the URL or on disk) |
+| `git_auth_env(repo)` | `http.<host>.extraHeader: Authorization: Basic base64("<bot_login>:<token>")` via `GIT_CONFIG_*` (same technique as `providers/github/transport.py`: the token is never in the URL or on disk) |
 | `compare_url(repo, base, head)` | `{host}/{repo}/compare/{base}...{head}` |
 | `pr_url(repo, n)` | `{host}/{repo}/pulls/{n}`; only used if a human provides the PR (there is no automatic flow) |
 | `format_ref("issue", n, from_repo)` | `#n`, or `owner/repo#n` across repos |

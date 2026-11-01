@@ -1,4 +1,4 @@
-"""Block summaries for work resumption (R5).
+"""Block summaries for work resumption.
 
 When a run blocks on a timeout or a budget/cost stop, the partial work is
 pushed to the work branch and a short summary of what was done / what remains
@@ -6,15 +6,14 @@ is persisted on ``issue_work`` and injected into the next run's prompt. Two
 sources, per ``resume.summary_on_block``:
 
 - ``mechanical`` — ``git diff`` against HEAD plus the last few turns of the
-  trajectory the agent already produced. Zero extra tokens (R5.3), and the
+  trajectory the agent already produced. Zero extra tokens, and the
   default.
 - ``llm`` — one extra model call over the trajectory. Counted against the
-  task cost and the daily budget like any other call (R5.4).
+  task cost and the daily budget like any other call.
 
 An LLM summary that fails — including ``CostUnavailableError`` under strict
 cost tracking, the expected outcome when the block itself was a cost stop —
-degrades to the mechanical summary; the block is never left without one
-(R5.4).
+degrades to the mechanical summary; the block is never left without one.
 """
 
 from __future__ import annotations
@@ -33,7 +32,7 @@ _MECHANICAL = "mechanical"
 _LLM = "llm"
 
 # Blocks where an extra LLM call is exactly what must not happen under
-# ``llm_unless_budget`` (R5.2).
+# ``llm_unless_budget``.
 _COST_BLOCKS = {"budget_exceeded", "cost_unavailable"}
 
 _RECENT_ACTION_LIMIT = 6
@@ -141,7 +140,7 @@ def summarize_block(
 ) -> tuple[str, str, float]:
     """Produce the block summary. Returns ``(text, kind, extra_cost_usd)``
     where ``kind`` is ``'' | 'mechanical' | 'llm'`` — a policy that asked for
-    an LLM summary but degraded reports ``'mechanical'`` (R5.4)."""
+    an LLM summary but degraded reports ``'mechanical'``."""
     if policy == "never":
         return "", "", 0.0
 

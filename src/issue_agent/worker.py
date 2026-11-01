@@ -464,7 +464,7 @@ def run_task(
             )
             task_log.warning("guard_blocked", guard="comment_author", reason=msg)
             # No _post_blocked_comment: the ingestion filter this stands in
-            # for drops silently (R2.3, D5), and so does this.
+            # for drops silently, and so does this.
             observe_task_result(
                 "aborted", 0.0, 0.0, 0, task.target_repo, provider_instance=task.provider_instance
             )

@@ -52,12 +52,12 @@ def _handle_issue_lifecycle(
     store: SQLiteStore, settings: Settings, trigger: TriggerEvent
 ) -> tuple[str, str]:
     """React to ``issues.closed`` / ``issues.reopened`` without enqueuing a
-    Task (R7.1, R7.2) — zero GitHub API calls, zero LLM.
+    Task — zero GitHub API calls, zero LLM.
 
     ``closed`` closes an open ``issue_work`` row with reason ``issue_closed``;
     reopening never restarts paid work (§3.3). Every close/drop here leaves
-    the same audit + metric trail the executor-driven closes do (R8.1/R8.3):
-    ``issues.closed`` is the primary close path (D6), so it can't be the one
+    the same audit + metric trail the executor-driven closes do:
+    ``issues.closed`` is the primary close path, so it can't be the one
     the ``issue_work_attempts`` histogram and the audit log never see.
     Returns ``(status, reason)`` for the response.
     """
@@ -68,7 +68,7 @@ def _handle_issue_lifecycle(
     if trigger.kind is TriggerKind.ISSUE_REOPENED:
         if work is None:
             return "ignored", "issue_reopened"
-        # A row closed with ``issue_closed`` makes the executor's R7.6 guard
+        # A row closed with ``issue_closed`` makes the executor's closed-issue guard
         # abort every future run on this issue. Reopening the issue means
         # that close is no longer true: drop the spent row so a later
         # comment/label starts fresh work instead of being aborted (§3.3).

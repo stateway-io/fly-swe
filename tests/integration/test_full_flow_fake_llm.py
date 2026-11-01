@@ -236,7 +236,7 @@ class TestFullFlow:
         readme = git_workspace / "README.md"
         assert "fixed by agent" in readme.read_text()
 
-        # A9: the trajectory must be persisted under <data_dir>/events/<task_id>/.
+        # The trajectory must be persisted under <data_dir>/events/<task_id>/.
         trajectory_path = Path(settings.data_dir) / "events" / task.id / "trajectory.json"
         assert trajectory_path.is_file()
         trajectory = json.loads(trajectory_path.read_text())
@@ -276,7 +276,7 @@ class TestFullFlow:
         assert updated is not None
         assert updated.status is TaskStatus.ABORTED_POLICY
 
-        # initial "started work" comment (R1) + the outcome comment
+        # initial "started work" comment + the outcome comment
         assert mock_create_comment.call_count == 2
         comment_body = mock_create_comment.call_args[0][2]
         assert "no changes" in comment_body.lower()
@@ -480,7 +480,7 @@ class TestTimeoutCap:
         assert updated.status is TaskStatus.ABORTED_BUDGET
         assert "timeout" in (updated.error or "")
 
-        # initial "started work" comment (R1) + the outcome comment
+        # initial "started work" comment + the outcome comment
         assert mock_create_comment.call_count == 2
         comment_body = mock_create_comment.call_args[0][2]
         assert "maximum" in comment_body.lower()
@@ -515,7 +515,7 @@ class TestAgentLevelCaps:
         assert result.iterations == 2, (
             f"Expected 2 iterations (cost 0.06 >= 0.05 limit on 3rd call), got {result.iterations}"
         )
-        # A5: hitting cost_limit must not be reported as a successful run.
+        # Hitting cost_limit must not be reported as a successful run.
         # Only cost_limit is exceeded here (MAX_ITERATIONS=100 is nowhere
         # close), so the error must say "cost", not the ambiguous generic
         # label — the reverse case (only step_limit hit) was once
@@ -538,7 +538,7 @@ class TestAgentLevelCaps:
 
         assert result.iterations <= 3, f"Expected ≤3 iterations, got {result.iterations}"
         assert result.cost_usd >= 0.0
-        # A5: hitting step_limit must not be reported as a successful run.
+        # Hitting step_limit must not be reported as a successful run.
         # Only step_limit is exceeded here (MAX_BUDGET_PER_TASK_USD=10.0 is
         # nowhere close), so the error must say "iteration", not the
         # ambiguous generic label.
