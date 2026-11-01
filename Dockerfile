@@ -13,9 +13,10 @@ RUN uv sync --frozen --no-install-project
 
 COPY src/ ./src/
 COPY prompts/ ./prompts/
-# README.md is required at build time: pyproject.toml declares it as the
-# package's `readme`, and `uv sync --frozen` (below) fails without it.
-COPY README.md ./
+# README.md and LICENSE are required at build time: pyproject.toml declares
+# them as the package's `readme` and `license-files`, and `uv sync --frozen`
+# (below) fails without them.
+COPY README.md LICENSE ./
 # Only the template ships in the image. The real /app/config.yaml is written at
 # deploy time from the CONFIG_YAML Fly secret (see fly.toml [[files]]); with no
 # config file present, Settings falls back to env vars + code defaults.
