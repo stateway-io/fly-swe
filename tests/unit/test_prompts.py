@@ -295,7 +295,7 @@ class TestLoadSystemPrompt:
         # _build_abort_comment appends to the no_changes comment
         # (runner/executor.py), so this case must not say "comment and stop".
         result = load_system_prompt(None)
-        already_fixed = result[result.index("ALREADY present in the repository"):]
+        already_fixed = result[result.index("ALREADY present in the repository") :]
         assert "completion signal" in already_fixed
         assert "working tree clean" in already_fixed
 
@@ -325,7 +325,7 @@ class TestLoadSystemPrompt:
 
     def test_bug_fix_regression_test_must_not_assert_unmeasured_values(self) -> None:
         text = _with_vocab(_read_prompt_file("bug_fix.md"))
-        regression = text[text.index("Add a regression test"):text.index("Run the test suite")]
+        regression = text[text.index("Add a regression test") : text.index("Run the test suite")]
         assert "reproduced" in regression
         assert "did not measure" in regression
         # A tuning value taken from the issue is reported, not enshrined.
@@ -341,7 +341,7 @@ class TestLoadSystemPrompt:
         # executed in this sandbox" and opened the PR anyway.
         result = load_system_prompt(None)
         start = result.index("CANNOT be verified in this sandbox")
-        case = result[start:result.index("If you reach 80% of budget", start)]
+        case = result[start : result.index("If you reach 80% of budget", start)]
         assert "premise" in case
         assert "do not edit anything" in case
         assert "proposed diff" in case
@@ -354,7 +354,7 @@ class TestLoadSystemPrompt:
         # another route must still ship.
         result = load_system_prompt(None)
         start = result.index("CANNOT be verified in this sandbox")
-        case = result[start:result.index("If you reach 80% of budget", start)]
+        case = result[start : result.index("If you reach 80% of budget", start)]
         assert "AND" in case
 
     # ── Resource limits (the sandbox is a 1 GB, 1-shared-vCPU VM) ───────
@@ -362,7 +362,7 @@ class TestLoadSystemPrompt:
     def _resource_limits(self) -> str:
         result = load_system_prompt(None)
         start = result.index("RESOURCE LIMITS")
-        return result[start:result.index("SECURITY (fixed", start)]
+        return result[start : result.index("SECURITY (fixed", start)]
 
     def test_system_prompt_warns_that_heavy_toolchains_are_slow_here(self) -> None:
         # The run on #247 launched tsc and jest side by side and sent the VM
@@ -419,7 +419,7 @@ class TestLoadSystemPrompt:
     def test_bug_fix_test_step_points_at_the_resource_limits(self) -> None:
         text = _with_vocab(_read_prompt_file("bug_fix.md"))
         start = text.index("**Run the test suite**")
-        step = text[start:text.index("**Finish with the completion signal**", start)]
+        step = text[start : text.index("**Finish with the completion signal**", start)]
         assert "one at a time" in step
         assert "RESOURCE LIMITS" in step
 
@@ -490,7 +490,7 @@ class TestLoadSystemPrompt:
         fence_start = result.index("```")
         fence_end = result.index("```", fence_start + 3)
         example_block = result[fence_start:fence_end]
-        assert 'echo "' not in example_block, "the example itself must not use echo \"...\""
+        assert 'echo "' not in example_block, 'the example itself must not use echo "..."'
         assert "<<'SUBMIT_EOF'" in example_block
         assert "backtick" in result.lower()
 
@@ -556,7 +556,7 @@ class TestLoadDiagnoseSystemPrompt:
         fence_start = result.rindex("```", 0, marker_pos)
         fence_end = result.index("```", marker_pos)
         example_block = result[fence_start:fence_end]
-        assert 'echo "' not in example_block, "the example itself must not use echo \"...\""
+        assert 'echo "' not in example_block, 'the example itself must not use echo "..."'
         assert "<<'SUBMIT_EOF'" in example_block
         assert "backtick" in result.lower()
 
@@ -570,10 +570,16 @@ class TestInstanceTemplate:
         # (A1 / D8 / R5.6).
         names = set(re.findall(r"\{\{ ([\w.]+) \}\}", INSTANCE_TEMPLATE))
         assert names == {
-            "task", "comments", "resume_summary", "branch_status",
-            "terms.issue", "terms.pr",
+            "task",
+            "comments",
+            "resume_summary",
+            "branch_status",
+            "terms.issue",
+            "terms.pr",
         }
-        assert INSTANCE_TEMPLATE.count("{{") == len(re.findall(r"\{\{ [\w.]+ \}\}", INSTANCE_TEMPLATE))
+        assert INSTANCE_TEMPLATE.count("{{") == len(
+            re.findall(r"\{\{ [\w.]+ \}\}", INSTANCE_TEMPLATE)
+        )
         assert "{{ task }}" in INSTANCE_TEMPLATE
         assert "{{ comments }}" in INSTANCE_TEMPLATE
         assert "{{ resume_summary }}" in INSTANCE_TEMPLATE
@@ -582,7 +588,9 @@ class TestInstanceTemplate:
 
     def test_renders_malicious_branch_status_value_inert(self) -> None:
         # File paths in the branch status come from the target repo.
-        status = build_branch_status("conflicted", "dev", TERMS, [("{{ 7*7 }}.md", "both modified")])
+        status = build_branch_status(
+            "conflicted", "dev", TERMS, [("{{ 7*7 }}.md", "both modified")]
+        )
         rendered = Template(INSTANCE_TEMPLATE, undefined=StrictUndefined).render(
             **VOCAB, task="", comments="", resume_summary="", branch_status=status
         )
@@ -620,7 +628,10 @@ class TestInstanceTemplate:
 
     def test_renders_without_raising_on_template_syntax_lookalikes(self) -> None:
         Template(INSTANCE_TEMPLATE, undefined=StrictUndefined).render(
-            **VOCAB, task="{% this is not valid jinja", comments="{% also not }}", resume_summary="",
+            **VOCAB,
+            task="{% this is not valid jinja",
+            comments="{% also not }}",
+            resume_summary="",
             branch_status="",
         )
 
@@ -633,7 +644,9 @@ class TestBuildBranchStatus:
         """Regression: told nothing, the agent copied the base's commits
         in by hand. The conflict, its files and the way out must be explicit."""
         status = build_branch_status(
-            "conflicted", "dev", TERMS,
+            "conflicted",
+            "dev",
+            TERMS,
             [(".memory-bank/activeContext.md", "both modified"), ("src/a.ts", "deleted by us")],
             pr_number=288,
         )
@@ -732,9 +745,7 @@ class TestBuildUserMessage:
         assert "@labeler" in msg
 
     def test_multiline_body_is_preserved(self) -> None:
-        task = _make_task(
-            issue=make_issue(number=1, title="Test", body="Line 1\nLine 2\nLine 3")
-        )
+        task = _make_task(issue=make_issue(number=1, title="Test", body="Line 1\nLine 2\nLine 3"))
         msg = build_user_message(task, TERMS)
         assert "Line 1" in msg
         assert "Line 2" in msg
@@ -813,9 +824,7 @@ class TestBuildCommentsBlock:
 
     def test_own_comment_is_kept_even_with_filter_rejecting_its_author(self) -> None:
         task = _comment_task(trigger_comment=None, issue_author="reporter")
-        history = [
-            _history_comment(6, "", "unknown", "Attempt 1 aborted.", is_self=True)
-        ]
+        history = [_history_comment(6, "", "unknown", "Attempt 1 aborted.", is_self=True)]
         block = build_comments_block(task, history, _settings())
         assert "Attempt 1 aborted." in block
         # A missing login falls back to the configured app name.
@@ -841,8 +850,7 @@ class TestBuildCommentsBlock:
     def test_history_capped_at_max_comments(self) -> None:
         task = _comment_task(trigger_comment=None, issue_author="reporter")
         history = [
-            _history_comment(i, "maintainer", "member", f"comment number {i}")
-            for i in range(1, 11)
+            _history_comment(i, "maintainer", "member", f"comment number {i}") for i in range(1, 11)
         ]
         block = build_comments_block(task, history, _settings(COMMENTS_CONTEXT_MAX_COMMENTS=3))
         assert "comment number 10" in block
@@ -873,20 +881,31 @@ class TestProviderVocabulary:
     @staticmethod
     def _render(template: str, terms) -> str:
         return Template(template, undefined=StrictUndefined).render(
-            bot_name="Issue Agent", test_command="", lint_command="",
-            protected_paths=[], relevant_extensions=[],
-            task="", comments="", resume_summary="", branch_status="",
+            bot_name="Issue Agent",
+            test_command="",
+            lint_command="",
+            protected_paths=[],
+            relevant_extensions=[],
+            task="",
+            comments="",
+            resume_summary="",
+            branch_status="",
             **prompt_vars(terms),
         )
 
     def _all_prompts(self) -> list[str]:
         return [
-            *(_load_system_prompt(c, DEFAULT_CATEGORY_PROMPT_MAP) for c in [None, *DEFAULT_CATEGORY_PROMPT_MAP]),
+            *(
+                _load_system_prompt(c, DEFAULT_CATEGORY_PROMPT_MAP)
+                for c in [None, *DEFAULT_CATEGORY_PROMPT_MAP]
+            ),
             _load_diagnose_system_prompt(),
             INSTANCE_TEMPLATE,
         ]
 
-    @pytest.mark.parametrize("name", ["system.md", "system_diagnose.md", "bug_fix.md", "doc_fix.md"])
+    @pytest.mark.parametrize(
+        "name", ["system.md", "system_diagnose.md", "bug_fix.md", "doc_fix.md"]
+    )
     def test_prompt_files_name_no_forge(self, name: str) -> None:
         text = re.sub(r"\{\{ [\w.]+ \}\}", "", _read_prompt_file(name))
         assert not self._FORGE_WORDS.findall(text)
@@ -899,7 +918,9 @@ class TestProviderVocabulary:
             assert "ticket" in rendered
 
     def test_fix_prompt_speaks_the_forges_vocabulary(self) -> None:
-        rendered = self._render(_load_system_prompt("bug", DEFAULT_CATEGORY_PROMPT_MAP), self.FAKE_TERMS)
+        rendered = self._render(
+            _load_system_prompt("bug", DEFAULT_CATEGORY_PROMPT_MAP), self.FAKE_TERMS
+        )
         assert "Merge Request description" in rendered
         assert "`(!123)`" in rendered
         assert "`AGENTS.md` or `CLAUDE.md`" in rendered
@@ -927,7 +948,5 @@ class TestProviderVocabulary:
         status = build_branch_status("merged", "main", self.FAKE_TERMS, pr_number=288)
         assert "open Merge Request !288" in status
         assert "Pull Request" not in status
-        published = build_branch_status(
-            "merged", "main", self.FAKE_TERMS, published_branch=True
-        )
+        published = build_branch_status("merged", "main", self.FAKE_TERMS, published_branch=True)
         assert "with no Merge Request on it" in published

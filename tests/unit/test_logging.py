@@ -72,9 +72,7 @@ class TestBindContext:
     def test_bind_task_context(self, capsys):
         setup_logging("info")
         logger = get_logger()
-        bound = bind_context(
-            logger, task_id="abc-123", repo="stateway/stateway"
-        )
+        bound = bind_context(logger, task_id="abc-123", repo="stateway/stateway")
         bound.info("context test")
         out, _ = capsys.readouterr()
         parsed = json.loads(out.strip())

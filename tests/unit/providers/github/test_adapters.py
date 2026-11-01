@@ -103,7 +103,9 @@ class TestForgeClient:
         self, forge: GitHubForgeClient, github: MagicMock
     ) -> None:
         mine = MagicMock(
-            id=1, body="mine", created_at=None,
+            id=1,
+            body="mine",
+            created_at=None,
             raw_data={"author_association": "NONE", "performed_via_github_app": {"id": 3735121}},
         )
         mine.user.login, mine.user.type = "stateway-issue-agent[bot]", "Bot"
@@ -112,14 +114,16 @@ class TestForgeClient:
         )
         theirs.user.login, theirs.user.type = "maintainer", "User"
         github.get_repo.return_value.get_issue.return_value.get_comments.return_value = [
-            mine, theirs,
+            mine,
+            theirs,
         ]
 
         comments = forge.list_comments(7, 10)
 
         assert all(isinstance(c, Comment) for c in comments)
         assert [(c.body, c.author.is_self) for c in comments] == [
-            ("mine", True), ("theirs", False),
+            ("mine", True),
+            ("theirs", False),
         ]
         assert comments[1].author.association == "member"
 
@@ -166,8 +170,12 @@ class TestPullRequestClient:
         repo.create_pull.return_value = _gh_pr(9, "agent/issue-1")
 
         pr = pulls.create_pr(
-            head="agent/issue-1", base="main", title="t", body="b",
-            draft=True, labels=["bug"],
+            head="agent/issue-1",
+            base="main",
+            title="t",
+            body="b",
+            draft=True,
+            labels=["bug"],
         )
 
         assert pr.number == 9
@@ -176,9 +184,7 @@ class TestPullRequestClient:
             title="t", body="b", head="agent/issue-1", base="main", draft=True
         )
         repo.get_issue.assert_called_with(9)
-        repo.get_issue.return_value.add_to_labels.assert_called_once_with(
-            "agent-generated", "bug"
-        )
+        repo.get_issue.return_value.add_to_labels.assert_called_once_with("agent-generated", "bug")
 
     def test_comment_on_pr(self, pulls: GitHubPullRequestClient, github: MagicMock) -> None:
         issue = github.get_repo.return_value.get_issue.return_value
@@ -254,10 +260,7 @@ class TestTransport:
     def test_format_ref(self, transport: GitHubTransport) -> None:
         assert transport.format_ref("issue", 4, repo=REPO, from_repo=REPO) == "#4"
         assert transport.format_ref("pr", 4, repo=REPO, from_repo=REPO) == "#4"
-        assert (
-            transport.format_ref("issue", 4, repo="org/issues", from_repo=REPO)
-            == "org/issues#4"
-        )
+        assert transport.format_ref("issue", 4, repo="org/issues", from_repo=REPO) == "org/issues#4"
 
     def test_closing_reference(self, transport: GitHubTransport) -> None:
         assert transport.closing_reference(REPO, 4, REPO) == "Closes #4"
@@ -267,9 +270,7 @@ class TestTransport:
 def _plugin(**overrides: Any) -> GitHubProviderPlugin:
     fields: dict[str, Any] = {
         "webhook_secret": "s",
-        "identity": BotIdentity(
-            app_id=1, app_name="Agent", app_bot_login="agent[bot]"
-        ),
+        "identity": BotIdentity(app_id=1, app_name="Agent", app_bot_login="agent[bot]"),
         "private_key": PEM,
     }
     fields.update(overrides)

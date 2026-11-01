@@ -63,9 +63,7 @@ def worker_settings(tmp_path: object) -> Settings:
 
 
 @pytest.fixture
-def app(
-    store: SQLiteStore, monkeypatch: pytest.MonkeyPatch, tmp_path: object
-) -> FastAPI:
+def app(store: SQLiteStore, monkeypatch: pytest.MonkeyPatch, tmp_path: object) -> FastAPI:
     # A tmp data dir so the webhook handler's audit writes (issue lifecycle,
     # R8.1) never land in the repo's ./data during tests.
     settings = _make_settings(DATA_DIR=str(tmp_path / "webhook-data"))

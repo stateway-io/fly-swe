@@ -18,9 +18,7 @@ _AGENT_VARS = {
 
 
 def _observation(output: str, *, max_chars: int = 100, warn: int = 80, **var_overrides) -> str:
-    return Template(
-        build_observation_template(max_chars, warn), undefined=StrictUndefined
-    ).render(
+    return Template(build_observation_template(max_chars, warn), undefined=StrictUndefined).render(
         output={"output": output, "returncode": 0, "exception_info": ""},
         **{**_AGENT_VARS, **var_overrides},
     )
@@ -56,9 +54,7 @@ class TestOutputTruncation:
         assert "Z" * 5000 in rendered
 
     def test_returncode_and_exception_are_preserved(self) -> None:
-        rendered = Template(
-            build_observation_template(100, 80), undefined=StrictUndefined
-        ).render(
+        rendered = Template(build_observation_template(100, 80), undefined=StrictUndefined).render(
             output={"output": "x", "returncode": 3, "exception_info": "timed out"},
             **_AGENT_VARS,
         )

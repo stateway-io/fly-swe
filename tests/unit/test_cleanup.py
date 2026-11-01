@@ -113,9 +113,7 @@ class TestFindCompletedTaskIdsOlderThan:
 class TestFindRunningTaskIds:
     def test_returns_running_ids(self, store: SQLiteStore) -> None:
         t1 = store.insert_task(_make_task(issue_number=1))
-        t2 = store.insert_task(_make_task(
-            issue_number=2, delivery_id="del-2"
-        ))
+        t2 = store.insert_task(_make_task(issue_number=2, delivery_id="del-2"))
         store.update_status(t1, TaskStatus.RUNNING)
 
         running = store.find_running_task_ids()
@@ -262,9 +260,7 @@ class TestCleanupDatabaseRecords:
 
 
 class TestRunMaintenance:
-    def test_removes_old_events_and_workspaces(
-        self, store: SQLiteStore, tmp_path: Path
-    ) -> None:
+    def test_removes_old_events_and_workspaces(self, store: SQLiteStore, tmp_path: Path) -> None:
         settings = _settings(str(tmp_path))
 
         old_tid = store.insert_task(_make_task(issue_number=1))
@@ -273,17 +269,13 @@ class TestRunMaintenance:
             (TaskStatus.SUCCEEDED.value, _old_timestamp(60), old_tid),
         )
 
-        recent_tid = store.insert_task(_make_task(
-            issue_number=2, delivery_id="del-2"
-        ))
+        recent_tid = store.insert_task(_make_task(issue_number=2, delivery_id="del-2"))
         store.conn.execute(
             "UPDATE tasks SET status=?, completed_at=? WHERE id=?",
             (TaskStatus.SUCCEEDED.value, _old_timestamp(5), recent_tid),
         )
 
-        active_tid = store.insert_task(_make_task(
-            issue_number=3, delivery_id="del-3"
-        ))
+        active_tid = store.insert_task(_make_task(issue_number=3, delivery_id="del-3"))
         store.update_status(active_tid, TaskStatus.RUNNING)
         store.conn.commit()
 
@@ -301,9 +293,7 @@ class TestRunMaintenance:
         assert not (tmp_path / "workspaces" / "orphan-ws").exists()
         assert (tmp_path / "workspaces" / active_tid).exists()
 
-    def test_empty_data_dir_does_not_raise(
-        self, store: SQLiteStore, tmp_path: Path
-    ) -> None:
+    def test_empty_data_dir_does_not_raise(self, store: SQLiteStore, tmp_path: Path) -> None:
         settings = _settings(str(tmp_path))
         result = run_maintenance(store, settings)
         assert result.total == 0
@@ -343,14 +333,9 @@ class TestReconcileIssueWork:
     issue was closed behind the agent's back (missed webhook / downtime)."""
 
     def _open(self, store: SQLiteStore, n: int) -> None:
-        store.open_issue_work(
-            "github",
-            "owner/issues", n, "owner/code", "main", f"agent/issue-{n}"
-        )
+        store.open_issue_work("github", "owner/issues", n, "owner/code", "main", f"agent/issue-{n}")
 
-    def test_closes_work_whose_issue_is_closed(
-        self, store: SQLiteStore, tmp_path: Path
-    ) -> None:
+    def test_closes_work_whose_issue_is_closed(self, store: SQLiteStore, tmp_path: Path) -> None:
         settings = _settings(str(tmp_path))
         self._open(store, 1)
 
@@ -402,9 +387,7 @@ class TestReconcileIssueWork:
         assert store.get_issue_work("github", "owner/issues", 1).state == "open"
         assert store.get_issue_work("ghe", "owner/issues", 1).state == "closed"
 
-    def test_unknown_instance_fails_only_its_row(
-        self, store: SQLiteStore, tmp_path: Path
-    ) -> None:
+    def test_unknown_instance_fails_only_its_row(self, store: SQLiteStore, tmp_path: Path) -> None:
         settings = _settings(str(tmp_path))
         store.open_issue_work("gone", "owner/issues", 1, "owner/code", "main", "a")
         store.open_issue_work("github", "owner/issues", 2, "owner/code", "main", "b")
@@ -428,9 +411,7 @@ class TestReconcileIssueWork:
         assert result.closed == 0
         assert store.get_issue_work("github", "owner/issues", 1).state == "open"
 
-    def test_respects_the_per_cycle_cap(
-        self, store: SQLiteStore, tmp_path: Path
-    ) -> None:
+    def test_respects_the_per_cycle_cap(self, store: SQLiteStore, tmp_path: Path) -> None:
         settings = _settings(str(tmp_path))
         settings = settings.model_copy(update={"resume_reconcile_max_per_cycle": 2})
         for n in range(5):
@@ -465,9 +446,7 @@ class TestReconcileIssueWork:
         assert store.get_issue_work("github", "owner/issues", 1).state == "open"
         assert store.get_issue_work("github", "owner/issues", 2).state == "closed"
 
-    def test_close_writes_an_audit_entry(
-        self, store: SQLiteStore, tmp_path: Path
-    ) -> None:
+    def test_close_writes_an_audit_entry(self, store: SQLiteStore, tmp_path: Path) -> None:
         settings = _settings(str(tmp_path))
         self._open(store, 1)
         store.update_issue_work("github", "owner/issues", 1, attempts=2)
@@ -486,9 +465,7 @@ class TestReconcileIssueWork:
         assert reconciled["attempts"] == 2
         assert reconciled["provider_instance"] == "github"
 
-    def test_no_open_work_is_a_noop(
-        self, store: SQLiteStore, tmp_path: Path
-    ) -> None:
+    def test_no_open_work_is_a_noop(self, store: SQLiteStore, tmp_path: Path) -> None:
         settings = _settings(str(tmp_path))
         called = False
 

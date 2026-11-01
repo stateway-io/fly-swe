@@ -59,8 +59,7 @@ def test_core_imports_only_the_generic_provider_modules() -> None:
         f"{path.relative_to(SRC)}: {module}"
         for path in _core_files()
         for module in _imported_modules(path)
-        if module.startswith("issue_agent.providers")
-        and module not in GENERIC_PROVIDER_MODULES
+        if module.startswith("issue_agent.providers") and module not in GENERIC_PROVIDER_MODULES
     ]
     assert offenders == []
 

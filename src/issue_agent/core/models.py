@@ -28,9 +28,7 @@ class TriggerKind(StrEnum):
 
 # "unknown": the forge's webhook doesn't say. The comment filter then can't
 # decide by association at ingestion and defers to the worker (§3.1).
-Association = Literal[
-    "owner", "member", "collaborator", "contributor", "none", "bot", "unknown"
-]
+Association = Literal["owner", "member", "collaborator", "contributor", "none", "bot", "unknown"]
 
 
 class _Frozen(BaseModel):

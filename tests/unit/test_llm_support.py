@@ -21,15 +21,13 @@ class TestResolveProvider:
 
 class TestCheckFunctionCalling:
     def test_none_when_supported(self, monkeypatch):
-        monkeypatch.setattr(
-            llm_support.litellm, "supports_function_calling", lambda **k: True
+        monkeypatch.setattr(llm_support.litellm, "supports_function_calling", lambda **k: True)
+        assert (
+            llm_support.check_function_calling("anthropic/claude-sonnet-4-5", "anthropic") is None
         )
-        assert llm_support.check_function_calling("anthropic/claude-sonnet-4-5", "anthropic") is None
 
     def test_warns_when_unsupported(self, monkeypatch):
-        monkeypatch.setattr(
-            llm_support.litellm, "supports_function_calling", lambda **k: False
-        )
+        monkeypatch.setattr(llm_support.litellm, "supports_function_calling", lambda **k: False)
         msg = llm_support.check_function_calling("some/model", "some")
         assert msg is not None
         assert "function calling" in msg

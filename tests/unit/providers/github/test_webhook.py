@@ -29,15 +29,16 @@ REPO = "stateway-io/stateway-issues"
 
 class SettingsNoEnv(Settings):
     model_config = SettingsConfigDict(
-        env_file=None, env_prefix="", extra="ignore", yaml_file=None,
+        env_file=None,
+        env_prefix="",
+        extra="ignore",
+        yaml_file=None,
     )
 
 
 def _settings(**overrides: Any) -> Settings:
     fields: dict[str, Any] = {
-        "PROVIDERS": github_providers(
-            app_id=APP_ID, app_private_key="k", webhook_secret="s"
-        ),
+        "PROVIDERS": github_providers(app_id=APP_ID, app_private_key="k", webhook_secret="s"),
         "AGENT_NAME": APP_NAME,
         "LLM_API_KEY": "k",
     }
@@ -91,7 +92,9 @@ def _parse(event: str, payload: dict[str, Any], **settings: Any) -> TriggerEvent
         event,
         payload,
         instance_id="github",
-        identity=bot_identity_from_settings(_settings(**settings).providers["github"], _settings(**settings).agent_name),
+        identity=bot_identity_from_settings(
+            _settings(**settings).providers["github"], _settings(**settings).agent_name
+        ),
     )
 
 
@@ -196,9 +199,7 @@ class TestInferTriggerKind:
         assert isinstance(result, TriggerEvent)
         assert result.kind is expected
 
-    @pytest.mark.parametrize(
-        "event,action", [("issues", "deleted"), ("pull_request", "opened")]
-    )
+    @pytest.mark.parametrize("event,action", [("issues", "deleted"), ("pull_request", "opened")])
     def test_unhandled_actions_are_ignored(self, event, action):
         result = _parse(event, _payload(action))
 
@@ -213,9 +214,7 @@ class TestOwnBotComment:
         return result.trigger_comment.author.is_self
 
     def test_matches_by_performed_via_github_app_id(self):
-        assert self._is_own(
-            {"performed_via_github_app": {"id": APP_ID}, "user": {"type": "Bot"}}
-        )
+        assert self._is_own({"performed_via_github_app": {"id": APP_ID}, "user": {"type": "Bot"}})
 
     def test_matches_by_bot_login_slug(self):
         assert self._is_own({"user": {"type": "Bot", "login": OWN_LOGIN}})
@@ -271,7 +270,14 @@ class TestNormalizesWhatTheCoreFilters:
         assert result.target_kind == "pr"
 
     @pytest.mark.parametrize(
-        "raw,expected", [("open", "open"), ("closed", "closed"), ("CLOSED", "closed"), (None, None), ("weird", None)]
+        "raw,expected",
+        [
+            ("open", "open"),
+            ("closed", "closed"),
+            ("CLOSED", "closed"),
+            (None, None),
+            ("weird", None),
+        ],
     )
     def test_issue_state(self, raw, expected):
         result = _parse("issue_comment", _comment_payload({}, issue_state=raw))
@@ -280,9 +286,7 @@ class TestNormalizesWhatTheCoreFilters:
         assert result.issue.state == expected
 
     def test_disallowed_author_is_not_dropped_here(self):
-        payload = _comment_payload(
-            {"user": {"login": "stranger"}, "author_association": "NONE"}
-        )
+        payload = _comment_payload({"user": {"login": "stranger"}, "author_association": "NONE"})
 
         result = _parse("issue_comment", payload)
 
@@ -324,11 +328,15 @@ def _adapter(secret: str = "s3cr3t") -> GitHubWebhookAdapter:
     return GitHubWebhookAdapter(
         instance_id="gh-test",
         secret=secret,
-        identity=bot_identity_from_settings(_settings().providers["github"], _settings().agent_name),
+        identity=bot_identity_from_settings(
+            _settings().providers["github"], _settings().agent_name
+        ),
     )
 
 
-def _headers(body: bytes, *, event: str = "issues", secret: str = "s3cr3t", **extra: str) -> dict[str, str]:
+def _headers(
+    body: bytes, *, event: str = "issues", secret: str = "s3cr3t", **extra: str
+) -> dict[str, str]:
     digest = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
     headers = {
         "X-GitHub-Delivery": "delivery-1",

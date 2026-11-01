@@ -20,6 +20,7 @@ def _process_alive(pid: int) -> bool:
     else:
         return True
 
+
 _SECRETS = {
     "PROVIDERS__GITHUB__APP_PRIVATE_KEY": "priv-key-sentinel",
     "PROVIDERS__GITHUB__WEBHOOK_SECRET": "webhook-secret-sentinel",
@@ -35,7 +36,9 @@ def env(tmp_path) -> SandboxedLocalEnvironment:
 
 
 class TestExecuteStripsSecrets:
-    def test_execute_strips_secrets(self, env: SandboxedLocalEnvironment, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_execute_strips_secrets(
+        self, env: SandboxedLocalEnvironment, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         for key, value in _SECRETS.items():
             monkeypatch.setenv(key, value)
 
@@ -53,17 +56,13 @@ class TestExecuteStripsSecrets:
         assert lines[1]
 
     def test_execute_forwards_config_env(self, tmp_path) -> None:
-        env = SandboxedLocalEnvironment(
-            cwd=str(tmp_path), timeout=10, env={"FOO_EXTRA": "bar"}
-        )
+        env = SandboxedLocalEnvironment(cwd=str(tmp_path), timeout=10, env={"FOO_EXTRA": "bar"})
         result = env.execute({"command": "printenv FOO_EXTRA"})
         assert result["output"].strip() == "bar"
 
     def test_check_finished_still_submits(self, env: SandboxedLocalEnvironment) -> None:
         with pytest.raises(Submitted) as exc_info:
-            env.execute(
-                {"command": "printf 'COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT\\ndone\\n'"}
-            )
+            env.execute({"command": "printf 'COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT\\ndone\\n'"})
         assert exc_info.value.messages[0]["extra"]["submission"] == "done\n"
 
     def test_returncode_and_shape_preserved(self, env: SandboxedLocalEnvironment) -> None:
@@ -82,9 +81,7 @@ class TestWarnIfSubmissionMarkerOrphaned:
         self, mock_logger, env: SandboxedLocalEnvironment
     ) -> None:
         with pytest.raises(Submitted):
-            env.execute(
-                {"command": "printf 'COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT\\ndone\\n'"}
-            )
+            env.execute({"command": "printf 'COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT\\ndone\\n'"})
         mock_logger.warning.assert_not_called()
 
     @patch("issue_agent.runner.environment.logger")
@@ -99,11 +96,15 @@ class TestWarnIfSubmissionMarkerOrphaned:
         self, mock_logger, env: SandboxedLocalEnvironment
     ) -> None:
         result = env.execute(
-            {"command": "echo not-the-first-line; echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT; echo trailer"}
+            {
+                "command": "echo not-the-first-line; echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT; echo trailer"
+            }
         )
         assert result["returncode"] == 0  # not raised as Submitted
         mock_logger.warning.assert_called_once()
-        assert mock_logger.warning.call_args.args[0] == "submission_marker_present_but_not_recognized"
+        assert (
+            mock_logger.warning.call_args.args[0] == "submission_marker_present_but_not_recognized"
+        )
 
     @patch("issue_agent.runner.environment.logger")
     def test_warns_on_backtick_command_substitution_corrupting_the_marker(
@@ -122,7 +123,9 @@ class TestWarnIfSubmissionMarkerOrphaned:
 
         assert result["returncode"] == 0
         mock_logger.warning.assert_called_once()
-        assert mock_logger.warning.call_args.args[0] == "submission_marker_present_but_not_recognized"
+        assert (
+            mock_logger.warning.call_args.args[0] == "submission_marker_present_but_not_recognized"
+        )
 
 
 class TestNonInteractiveEnv:
@@ -219,7 +222,9 @@ class TestCommandsRunAtLowPriority:
         assert result["output"].strip() == "plain"
         assert result["returncode"] == 0
 
-    def test_timeout_still_kills_the_process_group(self, tmp_path, env: SandboxedLocalEnvironment) -> None:
+    def test_timeout_still_kills_the_process_group(
+        self, tmp_path, env: SandboxedLocalEnvironment
+    ) -> None:
         pidfile = tmp_path / "child.pid"
 
         env.execute({"command": f"sleep 30 & echo $! > {pidfile}; wait"}, timeout=1)
@@ -298,7 +303,9 @@ class TestExecuteReapsLeftoverProcesses:
         out = subprocess.run(
             ["sh", "-c", "setsid sleep 60 >/dev/null 2>&1 & echo $!"],
             env={**os.environ, "ISSUE_AGENT_SANDBOX": b.marker},
-            capture_output=True, text=True, check=True,
+            capture_output=True,
+            text=True,
+            check=True,
         ).stdout
         pid = int(out.strip())
 

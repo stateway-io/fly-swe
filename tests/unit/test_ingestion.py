@@ -19,7 +19,10 @@ from tests.helpers.settings import github_providers
 
 class SettingsNoEnv(Settings):
     model_config = SettingsConfigDict(
-        env_file=None, env_prefix="", extra="ignore", yaml_file=None,
+        env_file=None,
+        env_prefix="",
+        extra="ignore",
+        yaml_file=None,
     )
 
 
@@ -104,24 +107,18 @@ class TestCommentFilters:
 class TestLabelFilter:
     @pytest.mark.parametrize("labels", [[], ["wontfix"], ["priority:low"]])
     def test_label_set_without_trigger_label_is_dropped(self, labels):
-        trigger = make_trigger_event(
-            TriggerKind.LABEL_ADDED, issue=make_issue(labels=labels)
-        )
+        trigger = make_trigger_event(TriggerKind.LABEL_ADDED, issue=make_issue(labels=labels))
 
         assert _filter(trigger) == "no_trigger_label"
 
     @pytest.mark.parametrize("labels", [["bug"], ["wontfix", "bug"], ["agent-skip"]])
     def test_label_set_with_trigger_label_passes(self, labels):
-        trigger = make_trigger_event(
-            TriggerKind.LABEL_ADDED, issue=make_issue(labels=labels)
-        )
+        trigger = make_trigger_event(TriggerKind.LABEL_ADDED, issue=make_issue(labels=labels))
 
         assert _filter(trigger) is None
 
     def test_issue_opened_without_labels_is_not_filtered(self):
-        trigger = make_trigger_event(
-            TriggerKind.ISSUE_OPENED, issue=make_issue(labels=[])
-        )
+        trigger = make_trigger_event(TriggerKind.ISSUE_OPENED, issue=make_issue(labels=[]))
 
         assert _filter(trigger) is None
 

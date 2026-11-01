@@ -16,9 +16,7 @@ import re
 from dataclasses import dataclass
 
 # "litellm.APIError: APIError: OpenrouterException - " and its variants.
-_LITELLM_PREFIX = re.compile(
-    r"^(?:(?:litellm\.)?[A-Za-z]+(?:Error|Exception)(?::| -)\s*)+"
-)
+_LITELLM_PREFIX = re.compile(r"^(?:(?:litellm\.)?[A-Za-z]+(?:Error|Exception)(?::| -)\s*)+")
 _BUDGET_MESSAGE = re.compile(
     r"budget limit exceeded|insufficient credits|key limit exceeded|"
     r"credit limit exceeded|spend(?:ing)? limit",

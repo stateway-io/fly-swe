@@ -21,9 +21,7 @@ if TYPE_CHECKING:
 
 def ingestion_filter(trigger: TriggerEvent, settings: Settings) -> str | None:
     """The reason to drop ``trigger`` at the webhook, or None to keep it."""
-    if trigger.kind is TriggerKind.LABEL_ADDED and not labels_can_trigger(
-        trigger.issue.labels
-    ):
+    if trigger.kind is TriggerKind.LABEL_ADDED and not labels_can_trigger(trigger.issue.labels):
         return "no_trigger_label"
     if trigger.trigger_comment is not None:
         return _filter_comment(trigger, settings)

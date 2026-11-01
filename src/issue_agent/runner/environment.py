@@ -94,7 +94,9 @@ def _warn_if_submission_marker_orphaned(output: dict) -> None:
     if _SUBMISSION_MARKER not in text:
         return
     lines = text.lstrip().splitlines(keepends=True)
-    matched = bool(lines) and lines[0].strip() == _SUBMISSION_MARKER and output.get("returncode") == 0
+    matched = (
+        bool(lines) and lines[0].strip() == _SUBMISSION_MARKER and output.get("returncode") == 0
+    )
     if not matched:
         logger.warning(
             "submission_marker_present_but_not_recognized",
@@ -147,11 +149,17 @@ class SandboxedLocalEnvironment(LocalEnvironment):
         try:
             env = _sandboxed_env(self.config.env) | {SANDBOX_MARKER_ENV: self.marker}
             result = _run(command, cwd, env, timeout or self.config.timeout)
-            output = {"output": result.stdout, "returncode": result.returncode, "exception_info": ""}
+            output = {
+                "output": result.stdout,
+                "returncode": result.returncode,
+                "exception_info": "",
+            }
         except Exception as e:
             raw_output = getattr(e, "output", None)
             raw_output = (
-                raw_output.decode("utf-8", errors="replace") if isinstance(raw_output, bytes) else (raw_output or "")
+                raw_output.decode("utf-8", errors="replace")
+                if isinstance(raw_output, bytes)
+                else (raw_output or "")
             )
             output = {
                 "output": raw_output,
@@ -191,7 +199,9 @@ class SandboxedLocalEnvironment(LocalEnvironment):
         return recursive_merge(self.config.model_dump(), platform.uname()._asdict(), kwargs)
 
 
-def _run(command: str, cwd: str, env: dict[str, str], timeout: int) -> subprocess.CompletedProcess[str]:
+def _run(
+    command: str, cwd: str, env: dict[str, str], timeout: int
+) -> subprocess.CompletedProcess[str]:
     """Like subprocess.run, but kills the whole process group on timeout so no children are orphaned.
     The command runs as ``nice -n 19 /bin/sh -c`` (plain ``/bin/sh -c`` where ``nice`` is missing).
 
@@ -203,7 +213,11 @@ def _run(command: str, cwd: str, env: dict[str, str], timeout: int) -> subproces
     """
     nice = shutil.which("nice")
     # ``nice`` execs the shell, so the pid (and the process group below) is the shell's.
-    argv = [nice, "-n", str(_NICE_LEVEL), "/bin/sh", "-c", command] if nice else ["/bin/sh", "-c", command]
+    argv = (
+        [nice, "-n", str(_NICE_LEVEL), "/bin/sh", "-c", command]
+        if nice
+        else ["/bin/sh", "-c", command]
+    )
     process = subprocess.Popen(
         argv,
         text=True,

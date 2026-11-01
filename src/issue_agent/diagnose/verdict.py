@@ -89,9 +89,7 @@ def parse_verdict(raw: str | None) -> DiagnosisVerdict | None:
     )
 
 
-def sanitize_rationale(
-    text: str, max_chars: int = _DEFAULT_MAX_RATIONALE_CHARS
-) -> str:
+def sanitize_rationale(text: str, max_chars: int = _DEFAULT_MAX_RATIONALE_CHARS) -> str:
     """Strip anything that looks like source code out of a model-authored
     rationale before it can reach a public GitHub comment.
 

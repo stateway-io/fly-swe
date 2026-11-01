@@ -320,7 +320,13 @@ class TestOrphanRecovery:
 
 class TestRunTask:
     @patch("issue_agent.worker._post_blocked_comment")
-    def test_transitions_to_terminal(self, mock_post: MagicMock, store: SQLiteStore, settings: Settings, registry: ProviderRegistry) -> None:
+    def test_transitions_to_terminal(
+        self,
+        mock_post: MagicMock,
+        store: SQLiteStore,
+        settings: Settings,
+        registry: ProviderRegistry,
+    ) -> None:
         task = _make_task()
         store.insert_task(task)
         fetched = store.fetch_next()
@@ -334,7 +340,12 @@ class TestRunTask:
 
     @patch("issue_agent.worker._post_blocked_comment")
     def test_appends_state_change_event(
-        self, mock_post: MagicMock, store: SQLiteStore, settings: Settings, registry: ProviderRegistry) -> None:
+        self,
+        mock_post: MagicMock,
+        store: SQLiteStore,
+        settings: Settings,
+        registry: ProviderRegistry,
+    ) -> None:
         task = _make_task()
         store.insert_task(task)
         fetched = store.fetch_next()
@@ -348,7 +359,12 @@ class TestRunTask:
 
     @patch("issue_agent.worker._post_blocked_comment")
     def test_handles_invalid_trigger(
-        self, mock_post: MagicMock, store: SQLiteStore, settings: Settings, registry: ProviderRegistry) -> None:
+        self,
+        mock_post: MagicMock,
+        store: SQLiteStore,
+        settings: Settings,
+        registry: ProviderRegistry,
+    ) -> None:
         task = _make_task(trigger_json="not valid json at all {{{")
         store.insert_task(task)
         fetched = store.fetch_next()
@@ -361,7 +377,13 @@ class TestRunTask:
         assert "invalid_trigger" in (_task_error(store, task.id) or "")
 
     @patch("issue_agent.worker._post_blocked_comment")
-    def test_handles_missing_trigger(self, mock_post: MagicMock, store: SQLiteStore, settings: Settings, registry: ProviderRegistry) -> None:
+    def test_handles_missing_trigger(
+        self,
+        mock_post: MagicMock,
+        store: SQLiteStore,
+        settings: Settings,
+        registry: ProviderRegistry,
+    ) -> None:
         task = _make_task(trigger_json=None)
         store.insert_task(task)
         fetched = store.fetch_next()
@@ -373,7 +395,8 @@ class TestRunTask:
         assert "invalid_trigger" in (_task_error(store, task.id) or "")
 
     def test_exception_in_classify_is_caught(
-        self, store: SQLiteStore, settings: Settings, registry: ProviderRegistry) -> None:
+        self, store: SQLiteStore, settings: Settings, registry: ProviderRegistry
+    ) -> None:
         task = _make_task()
         store.insert_task(task)
         fetched = store.fetch_next()
@@ -389,7 +412,13 @@ class TestRunTask:
         assert _task_error(store, task.id) == "unhandled_worker_exception"
 
     @patch("issue_agent.worker._post_blocked_comment")
-    def test_writes_audit_entry(self, mock_post: MagicMock, store: SQLiteStore, settings: Settings, registry: ProviderRegistry) -> None:
+    def test_writes_audit_entry(
+        self,
+        mock_post: MagicMock,
+        store: SQLiteStore,
+        settings: Settings,
+        registry: ProviderRegistry,
+    ) -> None:
         task = _make_task()
         store.insert_task(task)
         fetched = store.fetch_next()
@@ -413,9 +442,7 @@ class TestDeferredCommentAuthorGuard:
         trigger = make_trigger_event(
             TriggerKind.COMMENT_COMMAND,
             issue=make_issue(number=42, labels=["bug"], author=make_author(login="reporter")),
-            trigger_comment=make_comment(
-                author=make_author(login=login, association="unknown")
-            ),
+            trigger_comment=make_comment(author=make_author(login=login, association="unknown")),
         )
         return _make_task(
             trigger_kind=TriggerKind.COMMENT_COMMAND,
@@ -446,7 +473,12 @@ class TestDeferredCommentAuthorGuard:
 
     @patch("issue_agent.worker.classify_labels", side_effect=RuntimeError("reached"))
     def test_issue_author_proceeds_past_the_guard(
-        self, mock_classify: MagicMock, store: SQLiteStore, settings: Settings, registry: ProviderRegistry) -> None:
+        self,
+        mock_classify: MagicMock,
+        store: SQLiteStore,
+        settings: Settings,
+        registry: ProviderRegistry,
+    ) -> None:
         task = self._unknown_comment_task("reporter")
         store.insert_task(task)
         fetched = store.fetch_next()
@@ -465,7 +497,13 @@ class TestMainFlow:
     (without testing the infinite loop directly)."""
 
     @patch("issue_agent.worker._post_blocked_comment")
-    def test_processes_one_task(self, mock_post: MagicMock, store: SQLiteStore, settings: Settings, registry: ProviderRegistry) -> None:
+    def test_processes_one_task(
+        self,
+        mock_post: MagicMock,
+        store: SQLiteStore,
+        settings: Settings,
+        registry: ProviderRegistry,
+    ) -> None:
         task = _make_task()
         store.insert_task(task)
 
@@ -481,7 +519,12 @@ class TestMainFlow:
 
     @patch("issue_agent.worker._post_blocked_comment")
     def test_orphan_recovery_then_process(
-        self, mock_post: MagicMock, store: SQLiteStore, settings: Settings, registry: ProviderRegistry) -> None:
+        self,
+        mock_post: MagicMock,
+        store: SQLiteStore,
+        settings: Settings,
+        registry: ProviderRegistry,
+    ) -> None:
         task_id = _make_orphan(store)
 
         recovered = run_orphan_recovery(store, settings)
@@ -528,7 +571,9 @@ class TestBlockedCommentPosting:
     posting "task aborted" on every poll cycle until the budget resets
     would spam the issue."""
 
-    def _run(self, store: SQLiteStore, task: Task, settings: Settings, registry: ProviderRegistry) -> None:
+    def _run(
+        self, store: SQLiteStore, task: Task, settings: Settings, registry: ProviderRegistry
+    ) -> None:
         store.insert_task(task)
         fetched = store.fetch_next()
         assert fetched is not None
@@ -685,7 +730,12 @@ class TestDiagnoseDispatch:
 
     @patch("issue_agent.runner.diagnose.run_diagnosis")
     def test_diagnose_category_dispatches_to_run_diagnosis(
-        self, mock_run_diagnosis: MagicMock, store: SQLiteStore, settings: Settings, registry: ProviderRegistry) -> None:
+        self,
+        mock_run_diagnosis: MagicMock,
+        store: SQLiteStore,
+        settings: Settings,
+        registry: ProviderRegistry,
+    ) -> None:
         settings = _make_settings(POLICY_DIAGNOSE_CATEGORIES=["bug"])
         task = self._make_diagnose_task()
         store.insert_task(task)
@@ -887,9 +937,7 @@ class TestReconcileSweepInMain:
         w._RUNNING = True
         w.main()
 
-        mock_reconcile.assert_called_once_with(
-            mock_store, mock_get_settings.return_value, ANY
-        )
+        mock_reconcile.assert_called_once_with(mock_store, mock_get_settings.return_value, ANY)
         registry = mock_reconcile.call_args.args[2]
         assert isinstance(registry, ProviderRegistry)
         assert registry.get("github").instance_id == "github"
@@ -1091,7 +1139,9 @@ class TestComputeBackoff:
 _OLD_COMPLETED = "2020-01-01T00:00:00.000Z"
 
 
-def _make_recoverable(store: SQLiteStore, completed_at: str | None = _OLD_COMPLETED, retry_count: int = 0) -> str:
+def _make_recoverable(
+    store: SQLiteStore, completed_at: str | None = _OLD_COMPLETED, retry_count: int = 0
+) -> str:
     task = _make_task()
     store.insert_task(task)
     store.update_status(
@@ -1107,7 +1157,9 @@ def _make_recoverable(store: SQLiteStore, completed_at: str | None = _OLD_COMPLE
 
 
 class TestRetryRecovery:
-    def test_resets_with_old_completed(self, store: SQLiteStore, settings: Settings, registry: ProviderRegistry) -> None:
+    def test_resets_with_old_completed(
+        self, store: SQLiteStore, settings: Settings, registry: ProviderRegistry
+    ) -> None:
         task_id = _make_recoverable(store, retry_count=0)
         count = run_retry_recovery(store, settings, registry)
         assert count == 1
@@ -1116,7 +1168,9 @@ class TestRetryRecovery:
         assert t.status is TaskStatus.PENDING
         assert t.retry_count == 1
 
-    def test_resets_clears_timestamps(self, store: SQLiteStore, settings: Settings, registry: ProviderRegistry) -> None:
+    def test_resets_clears_timestamps(
+        self, store: SQLiteStore, settings: Settings, registry: ProviderRegistry
+    ) -> None:
         task_id = _make_recoverable(store, retry_count=0)
         run_retry_recovery(store, settings, registry)
         t = store.get_task(task_id)
@@ -1126,7 +1180,9 @@ class TestRetryRecovery:
         assert t.completed_at is None
         assert t.error is None
 
-    def test_resets_appends_task_event(self, store: SQLiteStore, settings: Settings, registry: ProviderRegistry) -> None:
+    def test_resets_appends_task_event(
+        self, store: SQLiteStore, settings: Settings, registry: ProviderRegistry
+    ) -> None:
         task_id = _make_recoverable(store, retry_count=0)
         run_retry_recovery(store, settings, registry)
         events = _task_events(store, task_id)
@@ -1135,7 +1191,9 @@ class TestRetryRecovery:
         assert recovery_events[0]["payload"]["action"] == "reset_to_pending"
         assert recovery_events[0]["payload"]["retry_count"] == 1
 
-    def test_skips_recent_completed(self, store: SQLiteStore, settings: Settings, registry: ProviderRegistry) -> None:
+    def test_skips_recent_completed(
+        self, store: SQLiteStore, settings: Settings, registry: ProviderRegistry
+    ) -> None:
         recent = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.") + "000Z"
         task_id = _make_recoverable(store, completed_at=recent, retry_count=0)
         count = run_retry_recovery(store, settings, registry)
@@ -1144,7 +1202,9 @@ class TestRetryRecovery:
         assert t is not None
         assert t.status is TaskStatus.FAILED_RECOVERABLE
 
-    def test_exhausted_becomes_terminal(self, store: SQLiteStore, settings: Settings, registry: ProviderRegistry) -> None:
+    def test_exhausted_becomes_terminal(
+        self, store: SQLiteStore, settings: Settings, registry: ProviderRegistry
+    ) -> None:
         task_id = _make_recoverable(store, retry_count=3)
         count = run_retry_recovery(store, settings, registry)
         assert count == 0
@@ -1153,7 +1213,9 @@ class TestRetryRecovery:
         assert t.status is TaskStatus.FAILED_TERMINAL
         assert t.error == "exhausted_retries"
 
-    def test_exhausted_on_boundary(self, store: SQLiteStore, settings: Settings, registry: ProviderRegistry) -> None:
+    def test_exhausted_on_boundary(
+        self, store: SQLiteStore, settings: Settings, registry: ProviderRegistry
+    ) -> None:
         s = _make_settings(MAX_TASK_RETRIES=2)
         task_id = _make_recoverable(store, retry_count=2)
         count = run_retry_recovery(store, s, registry)
@@ -1162,7 +1224,9 @@ class TestRetryRecovery:
         assert t is not None
         assert t.status is TaskStatus.FAILED_TERMINAL
 
-    def test_resets_on_boundary(self, store: SQLiteStore, settings: Settings, registry: ProviderRegistry) -> None:
+    def test_resets_on_boundary(
+        self, store: SQLiteStore, settings: Settings, registry: ProviderRegistry
+    ) -> None:
         task_id = _make_recoverable(store, retry_count=2)
         count = run_retry_recovery(store, settings, registry)
         assert count == 1
@@ -1171,17 +1235,23 @@ class TestRetryRecovery:
         assert t.status is TaskStatus.PENDING
         assert t.retry_count == 3
 
-    def test_no_recoverable_tasks_returns_zero(self, store: SQLiteStore, settings: Settings, registry: ProviderRegistry) -> None:
+    def test_no_recoverable_tasks_returns_zero(
+        self, store: SQLiteStore, settings: Settings, registry: ProviderRegistry
+    ) -> None:
         task = _make_task()
         store.insert_task(task)
         store.fetch_next()
         count = run_retry_recovery(store, settings, registry)
         assert count == 0
 
-    def test_no_tasks_at_all_returns_zero(self, store: SQLiteStore, settings: Settings, registry: ProviderRegistry) -> None:
+    def test_no_tasks_at_all_returns_zero(
+        self, store: SQLiteStore, settings: Settings, registry: ProviderRegistry
+    ) -> None:
         assert run_retry_recovery(store, settings, registry) == 0
 
-    def test_exhausted_appends_task_event(self, store: SQLiteStore, settings: Settings, registry: ProviderRegistry) -> None:
+    def test_exhausted_appends_task_event(
+        self, store: SQLiteStore, settings: Settings, registry: ProviderRegistry
+    ) -> None:
         task_id = _make_recoverable(store, retry_count=3)
         run_retry_recovery(store, settings, registry)
         events = _task_events(store, task_id)
@@ -1204,8 +1274,11 @@ class TestRetryRecovery:
         `issue_work` open: the give-up comment must say a comment resumes it."""
         store.open_issue_work(
             "github",
-            "stateway-io/stateway-issues", 42,
-            "stateway-io/stateway-agent-fixtures", "main", "agent/issue-42-fix",
+            "stateway-io/stateway-issues",
+            42,
+            "stateway-io/stateway-agent-fixtures",
+            "main",
+            "agent/issue-42-fix",
         )
         _make_recoverable(store, retry_count=3)
         run_retry_recovery(store, settings, registry)
@@ -1230,7 +1303,9 @@ class TestRetryRecovery:
         assert t is not None
         assert t.status is TaskStatus.PENDING
 
-    def test_multiple_recoverable_tasks(self, store: SQLiteStore, settings: Settings, registry: ProviderRegistry) -> None:
+    def test_multiple_recoverable_tasks(
+        self, store: SQLiteStore, settings: Settings, registry: ProviderRegistry
+    ) -> None:
         id1 = _make_recoverable(store, retry_count=0)
         task2 = _make_task(issue_number=99)
         store.insert_task(task2)

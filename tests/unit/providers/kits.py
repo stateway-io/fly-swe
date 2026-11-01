@@ -97,7 +97,11 @@ class GitHubKit:
         return Delivery(headers, body)
 
 
-_COMMENT = {"id": 9001, "author": {"login": "maintainer", "association": "member"}, "body": "please fix"}
+_COMMENT = {
+    "id": 9001,
+    "author": {"login": "maintainer", "association": "member"},
+    "body": "please fix",
+}
 _FAKE_SAMPLES = {
     "issue_opened": ("issue", fake_body()),
     "comment": ("comment", fake_body("comment_command", comment=_COMMENT)),
@@ -126,9 +130,7 @@ class FakeKit:
     ) -> Delivery:
         event, data = _FAKE_SAMPLES[sample]
         body = json.dumps(data).encode()
-        return Delivery(
-            fake_headers(body, secret=secret, event=event, delivery=delivery_key), body
-        )
+        return Delivery(fake_headers(body, secret=secret, event=event, delivery=delivery_key), body)
 
 
 KITS: dict[str, ProviderKit] = {

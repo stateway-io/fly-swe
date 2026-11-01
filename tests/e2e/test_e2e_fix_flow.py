@@ -22,8 +22,7 @@ LABEL_DOCS = "docs"
 # is "Statewa" instead of "Stateway". The agent is expected to fix it.
 ISSUE_TITLE = "[E2E TEST] Fix typo: 'Statewa' should be 'Stateway' in README"
 ISSUE_BODY = (
-    "The README says 'Statewa' instead of 'Stateway'. "
-    "Please fix this typo across all files."
+    "The README says 'Statewa' instead of 'Stateway'. Please fix this typo across all files."
 )
 
 
@@ -65,10 +64,7 @@ def _poll_for_bot_comment(
             if user and user.type == "Bot":
                 return comment
         time.sleep(interval)
-    pytest.fail(
-        f"Bot comment not found on issue #{issue_number} "
-        f"after {timeout}s timeout"
-    )
+    pytest.fail(f"Bot comment not found on issue #{issue_number} after {timeout}s timeout")
 
 
 def _extract_pr_number(comment_body: str) -> int:
@@ -80,7 +76,8 @@ def _extract_pr_number(comment_body: str) -> int:
 
 
 def _get_target_repo_and_client(
-    settings: Any, issue_repo: str,
+    settings: Any,
+    issue_repo: str,
 ) -> tuple[Repository, GitHubClient]:
     auth = GitHubAppAuth(settings.providers["github"])
     route = settings.route_for("github", issue_repo)
@@ -117,17 +114,14 @@ def test_full_agent_fix_flow(e2e_settings: Any, e2e_test_repo: str) -> None:
             f"Comment should mention 'opened a PR', got:\n{comment.body}"
         )
         assert e2e_settings.agent_name in comment.body, (
-            f"Comment should mention '{e2e_settings.agent_name}', "
-            f"got:\n{comment.body}"
+            f"Comment should mention '{e2e_settings.agent_name}', got:\n{comment.body}"
         )
 
         pr_number = _extract_pr_number(comment.body)
         target_repo, client = _get_target_repo_and_client(e2e_settings, e2e_test_repo)
         pr = target_repo.get_pull(pr_number)
 
-        assert pr.state == "open", (
-            f"PR #{pr_number} should be open, got state={pr.state}"
-        )
+        assert pr.state == "open", f"PR #{pr_number} should be open, got state={pr.state}"
 
         branch_name = pr.head.ref
         assert branch_name.startswith("agent/issue-"), (
@@ -140,8 +134,7 @@ def test_full_agent_fix_flow(e2e_settings: Any, e2e_test_repo: str) -> None:
         )
         pr_issue_ref = int(pr_issue_number_match.group(1))
         assert pr_issue_ref == issue.number, (
-            f"PR title references issue #{pr_issue_ref}, "
-            f"but test issue is #{issue.number}"
+            f"PR title references issue #{pr_issue_ref}, but test issue is #{issue.number}"
         )
 
         # Verify the diff contains the typo fix
@@ -152,15 +145,11 @@ def test_full_agent_fix_flow(e2e_settings: Any, e2e_test_repo: str) -> None:
             if f.filename == "README.md":
                 readme_found = True
                 patch = f.patch or ""
-                if "Stateway" in patch and "Statewa" not in patch.replace(
-                    "Stateway", "", 1
-                ):
+                if "Stateway" in patch and "Statewa" not in patch.replace("Stateway", "", 1):
                     typo_fixed = True
                 break
         assert readme_found, "PR should modify README.md"
-        assert typo_fixed, (
-            "PR should fix 'Statewa' → 'Stateway' in README.md"
-        )
+        assert typo_fixed, "PR should fix 'Statewa' → 'Stateway' in README.md"
 
     finally:
         issue.edit(state="closed")

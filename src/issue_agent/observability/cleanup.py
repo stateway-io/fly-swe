@@ -161,9 +161,7 @@ def cleanup_orphan_workspaces(data_dir: str, active_ids: set[str]) -> int:
     return removed
 
 
-def cleanup_database_records(
-    store: SQLiteStore, events_days: int, db_days: int
-) -> dict[str, int]:
+def cleanup_database_records(store: SQLiteStore, events_days: int, db_days: int) -> dict[str, int]:
     events_cutoff = _cutoff_ts(events_days)
     completed_ids = store.find_completed_task_ids_older_than(events_cutoff)
 
@@ -197,14 +195,10 @@ def run_maintenance(store: SQLiteStore, settings: Settings) -> MaintenanceResult
         result.events_removed = cleanup_events(settings.data_dir, completed_ids)
 
         active_ids = store.find_running_task_ids()
-        result.workspaces_removed = cleanup_orphan_workspaces(
-            settings.data_dir, active_ids
-        )
+        result.workspaces_removed = cleanup_orphan_workspaces(settings.data_dir, active_ids)
 
         result.audit_files_pruned = len(
-            prune_old_audit_files(
-                settings.data_dir, max_days=settings.audit_retention_days
-            )
+            prune_old_audit_files(settings.data_dir, max_days=settings.audit_retention_days)
         )
 
         db_counts = cleanup_database_records(

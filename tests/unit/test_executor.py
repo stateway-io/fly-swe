@@ -63,6 +63,7 @@ def _stub_branch_head_and_integrity():
     ):
         yield
 
+
 _ISSUE = make_issue(
     number=42,
     title="Fix broken link in docs",
@@ -129,9 +130,7 @@ class _GitHub:
         self.forge.get_default_branch.return_value = "main"
         self.pulls = MagicMock(spec=PullRequestClient)
         self.pulls.find_open_pr.return_value = None
-        self.pulls.create_pr.return_value = PRRef(
-            number=101, url=_PR_URL, head_ref=_FROZEN_BRANCH
-        )
+        self.pulls.create_pr.return_value = PRRef(number=101, url=_PR_URL, head_ref=_FROZEN_BRANCH)
         self.pulls.pr_has_conflicts.return_value = None
 
     def plugin(self, settings: Settings) -> MagicMock:
@@ -140,7 +139,9 @@ class _GitHub:
         plugin.capabilities = GitHubProviderPlugin.capabilities
         plugin.client.return_value = self.forge
         plugin.pulls.return_value = self.pulls
-        plugin.transport.return_value = GitHubTransport(self.auth, settings.providers["github"].host)
+        plugin.transport.return_value = GitHubTransport(
+            self.auth, settings.providers["github"].host
+        )
         self.last_plugin = plugin
         return plugin
 
@@ -288,10 +289,7 @@ class TestResolveTestCommand:
     def test_config_wins_over_sentinel(self) -> None:
         settings = _make_settings(TEST_COMMAND="pytest -x")
 
-        assert (
-            _resolve_test_command(_route_project(settings), "echo from-sentinel")
-            == "pytest -x"
-        )
+        assert _resolve_test_command(_route_project(settings), "echo from-sentinel") == "pytest -x"
 
     def test_sentinel_used_when_config_empty(self) -> None:
         settings = _make_settings()
@@ -540,7 +538,9 @@ class TestPrepareToolchain:
         with (
             patch("issue_agent.runner.executor.ToolchainManager") as mock_manager_cls,
             patch("issue_agent.runner.executor.install_project_dependencies") as mock_deps,
-            patch("issue_agent.runner.executor.resolve_node_heap_mb", return_value=384) as mock_resolve,
+            patch(
+                "issue_agent.runner.executor.resolve_node_heap_mb", return_value=384
+            ) as mock_resolve,
         ):
             manager = mock_manager_cls.return_value
             manager.detect.return_value = [spec]
@@ -562,7 +562,9 @@ class TestPrepareToolchain:
 
         assert mock_deps.call_args.args[2] == result
 
-    def test_cap_is_resolved_from_the_configured_percentage_and_override(self, tmp_path: Path) -> None:
+    def test_cap_is_resolved_from_the_configured_percentage_and_override(
+        self, tmp_path: Path
+    ) -> None:
         _, _, _, mock_resolve, _ = self._node_run(
             tmp_path,
             TOOLCHAINS_NODEJS_MAX_OLD_SPACE_PERCENT="35",
@@ -605,7 +607,9 @@ class TestPrepareToolchain:
             patch("issue_agent.runner.executor.ToolchainManager") as mock_manager_cls,
             patch("issue_agent.runner.executor.install_project_dependencies"),
             patch("issue_agent.runner.executor.resolve_node_heap_mb", return_value=384),
-            patch("issue_agent.runner.executor.node_guard_env", side_effect=OSError("read-only fs")),
+            patch(
+                "issue_agent.runner.executor.node_guard_env", side_effect=OSError("read-only fs")
+            ),
         ):
             manager = mock_manager_cls.return_value
             manager.detect.return_value = [spec]
@@ -663,10 +667,7 @@ class TestBuildTestingNotes:
         assert _build_testing_notes("pytest", True) == "- [x] `pytest` passed"
 
     def test_failed(self) -> None:
-        assert (
-            _build_testing_notes("pytest", False)
-            == "- [ ] `pytest` failed (see log)"
-        )
+        assert _build_testing_notes("pytest", False) == "- [ ] `pytest` failed (see log)"
 
     def test_partial_verification_without_harness_command(self) -> None:
         """Regression: tsc passed, the integration suite could not run, and
@@ -721,8 +722,7 @@ class TestResolvePRDescription:
 
     def test_strips_surrounding_whitespace(self) -> None:
         assert (
-            _resolve_pr_description("  Fixed the bug.  \n", "Fix broken link")
-            == "Fixed the bug."
+            _resolve_pr_description("  Fixed the bug.  \n", "Fix broken link") == "Fixed the bug."
         )
 
     def test_normal_length_submission_passes_through_unchanged(self) -> None:
@@ -748,16 +748,25 @@ class TestFollowUpComments:
 
     def _work(self, task, **kw) -> IssueWork:
         return IssueWork(
-            issue_repo=task.repo, issue_number=task.issue_number,
-            target_repo=task.target_repo, base_branch="dev", work_branch="dev-x", **kw,
+            issue_repo=task.repo,
+            issue_number=task.issue_number,
+            target_repo=task.target_repo,
+            base_branch="dev",
+            work_branch="dev-x",
+            **kw,
         )
 
     def test_fix_comment_says_updated_and_warns_on_conflicts(self) -> None:
         task = _make_task()
         result = AgentResult(success=True, cost_usd=0.05, iterations=42)
         comment = _build_fix_comment(
-            task, _pr_ref(288, "o/r", "https://github.com"), result, "o/r", "Agent X",
-            updated_existing=True, still_conflicting=True,
+            task,
+            _pr_ref(288, "o/r", "https://github.com"),
+            result,
+            "o/r",
+            "Agent X",
+            updated_existing=True,
+            still_conflicting=True,
         )
         assert "updated the PR" in comment
         assert "opened a PR" not in comment
@@ -768,7 +777,11 @@ class TestFollowUpComments:
         task = _make_task()
         result = AgentResult(success=True, cost_usd=0.05, iterations=4)
         comment = _build_fix_comment(
-            task, _pr_ref(288, "o/r", "https://ghe.example.com"), result, "o/r", "Agent X",
+            task,
+            _pr_ref(288, "o/r", "https://ghe.example.com"),
+            result,
+            "o/r",
+            "Agent X",
         )
         assert "[o/r#288](https://ghe.example.com/o/r/pull/288)" in comment
         assert "https://github.com" not in comment
@@ -782,10 +795,12 @@ class TestFollowUpComments:
     def test_pr_update_comment_reports_merge_and_changes(self) -> None:
         task = _make_task()
         comment = _build_pr_update_comment(
-            task, AgentResult(success=True, cost_usd=0.05, iterations=42),
+            task,
+            AgentResult(success=True, cost_usd=0.05, iterations=42),
             "Resolved the activeContext conflict.",
             [(".memory-bank/activeContext.md", "modified")],
-            "- [x] `npm test` passed", "Agent X",
+            "- [x] `npm test` passed",
+            "Agent X",
             BaseUpdate("conflicted", [(".memory-bank/activeContext.md", "both modified")]),
             still_conflicting=False,
         )
@@ -802,7 +817,13 @@ class TestBuildFixComment:
     def test_contains_pr_link(self) -> None:
         task = _make_task()
         result = AgentResult(success=True, cost_usd=1.23, iterations=15)
-        comment = _build_fix_comment(task, _pr_ref(101, "stateway-io/stateway", "https://github.com"), result, "stateway-io/stateway", "Agent X")
+        comment = _build_fix_comment(
+            task,
+            _pr_ref(101, "stateway-io/stateway", "https://github.com"),
+            result,
+            "stateway-io/stateway",
+            "Agent X",
+        )
         assert "stateway-io/stateway#101" in comment
         assert "stateway-io/stateway/pull/101" in comment
         assert "US$ 1.23" in comment
@@ -812,13 +833,17 @@ class TestBuildFixComment:
     def test_zero_cost(self) -> None:
         task = _make_task()
         result = AgentResult(success=True, cost_usd=0.0, iterations=0)
-        comment = _build_fix_comment(task, _pr_ref(1, "r/o", "https://github.com"), result, "r/o", "Agent X")
+        comment = _build_fix_comment(
+            task, _pr_ref(1, "r/o", "https://github.com"), result, "r/o", "Agent X"
+        )
         assert "US$ 0.00" in comment
 
     def test_uses_configured_agent_name(self) -> None:
         task = _make_task()
         result = AgentResult(success=True, cost_usd=0.0, iterations=0)
-        comment = _build_fix_comment(task, _pr_ref(1, "r/o", "https://github.com"), result, "r/o", "My Custom Bot")
+        comment = _build_fix_comment(
+            task, _pr_ref(1, "r/o", "https://github.com"), result, "r/o", "My Custom Bot"
+        )
         assert "My Custom Bot" in comment
         assert "Stateway" not in comment
 
@@ -828,11 +853,18 @@ class TestBuildFixComment:
         task = _make_task()
         result = AgentResult(success=True, cost_usd=0.01, iterations=16)
         work = IssueWork(
-            issue_repo=task.repo, issue_number=task.issue_number,
-            target_repo=task.target_repo, base_branch="main", work_branch="b",
-            attempts=0, total_cost_usd=0.0, total_iterations=0,
+            issue_repo=task.repo,
+            issue_number=task.issue_number,
+            target_repo=task.target_repo,
+            base_branch="main",
+            work_branch="b",
+            attempts=0,
+            total_cost_usd=0.0,
+            total_iterations=0,
         )
-        comment = _build_fix_comment(task, _pr_ref(1, "r/o", "https://github.com"), result, "r/o", "Agent X", work)
+        comment = _build_fix_comment(
+            task, _pr_ref(1, "r/o", "https://github.com"), result, "r/o", "Agent X", work
+        )
         assert "Total accumulated" not in comment
 
     def test_resumed_attempt_shows_accumulated_total(self) -> None:
@@ -844,15 +876,21 @@ class TestBuildFixComment:
         task = _make_task()
         result = AgentResult(success=True, cost_usd=0.004, iterations=16)
         work = IssueWork(
-            issue_repo=task.repo, issue_number=task.issue_number,
-            target_repo=task.target_repo, base_branch="main", work_branch="b",
-            attempts=1, total_cost_usd=0.02, total_iterations=40,
+            issue_repo=task.repo,
+            issue_number=task.issue_number,
+            target_repo=task.target_repo,
+            base_branch="main",
+            work_branch="b",
+            attempts=1,
+            total_cost_usd=0.02,
+            total_iterations=40,
         )
-        comment = _build_fix_comment(task, _pr_ref(1, "r/o", "https://github.com"), result, "r/o", "Agent X", work)
+        comment = _build_fix_comment(
+            task, _pr_ref(1, "r/o", "https://github.com"), result, "r/o", "Agent X", work
+        )
         assert "Cost: US$ 0.00" in comment  # this attempt alone, unchanged
         assert "Total accumulated for this issue: US$ 0.02" in comment
         assert "56 iterations across 2 attempts" in comment
-
 
     def test_carried_over_headline_names_the_branch_not_a_fresh_fix(self) -> None:
         """issue #89: the run wrote nothing — the fix was already committed
@@ -862,8 +900,13 @@ class TestBuildFixComment:
         task = _make_task()
         result = AgentResult(success=True, cost_usd=0.10, iterations=3)
         comment = _build_fix_comment(
-            task, _pr_ref(271, "r/o", "https://github.com"), result, "r/o", "Agent X",
-            carried_over_commits=1, branch="agent/issue-42-fix",
+            task,
+            _pr_ref(271, "r/o", "https://github.com"),
+            result,
+            "r/o",
+            "Agent X",
+            carried_over_commits=1,
+            branch="agent/issue-42-fix",
         )
         assert "already committed" in comment
         assert "proposed fix" not in comment
@@ -873,15 +916,22 @@ class TestBuildFixComment:
         task = _make_task()
         result = AgentResult(success=True, cost_usd=0.10, iterations=3)
         comment = _build_fix_comment(
-            task, _pr_ref(271, "r/o", "https://github.com"), result, "r/o", "Agent X",
-            carried_over_commits=3, branch="b",
+            task,
+            _pr_ref(271, "r/o", "https://github.com"),
+            result,
+            "r/o",
+            "Agent X",
+            carried_over_commits=3,
+            branch="b",
         )
         assert "3 commits ahead of `main`" in comment
 
     def test_without_carried_over_the_headline_is_unchanged(self) -> None:
         task = _make_task()
         result = AgentResult(success=True, cost_usd=0.10, iterations=3)
-        comment = _build_fix_comment(task, _pr_ref(271, "r/o", "https://github.com"), result, "r/o", "Agent X")
+        comment = _build_fix_comment(
+            task, _pr_ref(271, "r/o", "https://github.com"), result, "r/o", "Agent X"
+        )
         assert "opened a PR with a proposed fix" in comment
         assert "already committed" not in comment
 
@@ -927,8 +977,7 @@ class TestBuildAbortComment:
             cost_usd=0.01,
             iterations=15,
             submission=(
-                "Already fixed in 35c7c55 (PR #261). This issue can be "
-                "closed with no change."
+                "Already fixed in 35c7c55 (PR #261). This issue can be closed with no change."
             ),
         )
         comment = _build_abort_comment(task, result, "Agent X")
@@ -996,9 +1045,14 @@ class TestBuildAbortComment:
             success=False, error="iteration_limit_exceeded", cost_usd=0.01, iterations=16
         )
         work = IssueWork(
-            issue_repo=task.repo, issue_number=task.issue_number,
-            target_repo=task.target_repo, base_branch="main", work_branch="b",
-            attempts=1, total_cost_usd=0.02, total_iterations=40,
+            issue_repo=task.repo,
+            issue_number=task.issue_number,
+            target_repo=task.target_repo,
+            base_branch="main",
+            work_branch="b",
+            attempts=1,
+            total_cost_usd=0.02,
+            total_iterations=40,
         )
         comment = _build_abort_comment(task, result, "Agent X", work)
         assert "Total accumulated for this issue: US$ 0.03" in comment
@@ -1008,13 +1062,17 @@ class TestBuildAbortComment:
         """The OpenRouter budget guardrail."""
         task = _make_task()
         result = AgentResult(
-            success=False, error="provider_budget_exceeded", cost_usd=0.0, iterations=1,
+            success=False,
+            error="provider_budget_exceeded",
+            cost_usd=0.0,
+            iterations=1,
             error_detail=(
                 "Budget limit exceeded (monthly limit). $10.02 of $10.00 used; "
                 "resets 2026-11-01T00:00:00.000Z."
             ),
             provider_error=ProviderError(
-                message="Budget limit exceeded", code=403,
+                message="Budget limit exceeded",
+                code=403,
                 resets_at="2026-11-01T00:00:00.000Z",
             ),
         )
@@ -1030,7 +1088,10 @@ class TestBuildAbortComment:
         detail cut mid-JSON, the closing paren read as unmatched (#352)."""
         task = _make_task()
         result = AgentResult(
-            success=False, error="llm_error", cost_usd=0.0, iterations=1,
+            success=False,
+            error="llm_error",
+            cost_usd=0.0,
+            iterations=1,
             error_detail="APIError: [SSL: UNEXPECTED_EOF]\nsecond line",
         )
         comment = _build_abort_comment(task, result, "Agent X")
@@ -1042,7 +1103,9 @@ class TestBuildAbortComment:
     def test_agent_crashed_detail_is_labelled_error(self) -> None:
         task = _make_task()
         result = AgentResult(
-            success=False, error="agent_crashed", error_detail="RuntimeError: boom",
+            success=False,
+            error="agent_crashed",
+            error_detail="RuntimeError: boom",
         )
         comment = _build_abort_comment(task, result, "Agent X")
         assert "The agent crashed unexpectedly.\n\n> Error: RuntimeError: boom" in comment
@@ -1078,16 +1141,19 @@ class TestRunTask:
         assert unconfigured_repo in updated.error
 
         events = _task_events(store, task.id)
-        route_events = [
-            e for e in events if e["payload"].get("step") == "route_resolution"
-        ]
+        route_events = [e for e in events if e["payload"].get("step") == "route_resolution"]
         assert len(route_events) == 1
 
     @patch("issue_agent.runner.executor._run_git")
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_uses_task_target_repo_and_base_branch_not_route_defaults(
-        self, mock_resolve: MagicMock, mock_ws: MagicMock, mock_git: MagicMock, store: SQLiteStore, settings: Settings,
+        self,
+        mock_resolve: MagicMock,
+        mock_ws: MagicMock,
+        mock_git: MagicMock,
+        store: SQLiteStore,
+        settings: Settings,
     ) -> None:
         """The whole point of multi-repo routing: target_repo/
         base_branch must come from the Task, not from the resolved
@@ -1153,7 +1219,11 @@ class TestRunTask:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_gitflow_flow_branches_and_targets_base_branch(
-        self, mock_resolve: MagicMock, mock_ws: MagicMock, mock_git: MagicMock, store: SQLiteStore,
+        self,
+        mock_resolve: MagicMock,
+        mock_ws: MagicMock,
+        mock_git: MagicMock,
+        store: SQLiteStore,
     ) -> None:
         """R5.3.1: a gitflow-routed pair must branch off `base_branch`
         itself (not the trunk_based `<branch_prefix>/issue-<n>-<slug>`
@@ -1213,7 +1283,9 @@ class TestRunTask:
 
         checkout_call = mock_git.call_args_list[0]
         assert checkout_call.args[1:4] == (
-            "checkout", "-b", "dev-fix-broken-link-in-docs",
+            "checkout",
+            "-b",
+            "dev-fix-broken-link-in-docs",
         )
 
         push_call = mock_git.call_args_list[-1]
@@ -1230,7 +1302,11 @@ class TestRunTask:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_task_workflow_wins_over_stale_route_workflow(
-        self, mock_resolve: MagicMock, mock_ws: MagicMock, mock_git: MagicMock, store: SQLiteStore,
+        self,
+        mock_resolve: MagicMock,
+        mock_ws: MagicMock,
+        mock_git: MagicMock,
+        store: SQLiteStore,
     ) -> None:
         """Task.workflow freezes the workflow
         decision at webhook-ingestion time (queue/models.py). By the time
@@ -1274,7 +1350,11 @@ class TestRunTask:
         from issue_agent.core.pr_text import branch_name
 
         expected_branch = branch_name(
-            task.issue_number, "Fix broken link in docs", "gitflow", route.branch_prefix, "dev",
+            task.issue_number,
+            "Fix broken link in docs",
+            "gitflow",
+            route.branch_prefix,
+            "dev",
             slug_max_length=settings.pr_slug_max_length,
         )
         assert expected_branch == "dev-fix-broken-link-in-docs"  # sanity
@@ -1316,7 +1396,12 @@ class TestRunTask:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_git_credential_is_the_target_repos(
-        self, mock_resolve: MagicMock, mock_ws: MagicMock, mock_git: MagicMock, store: SQLiteStore, settings: Settings,
+        self,
+        mock_resolve: MagicMock,
+        mock_ws: MagicMock,
+        mock_git: MagicMock,
+        store: SQLiteStore,
+        settings: Settings,
     ) -> None:
         """The task carries no credential: the clone and the push
         authenticate through the plugin's transport, which resolves the
@@ -1359,7 +1444,12 @@ class TestRunTask:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_success_flow(
-        self, mock_resolve: MagicMock, mock_ws: MagicMock, mock_git: MagicMock, store: SQLiteStore, settings: Settings,
+        self,
+        mock_resolve: MagicMock,
+        mock_ws: MagicMock,
+        mock_git: MagicMock,
+        store: SQLiteStore,
+        settings: Settings,
     ) -> None:
         gh = _GitHub()
         task = _make_task()
@@ -1412,7 +1502,12 @@ class TestRunTask:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_success_flow_runs_configured_test_command_and_reports_pass(
-        self, mock_resolve: MagicMock, mock_ws: MagicMock, mock_git: MagicMock, store: SQLiteStore, tmp_path: Path,
+        self,
+        mock_resolve: MagicMock,
+        mock_ws: MagicMock,
+        mock_git: MagicMock,
+        store: SQLiteStore,
+        tmp_path: Path,
     ) -> None:
         gh = _GitHub()
         settings = _make_settings(TEST_COMMAND="true")
@@ -1439,7 +1534,12 @@ class TestRunTask:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_success_flow_runs_configured_test_command_and_reports_failure(
-        self, mock_resolve: MagicMock, mock_ws: MagicMock, mock_git: MagicMock, store: SQLiteStore, tmp_path: Path,
+        self,
+        mock_resolve: MagicMock,
+        mock_ws: MagicMock,
+        mock_git: MagicMock,
+        store: SQLiteStore,
+        tmp_path: Path,
     ) -> None:
         gh = _GitHub()
         # Isolated from the auto-retry-on-test-failure feature (covered
@@ -1469,7 +1569,13 @@ class TestRunTask:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_success_flow_uses_sentinel_file_when_config_empty(
-        self, mock_resolve: MagicMock, mock_ws: MagicMock, mock_git: MagicMock, store: SQLiteStore, settings: Settings, tmp_path: Path,
+        self,
+        mock_resolve: MagicMock,
+        mock_ws: MagicMock,
+        mock_git: MagicMock,
+        store: SQLiteStore,
+        settings: Settings,
+        tmp_path: Path,
     ) -> None:
         gh = _GitHub()
         (tmp_path / TEST_COMMAND_SENTINEL_FILENAME).write_text("true\n")
@@ -1497,7 +1603,12 @@ class TestRunTask:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_success_flow_config_wins_over_sentinel(
-        self, mock_resolve: MagicMock, mock_ws: MagicMock, mock_git: MagicMock, store: SQLiteStore, tmp_path: Path,
+        self,
+        mock_resolve: MagicMock,
+        mock_ws: MagicMock,
+        mock_git: MagicMock,
+        store: SQLiteStore,
+        tmp_path: Path,
     ) -> None:
         gh = _GitHub()
         settings = _make_settings(TEST_COMMAND="true")
@@ -1526,7 +1637,12 @@ class TestRunTask:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_success_flow_uses_agent_submission_as_pr_description(
-        self, mock_resolve: MagicMock, mock_ws: MagicMock, mock_git: MagicMock, store: SQLiteStore, settings: Settings,
+        self,
+        mock_resolve: MagicMock,
+        mock_ws: MagicMock,
+        mock_git: MagicMock,
+        store: SQLiteStore,
+        settings: Settings,
     ) -> None:
         gh = _GitHub()
         task = _make_task()
@@ -1557,7 +1673,12 @@ class TestRunTask:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_success_flow_falls_back_to_issue_title_when_no_submission(
-        self, mock_resolve: MagicMock, mock_ws: MagicMock, mock_git: MagicMock, store: SQLiteStore, settings: Settings,
+        self,
+        mock_resolve: MagicMock,
+        mock_ws: MagicMock,
+        mock_git: MagicMock,
+        store: SQLiteStore,
+        settings: Settings,
     ) -> None:
         gh = _GitHub()
         task = _make_task()
@@ -1585,7 +1706,12 @@ class TestRunTask:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_daily_budget_accumulated_on_success(
-        self, mock_resolve: MagicMock, mock_ws: MagicMock, mock_git: MagicMock, store: SQLiteStore, settings: Settings,
+        self,
+        mock_resolve: MagicMock,
+        mock_ws: MagicMock,
+        mock_git: MagicMock,
+        store: SQLiteStore,
+        settings: Settings,
     ) -> None:
         gh = _GitHub()
         task = _make_task()
@@ -1620,7 +1746,12 @@ class TestRunTask:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_clone_failure(
-        self, mock_resolve: MagicMock, mock_ws: MagicMock, mock_git: MagicMock, store: SQLiteStore, settings: Settings,
+        self,
+        mock_resolve: MagicMock,
+        mock_ws: MagicMock,
+        mock_git: MagicMock,
+        store: SQLiteStore,
+        settings: Settings,
     ) -> None:
         gh = _GitHub()
         task = _make_task()
@@ -1641,7 +1772,12 @@ class TestRunTask:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_clone_failure_missing_base_branch_reports_default_branch_diagnostic(
-        self, mock_resolve: MagicMock, mock_ws: MagicMock, mock_git: MagicMock, store: SQLiteStore, settings: Settings,
+        self,
+        mock_resolve: MagicMock,
+        mock_ws: MagicMock,
+        mock_git: MagicMock,
+        store: SQLiteStore,
+        settings: Settings,
     ) -> None:
         """R5.3.5: when `ws.clone(target_branch=task.base_branch)` fails
         (e.g. the configured base_branch doesn't exist in target_repo), the
@@ -1681,7 +1817,12 @@ class TestRunTask:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_clone_failure_falls_back_to_raw_error_when_default_branch_lookup_fails(
-        self, mock_resolve: MagicMock, mock_ws: MagicMock, mock_git: MagicMock, store: SQLiteStore, settings: Settings,
+        self,
+        mock_resolve: MagicMock,
+        mock_ws: MagicMock,
+        mock_git: MagicMock,
+        store: SQLiteStore,
+        settings: Settings,
     ) -> None:
         """If the default-branch lookup itself fails (e.g. the app has no
         access to target_repo at all), run_task must still fail the task
@@ -1708,7 +1849,12 @@ class TestRunTask:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_agent_failure(
-        self, mock_resolve: MagicMock, mock_ws: MagicMock, mock_git: MagicMock, store: SQLiteStore, settings: Settings,
+        self,
+        mock_resolve: MagicMock,
+        mock_ws: MagicMock,
+        mock_git: MagicMock,
+        store: SQLiteStore,
+        settings: Settings,
     ) -> None:
         gh = _GitHub()
         task = _make_task()
@@ -1722,7 +1868,9 @@ class TestRunTask:
         mock_git.return_value = ""
 
         runner = MagicMock()
-        runner.run.return_value = AgentResult(success=False, error="agent_crashed", cost_usd=0.10, iterations=3)
+        runner.run.return_value = AgentResult(
+            success=False, error="agent_crashed", cost_usd=0.10, iterations=3
+        )
         mock_resolve.return_value = runner
 
         run_task(store, fetched, settings, gh.plugin(settings))
@@ -1740,7 +1888,12 @@ class TestRunTask:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_budget_exceeded(
-        self, mock_resolve: MagicMock, mock_ws: MagicMock, mock_git: MagicMock, store: SQLiteStore, settings: Settings,
+        self,
+        mock_resolve: MagicMock,
+        mock_ws: MagicMock,
+        mock_git: MagicMock,
+        store: SQLiteStore,
+        settings: Settings,
     ) -> None:
         gh = _GitHub()
         task = _make_task()
@@ -1754,7 +1907,9 @@ class TestRunTask:
         mock_git.return_value = ""
 
         runner = MagicMock()
-        runner.run.return_value = AgentResult(success=False, error="budget_exceeded", cost_usd=2.00, iterations=20)
+        runner.run.return_value = AgentResult(
+            success=False, error="budget_exceeded", cost_usd=2.00, iterations=20
+        )
         mock_resolve.return_value = runner
 
         run_task(store, fetched, settings, gh.plugin(settings))
@@ -1772,7 +1927,12 @@ class TestRunTask:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_daily_budget_accumulated_on_abort(
-        self, mock_resolve: MagicMock, mock_ws: MagicMock, mock_git: MagicMock, store: SQLiteStore, settings: Settings,
+        self,
+        mock_resolve: MagicMock,
+        mock_ws: MagicMock,
+        mock_git: MagicMock,
+        store: SQLiteStore,
+        settings: Settings,
     ) -> None:
         gh = _GitHub()
         task = _make_task()
@@ -1802,7 +1962,12 @@ class TestRunTask:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_task_timeout_maps_to_aborted_budget(
-        self, mock_resolve: MagicMock, mock_ws: MagicMock, mock_git: MagicMock, store: SQLiteStore, settings: Settings,
+        self,
+        mock_resolve: MagicMock,
+        mock_ws: MagicMock,
+        mock_git: MagicMock,
+        store: SQLiteStore,
+        settings: Settings,
     ) -> None:
         gh = _GitHub()
         task = _make_task()
@@ -1837,7 +2002,13 @@ class TestRunTask:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_cost_unavailable_aborts_with_alert_and_no_pr(
-        self, mock_resolve: MagicMock, mock_ws: MagicMock, mock_git: MagicMock, mock_alert: MagicMock, store: SQLiteStore, settings: Settings,
+        self,
+        mock_resolve: MagicMock,
+        mock_ws: MagicMock,
+        mock_git: MagicMock,
+        mock_alert: MagicMock,
+        store: SQLiteStore,
+        settings: Settings,
     ) -> None:
         gh = _GitHub()
         task = _make_task()
@@ -1868,7 +2039,12 @@ class TestRunTask:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_no_changes(
-        self, mock_resolve: MagicMock, mock_ws: MagicMock, mock_git: MagicMock, store: SQLiteStore, settings: Settings,
+        self,
+        mock_resolve: MagicMock,
+        mock_ws: MagicMock,
+        mock_git: MagicMock,
+        store: SQLiteStore,
+        settings: Settings,
     ) -> None:
         gh = _GitHub()
         task = _make_task()
@@ -1880,8 +2056,8 @@ class TestRunTask:
         mock_ws.return_value = mock_ws_instance
 
         mock_git.side_effect = [
-            "",   # checkout -b
-            "",   # status (empty)
+            "",  # checkout -b
+            "",  # status (empty)
             "0",  # rev-list --count <start_sha>..HEAD (agent made no commits)
         ]
 
@@ -1908,7 +2084,12 @@ class TestRunTask:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_agent_self_committed_is_salvaged_not_aborted(
-        self, mock_resolve: MagicMock, mock_ws: MagicMock, mock_git: MagicMock, store: SQLiteStore, settings: Settings,
+        self,
+        mock_resolve: MagicMock,
+        mock_ws: MagicMock,
+        mock_git: MagicMock,
+        store: SQLiteStore,
+        settings: Settings,
     ) -> None:
         """The agent committed its own edits (e.g. following the target repo's
         CLAUDE.md) instead of leaving them staged. `git status --porcelain` is
@@ -1924,15 +2105,15 @@ class TestRunTask:
         mock_ws.return_value = mock_ws_instance
 
         mock_git.side_effect = [
-            "",                    # checkout -b
-            "",                    # status (empty — agent committed)
-            "1",                   # rev-list --count <start_sha>..HEAD
-            "",                    # checkout -B <branch>
-            "",                    # reset --soft <start_sha>
-            " M docs/x.mdx\n",     # status (re-read after salvage)
-            "",                    # add -A
-            "",                    # commit
-            "",                    # push
+            "",  # checkout -b
+            "",  # status (empty — agent committed)
+            "1",  # rev-list --count <start_sha>..HEAD
+            "",  # checkout -B <branch>
+            "",  # reset --soft <start_sha>
+            " M docs/x.mdx\n",  # status (re-read after salvage)
+            "",  # add -A
+            "",  # commit
+            "",  # push
         ]
 
         runner = MagicMock()
@@ -1950,7 +2131,12 @@ class TestRunTask:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_push_failure(
-        self, mock_resolve: MagicMock, mock_ws: MagicMock, mock_git: MagicMock, store: SQLiteStore, settings: Settings,
+        self,
+        mock_resolve: MagicMock,
+        mock_ws: MagicMock,
+        mock_git: MagicMock,
+        store: SQLiteStore,
+        settings: Settings,
     ) -> None:
         gh = _GitHub()
         task = _make_task()
@@ -1982,7 +2168,12 @@ class TestRunTask:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_pr_creation_failure(
-        self, mock_resolve: MagicMock, mock_ws: MagicMock, mock_git: MagicMock, store: SQLiteStore, settings: Settings,
+        self,
+        mock_resolve: MagicMock,
+        mock_ws: MagicMock,
+        mock_git: MagicMock,
+        store: SQLiteStore,
+        settings: Settings,
     ) -> None:
         gh = _GitHub()
         task = _make_task()
@@ -2016,7 +2207,12 @@ class TestRunTask:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_writes_audit_entry(
-        self, mock_resolve: MagicMock, mock_ws: MagicMock, mock_git: MagicMock, store: SQLiteStore, settings: Settings,
+        self,
+        mock_resolve: MagicMock,
+        mock_ws: MagicMock,
+        mock_git: MagicMock,
+        store: SQLiteStore,
+        settings: Settings,
     ) -> None:
         gh = _GitHub()
         task = _make_task()
@@ -2063,7 +2259,13 @@ class TestTestFailureRetryLoop:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_retry_fires_and_eventually_succeeds(
-        self, mock_resolve, mock_ws, mock_git, mock_run_test, store: SQLiteStore, tmp_path: Path,
+        self,
+        mock_resolve,
+        mock_ws,
+        mock_git,
+        mock_run_test,
+        store: SQLiteStore,
+        tmp_path: Path,
     ) -> None:
         gh = _GitHub()
         settings = _make_settings(TEST_COMMAND="npm test")
@@ -2085,24 +2287,21 @@ class TestTestFailureRetryLoop:
         mock_run_test.side_effect = [(False, "1 failing"), (True, "all passing")]
 
         mock_git.side_effect = [
-            "",                 # checkout -b
+            "",  # checkout -b
             " M src/foo.py\n",  # status (iteration 1)
-            "",                 # add
-            "",                 # commit
-            "",                 # push
+            "",  # add
+            "",  # commit
+            "",  # push
             " M src/foo.py\n",  # status (iteration 2, retry)
-            "",                 # add
-            "",                 # commit
-            "",                 # push
+            "",  # add
+            "",  # commit
+            "",  # push
         ]
 
         run_task(store, fetched, settings, gh.plugin(settings))
 
         assert runner.run.call_count == 2
-        retry_comments = [
-            c for c in gh.comments()
-            if "retrying automatically" in c
-        ]
+        retry_comments = [c for c in gh.comments() if "retrying automatically" in c]
         assert len(retry_comments) == 1
         assert "attempt 1/3" in retry_comments[0]
 
@@ -2121,7 +2320,13 @@ class TestTestFailureRetryLoop:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_retry_exhausts_attempts_falls_through_to_pr(
-        self, mock_resolve, mock_ws, mock_git, mock_run_test, store: SQLiteStore, tmp_path: Path,
+        self,
+        mock_resolve,
+        mock_ws,
+        mock_git,
+        mock_run_test,
+        store: SQLiteStore,
+        tmp_path: Path,
     ) -> None:
         gh = _GitHub()
         settings = _make_settings(TEST_COMMAND="npm test", RESUME_MAX_ATTEMPTS=2)
@@ -2143,15 +2348,15 @@ class TestTestFailureRetryLoop:
         # retry (attempts 0 -> 1 < 2, then 1 -> 2 is NOT < 2) — two loop
         # passes total, each a full checkout.../push cycle.
         mock_git.side_effect = [
-            "",                 # checkout -b
+            "",  # checkout -b
             " M src/foo.py\n",  # status (iteration 1)
-            "",                 # add
-            "",                 # commit
-            "",                 # push
+            "",  # add
+            "",  # commit
+            "",  # push
             " M src/foo.py\n",  # status (iteration 2, retry)
-            "",                 # add
-            "",                 # commit
-            "",                 # push
+            "",  # add
+            "",  # commit
+            "",  # push
         ]
 
         run_task(store, fetched, settings, gh.plugin(settings))
@@ -2170,7 +2375,14 @@ class TestTestFailureRetryLoop:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_retry_stops_when_daily_budget_exhausted(
-        self, mock_resolve, mock_ws, mock_git, mock_run_test, mock_daily_budget, store: SQLiteStore, tmp_path: Path,
+        self,
+        mock_resolve,
+        mock_ws,
+        mock_git,
+        mock_run_test,
+        mock_daily_budget,
+        store: SQLiteStore,
+        tmp_path: Path,
     ) -> None:
         gh = _GitHub()
         settings = _make_settings(TEST_COMMAND="npm test")
@@ -2202,7 +2414,13 @@ class TestTestFailureRetryLoop:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_no_additional_changes_on_retry_does_not_abort(
-        self, mock_resolve, mock_ws, mock_git, mock_run_test, store: SQLiteStore, tmp_path: Path,
+        self,
+        mock_resolve,
+        mock_ws,
+        mock_git,
+        mock_run_test,
+        store: SQLiteStore,
+        tmp_path: Path,
     ) -> None:
         """A retry iteration that makes no additional edits must not trigger
         the first-iteration `no_changes` abort — there is prior real work
@@ -2225,13 +2443,13 @@ class TestTestFailureRetryLoop:
         mock_run_test.return_value = (False, "still failing")
 
         mock_git.side_effect = [
-            "",                 # checkout -b
+            "",  # checkout -b
             " M src/foo.py\n",  # status (iteration 1, real edits)
-            "",                 # add
-            "",                 # commit
-            "",                 # push
-            "",                 # status (iteration 2, retry: clean tree)
-            "",                 # _salvage_agent_commits: rev-list --count (0 ahead)
+            "",  # add
+            "",  # commit
+            "",  # push
+            "",  # status (iteration 2, retry: clean tree)
+            "",  # _salvage_agent_commits: rev-list --count (0 ahead)
         ]
 
         run_task(store, fetched, settings, gh.plugin(settings))
@@ -2246,7 +2464,13 @@ class TestTestFailureRetryLoop:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_disabled_flag_preserves_current_behavior(
-        self, mock_resolve, mock_ws, mock_git, mock_run_test, store: SQLiteStore, tmp_path: Path,
+        self,
+        mock_resolve,
+        mock_ws,
+        mock_git,
+        mock_run_test,
+        store: SQLiteStore,
+        tmp_path: Path,
     ) -> None:
         gh = _GitHub()
         settings = _make_settings(TEST_COMMAND="npm test", RESUME_RETRY_ON_TEST_FAILURE=False)
@@ -2293,7 +2517,12 @@ class TestIssueWorkLifecycle:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_first_run_opens_record_and_posts_one_initial_comment(
-        self, mock_resolve, mock_ws, mock_git, store: SQLiteStore, settings: Settings,
+        self,
+        mock_resolve,
+        mock_ws,
+        mock_git,
+        store: SQLiteStore,
+        settings: Settings,
     ) -> None:
         gh = _GitHub()
         task = _make_task()
@@ -2313,10 +2542,7 @@ class TestIssueWorkLifecycle:
         events = [e["type"] for e in _task_events(store, task.id)]
         assert "issue_work_opened" in events
 
-        initial = [
-            c for c in gh.comments()
-            if "agent/issue-42-fix-broken-link-in-docs" in c
-        ]
+        initial = [c for c in gh.comments() if "agent/issue-42-fix-broken-link-in-docs" in c]
         assert len(initial) == 1
         assert task.id in initial[0]
 
@@ -2324,13 +2550,20 @@ class TestIssueWorkLifecycle:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_editing_issue_title_between_runs_does_not_move_the_branch(
-        self, mock_resolve, mock_ws, mock_git, store: SQLiteStore, settings: Settings,
+        self,
+        mock_resolve,
+        mock_ws,
+        mock_git,
+        store: SQLiteStore,
+        settings: Settings,
     ) -> None:
         gh = _GitHub()
         store.open_issue_work(
             "github",
-            "stateway-io/stateway-issues", 42,
-            "stateway-io/stateway-agent-fixtures", "main",
+            "stateway-io/stateway-issues",
+            42,
+            "stateway-io/stateway-agent-fixtures",
+            "main",
             "agent/issue-42-original-title",
         )
         # the trigger now carries a DIFFERENT title than when the record was opened
@@ -2346,9 +2579,7 @@ class TestIssueWorkLifecycle:
 
         run_task(store, fetched, settings, gh.plugin(settings))
 
-        checkout = next(
-            c for c in mock_git.call_args_list if c.args[1:3] == ("checkout", "-b")
-        )
+        checkout = next(c for c in mock_git.call_args_list if c.args[1:3] == ("checkout", "-b"))
         assert checkout.args[1:4] == ("checkout", "-b", "agent/issue-42-original-title")
         push = mock_git.call_args_list[-1]
         assert "agent/issue-42-original-title" in push.args
@@ -2362,17 +2593,27 @@ class TestIssueWorkLifecycle:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_resume_comment_mentions_attempt_and_prior_stop(
-        self, mock_resolve, mock_ws, mock_git, store: SQLiteStore, settings: Settings,
+        self,
+        mock_resolve,
+        mock_ws,
+        mock_git,
+        store: SQLiteStore,
+        settings: Settings,
     ) -> None:
         gh = _GitHub()
         store.open_issue_work(
             "github",
-            "stateway-io/stateway-issues", 42,
-            "stateway-io/stateway-agent-fixtures", "main", "agent/issue-42-x",
+            "stateway-io/stateway-issues",
+            42,
+            "stateway-io/stateway-agent-fixtures",
+            "main",
+            "agent/issue-42-x",
         )
         store.update_issue_work(
             "github",
-            "stateway-io/stateway-issues", 42, last_error="task_timeout",
+            "stateway-io/stateway-issues",
+            42,
+            last_error="task_timeout",
         )
         task = _make_task()
         store.insert_task(task)
@@ -2390,7 +2631,11 @@ class TestIssueWorkLifecycle:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_initial_comment_suppressed_by_config(
-        self, mock_resolve, mock_ws, mock_git, store: SQLiteStore,
+        self,
+        mock_resolve,
+        mock_ws,
+        mock_git,
+        store: SQLiteStore,
     ) -> None:
         gh = _GitHub()
         settings = _make_settings(COMMENTS_INITIAL_COMMENT=False)
@@ -2410,7 +2655,12 @@ class TestIssueWorkLifecycle:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_success_closes_record_as_pr_opened(
-        self, mock_resolve, mock_ws, mock_git, store: SQLiteStore, settings: Settings,
+        self,
+        mock_resolve,
+        mock_ws,
+        mock_git,
+        store: SQLiteStore,
+        settings: Settings,
     ) -> None:
         gh = _GitHub()
         task = _make_task()
@@ -2436,15 +2686,24 @@ class TestIssueWorkLifecycle:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_no_changes_closes_record_as_no_changes(
-        self, mock_resolve, mock_ws, mock_git, store: SQLiteStore, settings: Settings,
+        self,
+        mock_resolve,
+        mock_ws,
+        mock_git,
+        store: SQLiteStore,
+        settings: Settings,
     ) -> None:
         gh = _GitHub()
         task = _make_task()
         store.insert_task(task)
         fetched = store.fetch_next()
         _, pr = self._wire(
-            mock_ws, mock_resolve, gh,
-            AgentResult(True, 0.3, 5, submission="Nothing to do: the linked bug was already fixed in #40."),
+            mock_ws,
+            mock_resolve,
+            gh,
+            AgentResult(
+                True, 0.3, 5, submission="Nothing to do: the linked bug was already fixed in #40."
+            ),
         )
         mock_git.side_effect = ["", "", "0"]  # checkout, empty status, rev-list
 
@@ -2464,14 +2723,18 @@ class TestIssueWorkLifecycle:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_block_keeps_record_open_and_records_error(
-        self, mock_resolve, mock_ws, mock_git, store: SQLiteStore, settings: Settings,
+        self,
+        mock_resolve,
+        mock_ws,
+        mock_git,
+        store: SQLiteStore,
+        settings: Settings,
     ) -> None:
         gh = _GitHub()
         task = _make_task()
         store.insert_task(task)
         fetched = store.fetch_next()
-        self._wire(mock_ws, mock_resolve, gh,
-                   AgentResult(False, 2.0, 20, error="budget_exceeded"))
+        self._wire(mock_ws, mock_resolve, gh, AgentResult(False, 2.0, 20, error="budget_exceeded"))
         mock_git.side_effect = ["", "", "0"]
 
         run_task(store, fetched, settings, gh.plugin(settings))
@@ -2486,7 +2749,11 @@ class TestIssueWorkLifecycle:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_agent_failure_with_resume_disabled_closes_record(
-        self, mock_resolve, mock_ws, mock_git, store: SQLiteStore,
+        self,
+        mock_resolve,
+        mock_ws,
+        mock_git,
+        store: SQLiteStore,
     ) -> None:
         """With `resume.enabled: false` nothing is preserved on a failure, so
         there is nothing to resume: the record closes as terminal_failure
@@ -2495,8 +2762,7 @@ class TestIssueWorkLifecycle:
         task = _make_task()
         store.insert_task(task)
         fetched = store.fetch_next()
-        self._wire(mock_ws, mock_resolve, gh,
-                   AgentResult(False, 0.1, 3, error="agent_crashed"))
+        self._wire(mock_ws, mock_resolve, gh, AgentResult(False, 0.1, 3, error="agent_crashed"))
         mock_git.side_effect = ["", "", "0"]
 
         settings = _make_settings(RESUME_ENABLED=False)
@@ -2510,7 +2776,12 @@ class TestIssueWorkLifecycle:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_recoverable_push_failure_leaves_record_open(
-        self, mock_resolve, mock_ws, mock_git, store: SQLiteStore, settings: Settings,
+        self,
+        mock_resolve,
+        mock_ws,
+        mock_git,
+        store: SQLiteStore,
+        settings: Settings,
     ) -> None:
         gh = _GitHub()
         task = _make_task()
@@ -2518,7 +2789,11 @@ class TestIssueWorkLifecycle:
         fetched = store.fetch_next()
         self._wire(mock_ws, mock_resolve, gh, AgentResult(True, 0.5, 10))
         mock_git.side_effect = [
-            "", " M src/foo.py\n", "", "", RuntimeError("push failed"),
+            "",
+            " M src/foo.py\n",
+            "",
+            "",
+            RuntimeError("push failed"),
         ]
 
         run_task(store, fetched, settings, gh.plugin(settings))
@@ -2547,18 +2822,23 @@ class TestFaseDGuardAndObservability:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_issue_closed_before_run_aborts_without_cost(
-        self, mock_resolve, mock_ws, mock_git, store: SQLiteStore, settings: Settings,
+        self,
+        mock_resolve,
+        mock_ws,
+        mock_git,
+        store: SQLiteStore,
+        settings: Settings,
     ) -> None:
         gh = _GitHub()
         store.open_issue_work(
             "github",
-            "stateway-io/stateway-issues", 42,
-            "stateway-io/stateway-agent-fixtures", "main", "agent/issue-42-x",
+            "stateway-io/stateway-issues",
+            42,
+            "stateway-io/stateway-agent-fixtures",
+            "main",
+            "agent/issue-42-x",
         )
-        store.close_issue_work(
-            "github",
-            "stateway-io/stateway-issues", 42, "issue_closed"
-        )
+        store.close_issue_work("github", "stateway-io/stateway-issues", 42, "issue_closed")
         task = _make_task()
         store.insert_task(task)
         fetched = store.fetch_next()
@@ -2579,15 +2859,23 @@ class TestFaseDGuardAndObservability:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_closed_for_other_reason_still_starts_fresh(
-        self, mock_resolve, mock_ws, mock_git, store: SQLiteStore, settings: Settings,
+        self,
+        mock_resolve,
+        mock_ws,
+        mock_git,
+        store: SQLiteStore,
+        settings: Settings,
     ) -> None:
         gh = _GitHub()
         # a row closed as `max_attempts` (not issue_closed) is a spent work
         # item — a new trigger opens a brand-new one (unchanged rule).
         store.open_issue_work(
             "github",
-            "stateway-io/stateway-issues", 42,
-            "stateway-io/stateway-agent-fixtures", "main", "agent/old",
+            "stateway-io/stateway-issues",
+            42,
+            "stateway-io/stateway-agent-fixtures",
+            "main",
+            "agent/old",
         )
         store.close_issue_work("github", "stateway-io/stateway-issues", 42, "max_attempts")
         task = _make_task()
@@ -2608,13 +2896,22 @@ class TestFaseDGuardAndObservability:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_resume_increments_resume_counter(
-        self, mock_resolve, mock_ws, mock_git, mock_observe_resume, store: SQLiteStore, settings: Settings,
+        self,
+        mock_resolve,
+        mock_ws,
+        mock_git,
+        mock_observe_resume,
+        store: SQLiteStore,
+        settings: Settings,
     ) -> None:
         gh = _GitHub()
         store.open_issue_work(
             "github",
-            "stateway-io/stateway-issues", 42,
-            "stateway-io/stateway-agent-fixtures", "main", "agent/issue-42-x",
+            "stateway-io/stateway-issues",
+            42,
+            "stateway-io/stateway-agent-fixtures",
+            "main",
+            "agent/issue-42-x",
         )
         task = _make_task()
         store.insert_task(task)
@@ -2634,7 +2931,13 @@ class TestFaseDGuardAndObservability:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_first_run_does_not_increment_resume_counter(
-        self, mock_resolve, mock_ws, mock_git, mock_observe_resume, store: SQLiteStore, settings: Settings,
+        self,
+        mock_resolve,
+        mock_ws,
+        mock_git,
+        mock_observe_resume,
+        store: SQLiteStore,
+        settings: Settings,
     ) -> None:
         gh = _GitHub()
         task = _make_task()
@@ -2651,7 +2954,12 @@ class TestFaseDGuardAndObservability:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_progress_callback_posts_a_progress_comment(
-        self, mock_resolve, mock_ws, mock_git, store: SQLiteStore, settings: Settings,
+        self,
+        mock_resolve,
+        mock_ws,
+        mock_git,
+        store: SQLiteStore,
+        settings: Settings,
     ) -> None:
         gh = _GitHub()
         task = _make_task()
@@ -2663,8 +2971,16 @@ class TestFaseDGuardAndObservability:
         runner = mock_resolve.return_value
 
         def _run(
-            ws_path, t, s, route, resume_summary=None, on_progress=None,
-            toolchain_env=None, branch_status=None, comment_history=None, terms=None,
+            ws_path,
+            t,
+            s,
+            route,
+            resume_summary=None,
+            on_progress=None,
+            toolchain_env=None,
+            branch_status=None,
+            comment_history=None,
+            terms=None,
         ):
             on_progress(25, 0.33)
             return AgentResult(True, 0.5, 10)
@@ -2673,10 +2989,7 @@ class TestFaseDGuardAndObservability:
 
         run_task(store, fetched, settings, gh.plugin(settings))
 
-        progress = [
-            c for c in gh.comments()
-            if "is still working" in c
-        ]
+        progress = [c for c in gh.comments() if "is still working" in c]
         assert len(progress) == 1
         assert "Iteration: 25" in progress[0]
         assert "0.33" in progress[0]
@@ -2685,7 +2998,12 @@ class TestFaseDGuardAndObservability:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_audit_entry_carries_attempts_and_work_branch(
-        self, mock_resolve, mock_ws, mock_git, store: SQLiteStore, settings: Settings,
+        self,
+        mock_resolve,
+        mock_ws,
+        mock_git,
+        store: SQLiteStore,
+        settings: Settings,
     ) -> None:
         gh = _GitHub()
         task = _make_task()
@@ -2698,10 +3016,7 @@ class TestFaseDGuardAndObservability:
 
         today = datetime.now(UTC).strftime("%Y-%m-%d")
         audit_path = Path(settings.data_dir) / f"audit.{today}.log"
-        entries = [
-            json.loads(line)
-            for line in audit_path.read_text().strip().split("\n")
-        ]
+        entries = [json.loads(line) for line in audit_path.read_text().strip().split("\n")]
         processed = next(e for e in entries if e["event"] == "task_processed")
         assert processed["work_branch"] == "agent/issue-42-fix-broken-link-in-docs"
         assert processed["attempts"] == 0
@@ -2728,15 +3043,25 @@ class TestResumeAndWipPreservation:
 
     def _block_result(self, error="task_timeout", **kw):
         return AgentResult(
-            success=False, cost_usd=1.5, iterations=15, error=error,
-            block_summary="did X, still need Y", block_summary_kind="mechanical", **kw,
+            success=False,
+            cost_usd=1.5,
+            iterations=15,
+            error=error,
+            block_summary="did X, still need Y",
+            block_summary_kind="mechanical",
+            **kw,
         )
 
     @patch("issue_agent.runner.executor._run_git")
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_block_with_wip_pushes_and_keeps_record_open(
-        self, mock_resolve, mock_ws, mock_git, store: SQLiteStore, settings: Settings,
+        self,
+        mock_resolve,
+        mock_ws,
+        mock_git,
+        store: SQLiteStore,
+        settings: Settings,
     ) -> None:
         gh = _GitHub()
         task = _make_task()
@@ -2744,11 +3069,11 @@ class TestResumeAndWipPreservation:
         fetched = store.fetch_next()
         _, pr, _ = self._wire(mock_ws, mock_resolve, gh, self._block_result())
         mock_git.side_effect = [
-            "",                 # checkout -b
-            "",                 # add -A
+            "",  # checkout -b
+            "",  # add -A
             " M src/foo.py\n",  # status --porcelain (WIP present)
-            "",                 # commit
-            "",                 # push -f
+            "",  # commit
+            "",  # push -f
         ]
 
         run_task(store, fetched, settings, gh.plugin(settings))
@@ -2770,7 +3095,12 @@ class TestResumeAndWipPreservation:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_wip_push_authenticates_against_the_configured_github_host(
-        self, mock_resolve, mock_ws, mock_git, store: SQLiteStore, settings: Settings,
+        self,
+        mock_resolve,
+        mock_ws,
+        mock_git,
+        store: SQLiteStore,
+        settings: Settings,
     ) -> None:
         gh = _GitHub()
         settings = with_github(settings, host="https://ghe.example.com")
@@ -2789,18 +3119,22 @@ class TestResumeAndWipPreservation:
 
     def _llm_error_result(self, **kw):
         return AgentResult(
-            success=False, cost_usd=0.06, iterations=49, error="llm_error",
+            success=False,
+            cost_usd=0.06,
+            iterations=49,
+            error="llm_error",
             error_detail="APIError: OpenrouterException - [SSL: UNEXPECTED_EOF_WHILE_READING]",
-            block_summary="edited foo.py, tests pending", block_summary_kind="mechanical",
+            block_summary="edited foo.py, tests pending",
+            block_summary_kind="mechanical",
             **kw,
         )
 
     _WIP_GIT = [
-        "",                 # checkout -b
-        "",                 # add -A
+        "",  # checkout -b
+        "",  # add -A
         " M src/foo.py\n",  # status --porcelain (WIP present)
-        "",                 # commit
-        "",                 # push -f
+        "",  # commit
+        "",  # push -f
     ]
 
     @patch("issue_agent.runner.executor.send_budget_alert")
@@ -2808,7 +3142,13 @@ class TestResumeAndWipPreservation:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_llm_error_preserves_wip_and_stays_recoverable(
-        self, mock_resolve, mock_ws, mock_git, mock_alert, store: SQLiteStore, settings: Settings,
+        self,
+        mock_resolve,
+        mock_ws,
+        mock_git,
+        mock_alert,
+        store: SQLiteStore,
+        settings: Settings,
     ) -> None:
         """Regression: an APIError after 49 iterations used to wipe
         the workspace and close the work as terminal_failure."""
@@ -2816,9 +3156,7 @@ class TestResumeAndWipPreservation:
         task = _make_task()
         store.insert_task(task)
         fetched = store.fetch_next()
-        ws, pr, _ = self._wire(
-            mock_ws, mock_resolve, gh, self._llm_error_result()
-        )
+        ws, pr, _ = self._wire(mock_ws, mock_resolve, gh, self._llm_error_result())
         mock_git.side_effect = list(self._WIP_GIT)
 
         run_task(store, fetched, settings, gh.plugin(settings))
@@ -2848,7 +3186,13 @@ class TestResumeAndWipPreservation:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_provider_budget_exceeded_keeps_wip_but_is_terminal_and_alerts(
-        self, mock_resolve, mock_ws, mock_git, mock_alert, store: SQLiteStore, settings: Settings,
+        self,
+        mock_resolve,
+        mock_ws,
+        mock_git,
+        mock_alert,
+        store: SQLiteStore,
+        settings: Settings,
     ) -> None:
         """OpenRouter budget guardrail: nothing succeeds before the limit is
         raised or resets, so the task is not re-queued — but the WIP is kept
@@ -2858,11 +3202,17 @@ class TestResumeAndWipPreservation:
         store.insert_task(task)
         fetched = store.fetch_next()
         result = AgentResult(
-            success=False, cost_usd=0.03, iterations=3, error="provider_budget_exceeded",
+            success=False,
+            cost_usd=0.03,
+            iterations=3,
+            error="provider_budget_exceeded",
             error_detail="Budget limit exceeded (monthly limit).",
             provider_error=ProviderError(
-                message="Budget limit exceeded (monthly limit).", code=403,
-                resets_at="2026-11-01T00:00:00.000Z", spent_usd=10.02, limit_usd=10.0,
+                message="Budget limit exceeded (monthly limit).",
+                code=403,
+                resets_at="2026-11-01T00:00:00.000Z",
+                spent_usd=10.02,
+                limit_usd=10.0,
             ),
         )
         _, pr, _ = self._wire(mock_ws, mock_resolve, gh, result)
@@ -2891,17 +3241,23 @@ class TestResumeAndWipPreservation:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_llm_error_wip_push_failure_warns_and_stays_recoverable(
-        self, mock_resolve, mock_ws, mock_git, store: SQLiteStore, settings: Settings,
+        self,
+        mock_resolve,
+        mock_ws,
+        mock_git,
+        store: SQLiteStore,
+        settings: Settings,
     ) -> None:
         gh = _GitHub()
         task = _make_task()
         store.insert_task(task)
         fetched = store.fetch_next()
-        _, pr, _ = self._wire(
-            mock_ws, mock_resolve, gh, self._llm_error_result()
-        )
+        _, pr, _ = self._wire(mock_ws, mock_resolve, gh, self._llm_error_result())
         mock_git.side_effect = [
-            "", "", " M src/foo.py\n", "",
+            "",
+            "",
+            " M src/foo.py\n",
+            "",
             RuntimeError("push rejected"),
         ]
 
@@ -2918,7 +3274,12 @@ class TestResumeAndWipPreservation:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_llm_error_without_changes_is_terminal_and_closes_no_changes(
-        self, mock_resolve, mock_ws, mock_git, store: SQLiteStore, settings: Settings,
+        self,
+        mock_resolve,
+        mock_ws,
+        mock_git,
+        store: SQLiteStore,
+        settings: Settings,
     ) -> None:
         gh = _GitHub()
         task = _make_task()
@@ -2926,9 +3287,9 @@ class TestResumeAndWipPreservation:
         fetched = store.fetch_next()
         self._wire(mock_ws, mock_resolve, gh, self._llm_error_result())
         mock_git.side_effect = [
-            "",     # checkout -b
-            "",     # add -A
-            "",     # status --porcelain (clean)
+            "",  # checkout -b
+            "",  # add -A
+            "",  # status --porcelain (clean)
             "0\n",  # rev-list --count (not ahead)
         ]
 
@@ -2942,7 +3303,12 @@ class TestResumeAndWipPreservation:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_agent_crash_preserves_wip_but_does_not_auto_retry(
-        self, mock_resolve, mock_ws, mock_git, store: SQLiteStore, settings: Settings,
+        self,
+        mock_resolve,
+        mock_ws,
+        mock_git,
+        store: SQLiteStore,
+        settings: Settings,
     ) -> None:
         """An unclassified crash might be deterministic: keep the work, leave
         `issue_work` open for a human comment, but don't re-queue it."""
@@ -2951,7 +3317,10 @@ class TestResumeAndWipPreservation:
         store.insert_task(task)
         fetched = store.fetch_next()
         crash = AgentResult(
-            success=False, cost_usd=0.2, iterations=7, error="agent_crashed",
+            success=False,
+            cost_usd=0.2,
+            iterations=7,
+            error="agent_crashed",
             error_detail="RuntimeError: boom",
         )
         _, pr, _ = self._wire(mock_ws, mock_resolve, gh, crash)
@@ -2968,7 +3337,12 @@ class TestResumeAndWipPreservation:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_runner_exception_is_converted_and_salvaged(
-        self, mock_resolve, mock_ws, mock_git, store: SQLiteStore, settings: Settings,
+        self,
+        mock_resolve,
+        mock_ws,
+        mock_git,
+        store: SQLiteStore,
+        settings: Settings,
     ) -> None:
         """A runner that raises (rather than returning a failed result) must
         not skip the salvage."""
@@ -2976,9 +3350,7 @@ class TestResumeAndWipPreservation:
         task = _make_task()
         store.insert_task(task)
         fetched = store.fetch_next()
-        _, _, runner = self._wire(
-            mock_ws, mock_resolve, gh, self._llm_error_result()
-        )
+        _, _, runner = self._wire(mock_ws, mock_resolve, gh, self._llm_error_result())
         runner.run.side_effect = RuntimeError("kaboom")
         mock_git.side_effect = list(self._WIP_GIT)
 
@@ -2992,7 +3364,13 @@ class TestResumeAndWipPreservation:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_block_consumes_sentinel_before_wip_add(
-        self, mock_resolve, mock_ws, mock_git, store: SQLiteStore, settings: Settings, tmp_path: Path,
+        self,
+        mock_resolve,
+        mock_ws,
+        mock_git,
+        store: SQLiteStore,
+        settings: Settings,
+        tmp_path: Path,
     ) -> None:
         """The agent's `.agent-test-command` sentinel must be deleted from the
         workspace before `_preserve_wip_on_block`'s `git add -A` ever looks at
@@ -3010,11 +3388,11 @@ class TestResumeAndWipPreservation:
         (tmp_path / TEST_COMMAND_SENTINEL_FILENAME).write_text("npm test\n")
         (tmp_path / CHECKS_SENTINEL_FILENAME).write_text("not_run: npm test — timed out\n")
         mock_git.side_effect = [
-            "",                 # checkout -b
-            "",                 # add -A
+            "",  # checkout -b
+            "",  # add -A
             " M src/foo.py\n",  # status --porcelain (WIP present)
-            "",                 # commit
-            "",                 # push -f
+            "",  # commit
+            "",  # push -f
         ]
 
         run_task(store, fetched, settings, gh.plugin(settings))
@@ -3026,7 +3404,12 @@ class TestResumeAndWipPreservation:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_resume_accumulates_cost_and_pr_comment_shows_issue_total(
-        self, mock_resolve, mock_ws, mock_git, store: SQLiteStore, settings: Settings,
+        self,
+        mock_resolve,
+        mock_ws,
+        mock_git,
+        store: SQLiteStore,
+        settings: Settings,
     ) -> None:
         """End-to-end regression: attempt 1 blocks on
         the iteration limit (cost $0.02, 40 iterations — same numbers as
@@ -3040,19 +3423,24 @@ class TestResumeAndWipPreservation:
         store.insert_task(task1)
         fetched1 = store.fetch_next()
         self._wire(
-            mock_ws, mock_resolve, gh,
+            mock_ws,
+            mock_resolve,
+            gh,
             AgentResult(
-                success=False, cost_usd=0.02, iterations=40,
+                success=False,
+                cost_usd=0.02,
+                iterations=40,
                 error="iteration_limit_exceeded",
-                block_summary="hit the step limit", block_summary_kind="mechanical",
+                block_summary="hit the step limit",
+                block_summary_kind="mechanical",
             ),
         )
         mock_git.side_effect = [
-            "",                 # checkout -b
-            "",                 # add -A
+            "",  # checkout -b
+            "",  # add -A
             " M src/foo.py\n",  # status --porcelain (WIP present)
-            "",                 # commit
-            "",                 # push -f
+            "",  # commit
+            "",  # push -f
         ]
 
         assert fetched1 is not None
@@ -3068,19 +3456,21 @@ class TestResumeAndWipPreservation:
         fetched2 = store.fetch_next()
         assert fetched2 is not None
         _, pr, _ = self._wire(
-            mock_ws, mock_resolve, gh,
+            mock_ws,
+            mock_resolve,
+            gh,
             AgentResult(success=True, cost_usd=0.004, iterations=16, submission="fixed it"),
         )
         mock_git.side_effect = [
             "abc\trefs/heads/x",  # ls-remote (work branch exists on the remote)
-            "",                   # fetch --unshallow
-            "",                   # fetch origin <branch>
-            "",                   # checkout -b <branch> FETCH_HEAD
-            "",                   # merge origin/<base>
-            " M src/foo.py\n",    # status --porcelain (non-empty)
-            "",                   # add -A
-            "",                   # commit
-            "",                   # push -f
+            "",  # fetch --unshallow
+            "",  # fetch origin <branch>
+            "",  # checkout -b <branch> FETCH_HEAD
+            "",  # merge origin/<base>
+            " M src/foo.py\n",  # status --porcelain (non-empty)
+            "",  # add -A
+            "",  # commit
+            "",  # push -f
         ]
 
         run_task(store, fetched2, settings, gh.plugin(settings))
@@ -3100,20 +3490,27 @@ class TestResumeAndWipPreservation:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_block_without_changes_closes_no_changes_and_does_not_push(
-        self, mock_resolve, mock_ws, mock_git, store: SQLiteStore, settings: Settings,
+        self,
+        mock_resolve,
+        mock_ws,
+        mock_git,
+        store: SQLiteStore,
+        settings: Settings,
     ) -> None:
         gh = _GitHub()
         task = _make_task()
         store.insert_task(task)
         fetched = store.fetch_next()
         _, pr, _ = self._wire(
-            mock_ws, mock_resolve, gh,
+            mock_ws,
+            mock_resolve,
+            gh,
             AgentResult(success=False, cost_usd=0.4, iterations=3, error="task_timeout"),
         )
         mock_git.side_effect = [
-            "",   # checkout -b
-            "",   # add -A
-            "",   # status --porcelain (clean)
+            "",  # checkout -b
+            "",  # add -A
+            "",  # status --porcelain (clean)
             "0",  # rev-list --count (not ahead)
         ]
 
@@ -3128,7 +3525,12 @@ class TestResumeAndWipPreservation:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_block_without_changes_persists_block_summary(
-        self, mock_resolve, mock_ws, mock_git, store: SQLiteStore, settings: Settings,
+        self,
+        mock_resolve,
+        mock_ws,
+        mock_git,
+        store: SQLiteStore,
+        settings: Settings,
     ) -> None:
         """A block with zero WIP still had a block_summary computed
         (`_maybe_block_summary` runs before the has-WIP check) — it must not
@@ -3138,17 +3540,22 @@ class TestResumeAndWipPreservation:
         store.insert_task(task)
         fetched = store.fetch_next()
         self._wire(
-            mock_ws, mock_resolve, gh,
+            mock_ws,
+            mock_resolve,
+            gh,
             AgentResult(
-                success=False, cost_usd=0.4, iterations=3, error="task_timeout",
+                success=False,
+                cost_usd=0.4,
+                iterations=3,
+                error="task_timeout",
                 block_summary="explored the repo, found no matching code path",
                 block_summary_kind="mechanical",
             ),
         )
         mock_git.side_effect = [
-            "",   # checkout -b
-            "",   # add -A
-            "",   # status --porcelain (clean)
+            "",  # checkout -b
+            "",  # add -A
+            "",  # status --porcelain (clean)
             "0",  # rev-list --count (not ahead)
         ]
 
@@ -3164,7 +3571,12 @@ class TestResumeAndWipPreservation:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_wip_push_failure_blanks_branch_keeps_open_and_warns(
-        self, mock_resolve, mock_ws, mock_git, store: SQLiteStore, settings: Settings,
+        self,
+        mock_resolve,
+        mock_ws,
+        mock_git,
+        store: SQLiteStore,
+        settings: Settings,
     ) -> None:
         gh = _GitHub()
         task = _make_task()
@@ -3172,10 +3584,10 @@ class TestResumeAndWipPreservation:
         fetched = store.fetch_next()
         _, pr, _ = self._wire(mock_ws, mock_resolve, gh, self._block_result())
         mock_git.side_effect = [
-            "",                 # checkout -b
-            "",                 # add -A
+            "",  # checkout -b
+            "",  # add -A
             " M src/foo.py\n",  # status --porcelain
-            "",                 # commit
+            "",  # commit
             RuntimeError("remote rejected"),  # push -f
         ]
 
@@ -3192,7 +3604,11 @@ class TestResumeAndWipPreservation:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_max_attempts_reached_closes_and_comments_giveup(
-        self, mock_resolve, mock_ws, mock_git, store: SQLiteStore,
+        self,
+        mock_resolve,
+        mock_ws,
+        mock_git,
+        store: SQLiteStore,
     ) -> None:
         gh = _GitHub()
         settings = _make_settings(RESUME_MAX_ATTEMPTS=2)
@@ -3203,14 +3619,14 @@ class TestResumeAndWipPreservation:
         _, pr, _ = self._wire(mock_ws, mock_resolve, gh, self._block_result())
         mock_git.side_effect = [
             "abc\trefs/heads/x",  # ls-remote (branch exists)
-            "",                   # fetch --unshallow
-            "",                   # fetch origin <branch>
-            "",                   # checkout -b <branch> FETCH_HEAD
-            "",                   # merge origin/<base>
-            "",                   # add -A
-            " M src/foo.py\n",    # status --porcelain
-            "",                   # commit
-            "",                   # push -f
+            "",  # fetch --unshallow
+            "",  # fetch origin <branch>
+            "",  # checkout -b <branch> FETCH_HEAD
+            "",  # merge origin/<base>
+            "",  # add -A
+            " M src/foo.py\n",  # status --porcelain
+            "",  # commit
+            "",  # push -f
         ]
 
         run_task(store, fetched, settings, gh.plugin(settings))
@@ -3226,7 +3642,11 @@ class TestResumeAndWipPreservation:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_resume_disabled_does_not_push_but_records_error(
-        self, mock_resolve, mock_ws, mock_git, store: SQLiteStore,
+        self,
+        mock_resolve,
+        mock_ws,
+        mock_git,
+        store: SQLiteStore,
     ) -> None:
         gh = _GitHub()
         settings = _make_settings(RESUME_ENABLED=False)
@@ -3247,30 +3667,41 @@ class TestResumeAndWipPreservation:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_resume_clones_work_branch_when_present_and_injects_summary(
-        self, mock_resolve, mock_ws, mock_git, store: SQLiteStore, settings: Settings,
+        self,
+        mock_resolve,
+        mock_ws,
+        mock_git,
+        store: SQLiteStore,
+        settings: Settings,
     ) -> None:
         gh = _GitHub()
         store.open_issue_work("github", self._ISSUE_REPO, 42, self._TARGET, "main", self._BRANCH)
         store.update_issue_work(
             "github",
-            self._ISSUE_REPO, 42, last_summary="prior: fixed the parser", last_error="task_timeout",
+            self._ISSUE_REPO,
+            42,
+            last_summary="prior: fixed the parser",
+            last_error="task_timeout",
         )
         task = _make_task()
         store.insert_task(task)
         fetched = store.fetch_next()
         _, pr, runner = self._wire(
-            mock_ws, mock_resolve, gh, AgentResult(True, 0.5, 10),
+            mock_ws,
+            mock_resolve,
+            gh,
+            AgentResult(True, 0.5, 10),
         )
         mock_git.side_effect = [
             "abc\trefs/heads/x",  # ls-remote → exists
-            "",                   # fetch --unshallow
-            "",                   # fetch origin <branch>
-            "",                   # checkout -b <branch> FETCH_HEAD
-            "",                   # merge origin/<base>
-            " M src/foo.py\n",    # status --porcelain (success path)
-            "",                   # add
-            "",                   # commit
-            "",                   # push
+            "",  # fetch --unshallow
+            "",  # fetch origin <branch>
+            "",  # checkout -b <branch> FETCH_HEAD
+            "",  # merge origin/<base>
+            " M src/foo.py\n",  # status --porcelain (success path)
+            "",  # add
+            "",  # commit
+            "",  # push
         ]
 
         run_task(store, fetched, settings, gh.plugin(settings))
@@ -3284,7 +3715,12 @@ class TestResumeAndWipPreservation:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_resume_falls_back_to_checkout_b_when_branch_absent(
-        self, mock_resolve, mock_ws, mock_git, store: SQLiteStore, settings: Settings,
+        self,
+        mock_resolve,
+        mock_ws,
+        mock_git,
+        store: SQLiteStore,
+        settings: Settings,
     ) -> None:
         gh = _GitHub()
         store.open_issue_work("github", self._ISSUE_REPO, 42, self._TARGET, "main", self._BRANCH)
@@ -3293,10 +3729,12 @@ class TestResumeAndWipPreservation:
         fetched = store.fetch_next()
         self._wire(mock_ws, mock_resolve, gh, AgentResult(True, 0.5, 10))
         mock_git.side_effect = [
-            "",                 # ls-remote → absent
-            "",                 # checkout -b <branch>
+            "",  # ls-remote → absent
+            "",  # checkout -b <branch>
             " M src/foo.py\n",  # status
-            "", "", "",         # add, commit, push
+            "",
+            "",
+            "",  # add, commit, push
         ]
 
         run_task(store, fetched, settings, gh.plugin(settings))
@@ -3309,7 +3747,11 @@ class TestResumeAndWipPreservation:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_pr_opened_reopen_continues_from_existing_branch_even_if_resume_disabled(
-        self, mock_resolve, mock_ws, mock_git, store: SQLiteStore,
+        self,
+        mock_resolve,
+        mock_ws,
+        mock_git,
+        store: SQLiteStore,
     ) -> None:
         """A maintainer's follow-up comment on an issue whose PR is already
         open must not re-clone from scratch and force-push over the
@@ -3322,7 +3764,8 @@ class TestResumeAndWipPreservation:
         store.open_issue_work("github", self._ISSUE_REPO, 42, self._TARGET, "main", self._BRANCH)
         store.update_issue_work(
             "github",
-            self._ISSUE_REPO, 42,
+            self._ISSUE_REPO,
+            42,
             last_summary="Opened PR #101 fixing the null check in parser.py",
             last_summary_kind="submission",
         )
@@ -3332,19 +3775,23 @@ class TestResumeAndWipPreservation:
         store.insert_task(task)
         fetched = store.fetch_next()
         _, pr, runner = self._wire(
-            mock_ws, mock_resolve, gh,
-            AgentResult(True, 0.1, 4, submission="Also handled the edge case from the new comment."),
+            mock_ws,
+            mock_resolve,
+            gh,
+            AgentResult(
+                True, 0.1, 4, submission="Also handled the edge case from the new comment."
+            ),
         )
         mock_git.side_effect = [
             "abc\trefs/heads/x",  # ls-remote → branch still exists
-            "",                   # fetch --unshallow
-            "",                   # fetch origin <branch>
-            "",                   # checkout -b <branch> FETCH_HEAD
-            "",                   # merge origin/<base>
-            " M src/parser.py\n", # status --porcelain
-            "",                   # add
-            "",                   # commit
-            "",                   # push
+            "",  # fetch --unshallow
+            "",  # fetch origin <branch>
+            "",  # checkout -b <branch> FETCH_HEAD
+            "",  # merge origin/<base>
+            " M src/parser.py\n",  # status --porcelain
+            "",  # add
+            "",  # commit
+            "",  # push
         ]
 
         run_task(store, fetched, settings, gh.plugin(settings))
@@ -3358,7 +3805,7 @@ class TestResumeAndWipPreservation:
 
         work = store.get_issue_work("github", self._ISSUE_REPO, 42)
         assert work.work_branch == self._BRANCH  # same branch, not recomputed
-        assert work.attempts == 0                # not a block retry — not counted
+        assert work.attempts == 0  # not a block retry — not counted
         assert work.closed_reason == "pr_opened"
         assert work.pr_number == 101
 
@@ -3366,7 +3813,10 @@ class TestResumeAndWipPreservation:
         store.open_issue_work("github", self._ISSUE_REPO, 42, self._TARGET, "main", self._BRANCH)
         store.update_issue_work(
             "github",
-            self._ISSUE_REPO, 42, last_summary="Original fix", last_summary_kind="submission",
+            self._ISSUE_REPO,
+            42,
+            last_summary="Original fix",
+            last_summary_kind="submission",
         )
         store.close_issue_work("github", self._ISSUE_REPO, 42, "pr_opened", pr_number=101)
         task = _make_task(trigger_kind=TriggerKind.COMMENT_COMMAND)
@@ -3376,13 +3826,24 @@ class TestResumeAndWipPreservation:
     _CONFLICT = BaseUpdate("conflicted", [(".memory-bank/activeContext.md", "both modified")])
 
     @patch("issue_agent.runner.executor._abandon_base_merge")
-    @patch("issue_agent.runner.executor._finish_base_merge", return_value=[".memory-bank/activeContext.md"])
+    @patch(
+        "issue_agent.runner.executor._finish_base_merge",
+        return_value=[".memory-bank/activeContext.md"],
+    )
     @patch("issue_agent.runner.executor._update_branch_with_base")
     @patch("issue_agent.runner.executor._run_git")
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_unresolved_base_merge_pushes_nothing_and_keeps_the_pr_followable(
-        self, mock_resolve, mock_ws, mock_git, mock_update, mock_finish, mock_abandon, store: SQLiteStore, settings: Settings,
+        self,
+        mock_resolve,
+        mock_ws,
+        mock_git,
+        mock_update,
+        mock_finish,
+        mock_abandon,
+        store: SQLiteStore,
+        settings: Settings,
     ) -> None:
         """Regression: a run that leaves conflict markers must not push
         (nor claim it updated the PR), and the work item must go back to
@@ -3392,14 +3853,16 @@ class TestResumeAndWipPreservation:
         mock_update.return_value = self._CONFLICT
         fetched = self._open_pr_followup(store)
         _, pr, _ = self._wire(
-            mock_ws, mock_resolve, gh,
+            mock_ws,
+            mock_resolve,
+            gh,
             AgentResult(True, 0.05, 42, submission="Resolved the conflicts."),
         )
         mock_git.side_effect = [
             "abc\trefs/heads/x",  # ls-remote
-            "",                   # fetch --unshallow
-            "",                   # fetch origin <branch>
-            "",                   # checkout -b <branch> FETCH_HEAD
+            "",  # fetch --unshallow
+            "",  # fetch origin <branch>
+            "",  # checkout -b <branch> FETCH_HEAD
         ]
 
         run_task(store, fetched, settings, gh.plugin(settings))
@@ -3421,7 +3884,9 @@ class TestResumeAndWipPreservation:
         assert "`.memory-bank/activeContext.md`" in comment
         assert "Nothing was pushed" in comment
 
-    @patch("issue_agent.runner.executor._changed_files_vs_base", return_value=[("a.txt", "modified")])
+    @patch(
+        "issue_agent.runner.executor._changed_files_vs_base", return_value=[("a.txt", "modified")]
+    )
     @patch("issue_agent.runner.executor._salvage_agent_commits", return_value="")
     @patch("issue_agent.runner.executor._finish_base_merge", return_value=[])
     @patch("issue_agent.runner.executor._update_branch_with_base")
@@ -3429,7 +3894,16 @@ class TestResumeAndWipPreservation:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_resolved_base_merge_alone_is_pushed(
-        self, mock_resolve, mock_ws, mock_git, mock_update, mock_finish, mock_salvage, mock_changed, store: SQLiteStore, settings: Settings,
+        self,
+        mock_resolve,
+        mock_ws,
+        mock_git,
+        mock_update,
+        mock_finish,
+        mock_salvage,
+        mock_changed,
+        store: SQLiteStore,
+        settings: Settings,
     ) -> None:
         """Resolving the conflicts is the whole job of a "update the PR"
         follow-up: with nothing else in the working tree the recorded merge is
@@ -3438,17 +3912,19 @@ class TestResumeAndWipPreservation:
         mock_update.return_value = self._CONFLICT
         fetched = self._open_pr_followup(store)
         _, pr, _ = self._wire(
-            mock_ws, mock_resolve, gh,
+            mock_ws,
+            mock_resolve,
+            gh,
             AgentResult(True, 0.05, 42, submission="Resolved the conflicts."),
         )
         gh.pulls.pr_has_conflicts.return_value = True
         mock_git.side_effect = [
             "abc\trefs/heads/x",  # ls-remote
-            "",                   # fetch --unshallow
-            "",                   # fetch origin <branch>
-            "",                   # checkout -b <branch> FETCH_HEAD
-            "",                   # status --porcelain (merge already recorded)
-            "",                   # push -f
+            "",  # fetch --unshallow
+            "",  # fetch origin <branch>
+            "",  # checkout -b <branch> FETCH_HEAD
+            "",  # status --porcelain (merge already recorded)
+            "",  # push -f
         ]
 
         run_task(store, fetched, settings, gh.plugin(settings))
@@ -3478,7 +3954,16 @@ class TestResumeAndWipPreservation:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_block_backs_out_of_an_unresolved_base_merge_before_the_wip_commit(
-        self, mock_resolve, mock_ws, mock_git, mock_update, mock_finish, mock_abandon, mock_wip, store: SQLiteStore, settings: Settings,
+        self,
+        mock_resolve,
+        mock_ws,
+        mock_git,
+        mock_update,
+        mock_finish,
+        mock_abandon,
+        mock_wip,
+        store: SQLiteStore,
+        settings: Settings,
     ) -> None:
         """The WIP commit would otherwise conclude the merge, markers and all."""
         gh = _GitHub()
@@ -3489,7 +3974,8 @@ class TestResumeAndWipPreservation:
         order = MagicMock()
         mock_abandon.side_effect = lambda *a: order("abandon")
         mock_wip.side_effect = lambda *a, **k: (
-            order("wip"), WipOutcome(reason="pushed", branch=self._BRANCH)
+            order("wip"),
+            WipOutcome(reason="pushed", branch=self._BRANCH),
         )[1]
 
         run_task(store, fetched, settings, gh.plugin(settings))
@@ -3500,7 +3986,12 @@ class TestResumeAndWipPreservation:
     @patch("issue_agent.runner.executor.Workspace")
     @patch("issue_agent.runner.executor._resolve_agent_runner")
     def test_no_changes_reopen_still_starts_fresh_unlike_pr_opened(
-        self, mock_resolve, mock_ws, mock_git, store: SQLiteStore, settings: Settings,
+        self,
+        mock_resolve,
+        mock_ws,
+        mock_git,
+        store: SQLiteStore,
+        settings: Settings,
     ) -> None:
         """Only a `pr_opened` closure gets the continue-from-branch
         treatment. `no_changes` (and, by the same code path,
@@ -3515,13 +4006,17 @@ class TestResumeAndWipPreservation:
         store.insert_task(task)
         fetched = store.fetch_next()
         _, pr, runner = self._wire(
-            mock_ws, mock_resolve, gh,
+            mock_ws,
+            mock_resolve,
+            gh,
             AgentResult(True, 0.1, 4, submission="fixed it now"),
         )
         mock_git.side_effect = [
-            "",                  # checkout -b <branch> (fresh — no ls-remote/fetch)
-            " M src/foo.py\n",   # status --porcelain
-            "", "", "",          # add, commit, push
+            "",  # checkout -b <branch> (fresh — no ls-remote/fetch)
+            " M src/foo.py\n",  # status --porcelain
+            "",
+            "",
+            "",  # add, commit, push
         ]
 
         run_task(store, fetched, settings, gh.plugin(settings))
@@ -3539,9 +4034,7 @@ class TestMiniSWERunner:
     """Tests for MiniSWERunner cost/iteration tracking (13.4.9)."""
 
     @patch("issue_agent.runner.agent_factory.build_agent")
-    def test_reads_cost_and_n_calls_after_run(
-        self, mock_build_agent: MagicMock
-    ) -> None:
+    def test_reads_cost_and_n_calls_after_run(self, mock_build_agent: MagicMock) -> None:
         from issue_agent.runner.executor import MiniSWERunner
 
         task = _make_task()
@@ -3597,9 +4090,7 @@ class TestMiniSWERunner:
         mock_agent.env.reap.assert_called_once_with()
 
     @patch("issue_agent.runner.agent_factory.build_agent")
-    def test_a_failing_reap_never_breaks_the_run(
-        self, mock_build_agent: MagicMock
-    ) -> None:
+    def test_a_failing_reap_never_breaks_the_run(self, mock_build_agent: MagicMock) -> None:
         from issue_agent.runner.executor import MiniSWERunner
 
         task = _make_task()
@@ -3734,9 +4225,7 @@ class TestMiniSWERunner:
         assert result.iterations == 5
 
     @patch("issue_agent.runner.agent_factory.build_agent")
-    def test_repeated_format_error_maps_to_format_error(
-        self, mock_build_agent: MagicMock
-    ) -> None:
+    def test_repeated_format_error_maps_to_format_error(self, mock_build_agent: MagicMock) -> None:
         """DefaultAgent gives up after max_consecutive_format_errors (3)
         unreadable responses in a row. Left unmapped, that status reached the
         metrics and the issue comment raw."""
@@ -3766,9 +4255,7 @@ class TestMiniSWERunner:
         assert "format_error" not in _BLOCK_ERRORS
 
     @patch("issue_agent.runner.agent_factory.build_agent")
-    def test_unknown_exit_status_is_reported_as_error(
-        self, mock_build_agent: MagicMock
-    ) -> None:
+    def test_unknown_exit_status_is_reported_as_error(self, mock_build_agent: MagicMock) -> None:
         """An exit status with no entry in _EXIT_STATUS_ERROR passes through
         verbatim. (This used RepeatedFormatError until that status was mapped
         to "format_error" — see the test above.)"""
@@ -3820,9 +4307,7 @@ class TestMiniSWERunner:
         assert result.iterations == 2
 
     @patch("issue_agent.runner.agent_factory.build_agent")
-    def test_captures_partial_cost_on_exception(
-        self, mock_build_agent: MagicMock
-    ) -> None:
+    def test_captures_partial_cost_on_exception(self, mock_build_agent: MagicMock) -> None:
         from issue_agent.runner.executor import MiniSWERunner
 
         task = _make_task()
@@ -3845,7 +4330,6 @@ class TestMiniSWERunner:
         assert result.error == "agent_crashed"
         assert "something broke" in (result.error_detail or "")
         assert result.submission is None
-
 
     @pytest.mark.parametrize(
         "exc_factory",
@@ -3900,9 +4384,7 @@ class TestMiniSWERunner:
         assert result.error_detail  # class name + message, for the comment
 
     @patch("issue_agent.runner.agent_factory.build_agent")
-    def test_non_transient_llm_failure_is_not_llm_error(
-        self, mock_build_agent: MagicMock
-    ) -> None:
+    def test_non_transient_llm_failure_is_not_llm_error(self, mock_build_agent: MagicMock) -> None:
         """Auth/not-found style errors are abort_exceptions in mini-swe-agent:
         retrying them automatically would just burn the retry budget."""
         import litellm
@@ -3943,8 +4425,11 @@ class TestMiniSWERunner:
         assert route is not None
 
         error = ProviderError(
-            message="Budget limit exceeded (monthly limit).", code=403,
-            remedy_hint="Wait for the budget to reset.", spent_usd=10.02, limit_usd=10.0,
+            message="Budget limit exceeded (monthly limit).",
+            code=403,
+            remedy_hint="Wait for the budget to reset.",
+            spent_usd=10.02,
+            limit_usd=10.0,
         )
         mock_agent = MagicMock()
         mock_agent.cost = 0.0
@@ -3961,9 +4446,7 @@ class TestMiniSWERunner:
         )
 
     @patch("issue_agent.runner.agent_factory.build_agent")
-    def test_unwrapped_budget_api_error_is_not_transient(
-        self, mock_build_agent: MagicMock
-    ) -> None:
+    def test_unwrapped_budget_api_error_is_not_transient(self, mock_build_agent: MagicMock) -> None:
         """Belt and braces for a path that bypasses the model wrapper: the raw
         APIError must not be re-queued as transient, and its detail is the
         provider's message rather than a JSON dump cut mid-string."""
@@ -3976,16 +4459,23 @@ class TestMiniSWERunner:
         route = settings.route_for(task.provider_instance, task.repo)
         assert route is not None
 
-        body = json.dumps({"error": {
-            "message": "Budget limit exceeded (monthly limit).", "code": 403,
-            "metadata": {"limit_source": "openrouter_guardrail_budget"},
-        }})
+        body = json.dumps(
+            {
+                "error": {
+                    "message": "Budget limit exceeded (monthly limit).",
+                    "code": 403,
+                    "metadata": {"limit_source": "openrouter_guardrail_budget"},
+                }
+            }
+        )
         mock_agent = MagicMock()
         mock_agent.cost = 0.0
         mock_agent.n_calls = 1
         mock_agent.run.side_effect = litellm.exceptions.APIError(
-            status_code=500, message=f"OpenrouterException - {body}",
-            llm_provider="openrouter", model="m",
+            status_code=500,
+            message=f"OpenrouterException - {body}",
+            llm_provider="openrouter",
+            model="m",
         )
         mock_build_agent.return_value = mock_agent
 
@@ -3995,9 +4485,7 @@ class TestMiniSWERunner:
         assert result.error_detail == "Budget limit exceeded (monthly limit)."
 
     @patch("issue_agent.runner.agent_factory.build_agent")
-    def test_build_agent_failure_does_not_escape(
-        self, mock_build_agent: MagicMock
-    ) -> None:
+    def test_build_agent_failure_does_not_escape(self, mock_build_agent: MagicMock) -> None:
         from issue_agent.runner.executor import MiniSWERunner
 
         task = _make_task()
@@ -4150,9 +4638,7 @@ class TestMiniSWERunnerBlockSummary:
         agent.model.query.assert_not_called()
 
     @patch("issue_agent.runner.agent_factory.build_agent")
-    def test_on_progress_callback_is_handed_to_build_agent(
-        self, mock_build, repo: Path
-    ) -> None:
+    def test_on_progress_callback_is_handed_to_build_agent(self, mock_build, repo: Path) -> None:
         """R6: the runner forwards the executor's progress callback
         straight to build_agent, which decides whether to wrap the agent."""
         from issue_agent.runner.executor import MiniSWERunner
@@ -4184,9 +4670,7 @@ class TestMiniSWERunnerBlockSummary:
         assert result.block_summary is None
 
     @patch("issue_agent.runner.agent_factory.build_agent")
-    def test_prior_resume_summary_injected_into_template_vars(
-        self, mock_build, repo: Path
-    ) -> None:
+    def test_prior_resume_summary_injected_into_template_vars(self, mock_build, repo: Path) -> None:
         from issue_agent.runner.executor import MiniSWERunner
 
         agent = self._agent("Submitted")
@@ -4202,9 +4686,7 @@ class TestMiniSWERunnerBlockSummary:
         assert agent.extra_template_vars["resume_summary"] == "prior handoff note"
 
     @patch("issue_agent.runner.agent_factory.build_agent")
-    def test_branch_status_injected_into_template_vars(
-        self, mock_build, repo: Path
-    ) -> None:
+    def test_branch_status_injected_into_template_vars(self, mock_build, repo: Path) -> None:
         from issue_agent.runner.executor import MiniSWERunner
 
         agent = self._agent("Submitted")
@@ -4260,9 +4742,7 @@ class TestMiniSWERunnerCommentContext:
         history = _fetch_comment_history(self._comment_task(), settings, forge)
 
         assert [c.id for c in history] == ["1"]
-        forge.list_comments.assert_called_once_with(
-            42, settings.comments_context_max_comments
-        )
+        forge.list_comments.assert_called_once_with(42, settings.comments_context_max_comments)
 
     def test_history_fetch_failure_is_best_effort(self) -> None:
         from issue_agent.runner.executor import _fetch_comment_history
@@ -4306,9 +4786,7 @@ class TestMiniSWERunnerCommentContext:
         assert "confirmed, reproduces on main" in injected
 
     @patch("issue_agent.runner.agent_factory.build_agent")
-    def test_without_history_the_trigger_comment_still_arrives(
-        self, mock_build_agent
-    ) -> None:
+    def test_without_history_the_trigger_comment_still_arrives(self, mock_build_agent) -> None:
         from issue_agent.runner.executor import MiniSWERunner
 
         agent = self._mock_agent()
@@ -4321,9 +4799,7 @@ class TestMiniSWERunnerCommentContext:
         result = MiniSWERunner().run("/ws", task, settings, route, terms=TERMS)
 
         assert result.success is True
-        assert "actually the bug is in the link checker" in agent.extra_template_vars[
-            "comments"
-        ]
+        assert "actually the bug is in the link checker" in agent.extra_template_vars["comments"]
 
     @patch("issue_agent.runner.agent_factory.build_agent")
     def test_issue_opened_without_history_injects_nothing(self, mock_build_agent) -> None:
@@ -4396,9 +4872,7 @@ class TestOutbound:
         from issue_agent.runner.executor import _Outbound
 
         class _NoLabels(FakeProvider):
-            capabilities = FakeProvider.capabilities.model_copy(
-                update={"supports_labels": False}
-            )
+            capabilities = FakeProvider.capabilities.model_copy(update={"supports_labels": False})
 
         labelled = FakeProvider("fake", secret="s")
         unlabelled = _NoLabels("fake", secret="s")
@@ -4446,7 +4920,9 @@ def _set_origin_base(path: Path) -> None:
 
     subprocess.run(
         ["git", "update-ref", "refs/remotes/origin/main", "main"],
-        cwd=path, check=True, capture_output=True,
+        cwd=path,
+        check=True,
+        capture_output=True,
     )
 
 
@@ -4508,8 +4984,10 @@ class TestStillConflicting:
 
         plugin = FakeProviderWithPulls("fake", secret="s")
         out = _Outbound.for_task(plugin, _make_task())
-        return out if pulls is None else _Outbound(
-            out.task, out.forge, pulls, out.transport, out.capabilities
+        return (
+            out
+            if pulls is None
+            else _Outbound(out.task, out.forge, pulls, out.transport, out.capabilities)
         )
 
     def test_the_forge_answer_wins(self) -> None:
@@ -4534,9 +5012,7 @@ class TestStillConflicting:
             pulls.pr_has_conflicts.return_value = answer
         pr = _pr_ref(7, "stateway-io/stateway-agent-fixtures")
 
-        with patch(
-            "issue_agent.runner.executor._local_conflicts", return_value=True
-        ) as local:
+        with patch("issue_agent.runner.executor._local_conflicts", return_value=True) as local:
             assert _still_conflicting(self._out(pulls), pr, "sha", Path("."), "main", MagicMock())
         assert local.call_args.args[:2] == (Path("."), "main")
 
@@ -4557,10 +5033,14 @@ class TestBranchPublishedComment:
         from issue_agent.runner.executor import _build_branch_published_comment
 
         fields = dict(
-            task=_make_task(), branch="agent/x", compare_url=self._COMPARE,
+            task=_make_task(),
+            branch="agent/x",
+            compare_url=self._COMPARE,
             result=AgentResult(success=True, cost_usd=0.5, iterations=4),
-            description="Fixed the link.", changed_files=[("README.md", "modified")],
-            testing_notes="- [x] `pytest` passed", agent_name="Bot",
+            description="Fixed the link.",
+            changed_files=[("README.md", "modified")],
+            testing_notes="- [x] `pytest` passed",
+            agent_name="Bot",
             pr_term="Merge Request",
         )
         fields.update(overrides)
@@ -4580,7 +5060,9 @@ class TestBranchPublishedComment:
 
     def test_follow_up_reports_the_base_merge_and_conflicts(self) -> None:
         comment = self._comment(
-            updated_existing=True, base_update=BaseUpdate("merged"), still_conflicting=True,
+            updated_existing=True,
+            base_update=BaseUpdate("merged"),
+            still_conflicting=True,
         )
 
         assert "updated branch `agent/x` in response to the latest comment" in comment
@@ -4595,8 +5077,10 @@ class TestBranchPublishedComment:
 
     def test_initial_comment_on_a_published_branch_follow_up(self) -> None:
         work = IssueWork(
-            issue_repo="stateway-io/stateway-issues", issue_number=42,
-            target_repo="stateway-io/stateway-agent-fixtures", base_branch="main",
+            issue_repo="stateway-io/stateway-issues",
+            issue_number=42,
+            target_repo="stateway-io/stateway-agent-fixtures",
+            base_branch="main",
             work_branch="agent/x",
         )
 
@@ -4615,17 +5099,23 @@ class TestReopenPublishedBranch:
         task = _make_task()
         store.insert_task(task)
         store.open_issue_work(
-            "github",
-            task.repo, 42, task.target_repo, "main", "agent/issue-42-earlier-title"
+            "github", task.repo, 42, task.target_repo, "main", "agent/issue-42-earlier-title"
         )
         store.update_issue_work(
             "github",
-            task.repo, 42, state="closed", closed_reason="branch_published",
+            task.repo,
+            42,
+            state="closed",
+            closed_reason="branch_published",
             last_summary="earlier",
         )
 
         work, resumed, force_continue = _open_or_resume_issue_work(
-            store, task, settings, settings.route_for(task.provider_instance, task.repo), "A new title"
+            store,
+            task,
+            settings,
+            settings.route_for(task.provider_instance, task.repo),
+            "A new title",
         )
 
         assert (resumed, force_continue) == (True, True)

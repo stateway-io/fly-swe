@@ -44,9 +44,7 @@ class GitHubAppAuth:
         return token.token
 
     def get_client(self, installation_id: int) -> Github:
-        return Github(
-            auth=Auth.Token(self.get_token(installation_id)), base_url=self._base_url
-        )
+        return Github(auth=Auth.Token(self.get_token(installation_id)), base_url=self._base_url)
 
     def resolve_installation_id(self, owner: str, repo: str) -> int:
         return self._integration.get_repo_installation(owner, repo).id
@@ -67,4 +65,3 @@ class GitHubAppAuth:
 
     def client_for(self, repo: str) -> Github:
         return self.get_client(self.installation_for(repo))
-

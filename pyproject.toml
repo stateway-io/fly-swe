@@ -1,6 +1,6 @@
 [project]
 name = "fly-swe"
-version = "1.1.13"
+version = "1.1.14"
 description = "A lightweight, mini-swe-agent-based GitHub issue agent, built for Fly.io and easy to deploy anywhere"
 readme = "README.md"
 license = "AGPL-3.0-only"
@@ -51,9 +51,26 @@ markers = [
 ]
 testpaths = ["tests"]
 
+# Coverage is opt-in (`--cov`), not in `addopts`, so a single focused test run
+# stays fast. CI runs `pytest tests/unit tests/integration --cov` and the floor
+# below fails the job; e2e tests are excluded since they need real credentials.
+[tool.coverage.run]
+source = ["issue_agent"]
+branch = true
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true
+skip_covered = true
+exclude_also = [
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]
+
 [dependency-groups]
 dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.25.0",
+    "pytest-cov>=6.0.0",
     "ruff>=0.11.0",
 ]

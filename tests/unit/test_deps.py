@@ -30,7 +30,9 @@ class TestInstallProjectDependencies:
         with patch("issue_agent.runner.deps._run_sandboxed") as mock_run:
             mock_run.return_value.stdout = "ok"
             mock_run.return_value.returncode = 0
-            install_project_dependencies(tmp_path, [spec], {"PATH": "/data/tools/nodejs/bin"}, timeout_seconds=30)
+            install_project_dependencies(
+                tmp_path, [spec], {"PATH": "/data/tools/nodejs/bin"}, timeout_seconds=30
+            )
 
         mock_run.assert_called_once()
         assert "npm ci" in mock_run.call_args[0][0]
@@ -47,7 +49,9 @@ class TestInstallProjectDependencies:
         with patch("issue_agent.runner.deps._run_sandboxed") as mock_run:
             mock_run.return_value.stdout = "ok"
             mock_run.return_value.returncode = 0
-            install_project_dependencies(tmp_path, [spec], {"PATH": "/data/tools/nodejs/bin"}, timeout_seconds=30)
+            install_project_dependencies(
+                tmp_path, [spec], {"PATH": "/data/tools/nodejs/bin"}, timeout_seconds=30
+            )
 
         assert "npm install" in mock_run.call_args[0][0]
 
@@ -63,7 +67,9 @@ class TestInstallProjectDependencies:
         with patch("issue_agent.runner.deps._run_sandboxed") as mock_run:
             mock_run.return_value.stdout = "error"
             mock_run.return_value.returncode = 1
-            install_project_dependencies(tmp_path, [spec], {"PATH": "/data/tools/nodejs/bin"}, timeout_seconds=30)
+            install_project_dependencies(
+                tmp_path, [spec], {"PATH": "/data/tools/nodejs/bin"}, timeout_seconds=30
+            )
 
         mock_run.assert_called_once()
 
@@ -80,7 +86,9 @@ class TestInstallProjectDependencies:
         with patch("issue_agent.runner.deps._run_sandboxed") as mock_run:
             mock_run.return_value.stdout = "ok"
             mock_run.return_value.returncode = 0
-            install_project_dependencies(tmp_path, [spec], {"PATH": "/data/tools/nodejs/bin"}, timeout_seconds=30)
+            install_project_dependencies(
+                tmp_path, [spec], {"PATH": "/data/tools/nodejs/bin"}, timeout_seconds=30
+            )
 
         assert "yarn install" in mock_run.call_args[0][0]
 
@@ -97,6 +105,8 @@ class TestInstallProjectDependencies:
         with patch("issue_agent.runner.deps._run_sandboxed") as mock_run:
             mock_run.return_value.stdout = "ok"
             mock_run.return_value.returncode = 0
-            install_project_dependencies(tmp_path, [spec], {"PATH": "/data/tools/nodejs/bin"}, timeout_seconds=30)
+            install_project_dependencies(
+                tmp_path, [spec], {"PATH": "/data/tools/nodejs/bin"}, timeout_seconds=30
+            )
 
         assert "pnpm install" in mock_run.call_args[0][0]

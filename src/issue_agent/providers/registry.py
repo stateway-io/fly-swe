@@ -22,13 +22,13 @@ BUILTIN_PROVIDER_TYPES: dict[str, type[ProviderPlugin]] = {
     GitHubProviderPlugin.type: GitHubProviderPlugin,
 }
 
+
 class ProviderRegistry:
     def __init__(self, plugins: Mapping[str, ProviderPlugin]) -> None:
         for instance_id, plugin in plugins.items():
             if plugin.instance_id != instance_id:
                 raise ValueError(
-                    f"provider registered as {instance_id!r} "
-                    f"says it is {plugin.instance_id!r}"
+                    f"provider registered as {instance_id!r} says it is {plugin.instance_id!r}"
                 )
             has_pulls = type(plugin).pulls is not ProviderPlugin.pulls
             if has_pulls != plugin.capabilities.supports_pr_api:
