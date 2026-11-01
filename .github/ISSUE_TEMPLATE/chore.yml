@@ -1,0 +1,70 @@
+name: Chore / Maintenance
+description: Suggest a light refactor, lint fix, dependency bump, or maintenance task.
+title: "[Chore] "
+labels: ["chore"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping keep the project healthy. Use this template for small maintenance tasks.
+
+  - type: input
+    id: title
+    attributes:
+      label: Summary
+      description: A short, clear description of the chore
+    validations:
+      required: true
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Chore kind
+      description: What kind of maintenance is this?
+      options:
+        - dependency bump
+        - lint / format
+        - refactor
+        - test improvement
+        - cleanup
+        - other
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What needs to be done and why?
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: Which files, modules, or areas are affected?
+      placeholder: |
+        e.g. src/issue_agent/runner/, tests/unit/
+    validations:
+      required: false
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      description: How urgent is this chore?
+      options:
+        - low
+        - medium
+        - high
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Additional notes
+      description: Any references, gotchas, or related issues?
+    validations:
+      required: false

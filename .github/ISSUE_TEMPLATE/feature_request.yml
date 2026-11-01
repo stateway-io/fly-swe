@@ -1,26 +1,45 @@
-name: Feature request
+name: Feature Request
 description: Suggest an improvement or a new capability for fly-swe.
-labels: ["enhancement"]
+title: "[Feature] "
+labels: ["feature-request"]
 body:
-  - type: textarea
-    id: problem
+  - type: markdown
     attributes:
-      label: Problem
-      description: What are you trying to do, and what gets in the way today?
+      value: |
+        Thanks for sharing your idea! A clear proposal helps us evaluate it.
+
+  - type: input
+    id: title
+    attributes:
+      label: Summary
+      description: A short, clear description of your suggestion
     validations:
       required: true
+
   - type: textarea
-    id: proposal
+    id: description
     attributes:
-      label: Proposed solution
-      description: How you would like fly-swe to behave.
+      label: Description
+      description: How would you like fly-swe to behave? Describe the feature in detail.
     validations:
       required: true
+
   - type: textarea
-    id: alternatives
+    id: why
     attributes:
-      label: Alternatives considered
+      label: Why is this useful?
+      description: What are you trying to do, and what gets in the way today? Who would benefit?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternative
+    attributes:
+      label: Current workaround
       description: Workarounds or other approaches you have looked at.
+    validations:
+      required: false
+
   - type: dropdown
     id: area
     attributes:
@@ -34,3 +53,25 @@ body:
         - Queue, budgets or observability
         - Deployment / configuration
         - Documentation
+    validations:
+      required: false
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      description: How important is this feature to you?
+      options:
+        - low
+        - medium
+        - high
+    validations:
+      required: true
+
+  - type: textarea
+    id: attachments
+    attributes:
+      label: Attachments
+      description: If applicable, attach diagrams, config sketches, or links to related issues.
+    validations:
+      required: false
