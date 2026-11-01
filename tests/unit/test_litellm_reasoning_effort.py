@@ -7,9 +7,10 @@ the feature depends on, against the pinned LiteLLM version, with no network
 call (``get_optional_params`` is pure request-shaping):
 
 1. On an adaptive-thinking Anthropic model, it becomes
-   ``thinking={"type": "adaptive"}`` + ``output_config.effort`` — the modern
-   control surface those models require (they reject a fixed
-   ``budget_tokens``).
+   ``thinking={"type": "adaptive", ...}`` + ``output_config.effort`` — the
+   modern control surface those models require (they reject a fixed
+   ``budget_tokens``). Extra presentation keys LiteLLM adds to ``thinking``
+   (e.g. ``display``) are tolerated.
 2. On an older Anthropic model, it becomes a *fixed* thinking-token budget
    instead (there is no ``output_config.effort`` to use).
 3. On a model/provider with no reasoning support, LiteLLM raises
@@ -34,7 +35,10 @@ def test_adaptive_model_maps_to_thinking_adaptive_and_output_config_effort():
         custom_llm_provider="anthropic",
         reasoning_effort="high",
     )
-    assert params["thinking"] == {"type": "adaptive"}
+    # Assert the contract, not the exact dict: LiteLLM may add presentation
+    # keys (1.100 added ``display: "summarized"``) without changing behavior.
+    assert params["thinking"]["type"] == "adaptive"
+    assert "budget_tokens" not in params["thinking"]
     assert params["output_config"] == {"effort": "high"}
 
 
