@@ -34,7 +34,7 @@ below as defence-in-depth, not as a sandbox.
   the worker process — the GitHub App key, LLM API key, and `FLY_API_TOKEN`
   are never visible to a command the agent runs.
 - **Tokenless git remote.** The clone URL never carries credentials
-  (`runner/git_auth.py`); there is nothing in `.git/config` for the agent to
+  (`runner/workspace.py`, `providers/github/transport.py`); there is nothing in `.git/config` for the agent to
   read and exfiltrate.
 - **No push credential, no `gh`.** The agent cannot push, open a PR, or call
   the GitHub API directly — only the harness can, after the agent's run ends

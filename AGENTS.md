@@ -34,7 +34,7 @@ prompts/                → system.md, system_diagnose.md + templates per label 
 tests/                  → unit, integration, e2e
 config.yaml             → non-secret configuration (precedence: env > yaml > default)
 Dockerfile / fly.toml / Procfile
-docs/                   → runbook (operations), troubleshooting, label-schema, deploy/, research/
+docs/                   → runbook (operations), troubleshooting, label-schema, deploy/, plans/, research/
 ```
 
 ## Architecture Constraints
@@ -153,7 +153,7 @@ step 5 below), so `main`'s version is always current and ready to tag. When a
 set of changes is ready for production:
 1. Confirm `main`'s current `pyproject.toml` version is the one to ship
 2. Create a GitHub Release with tag `vMAJOR.MINOR.PATCH` **equal** to
-   the `pyproject.toml` version: `gh release create v0.1.0 --target main --generate-notes`
+   the `pyproject.toml` version: `gh release create vX.Y.Z --target main --generate-notes`
 3. `deploy.yml` triggers on the Release and deploys to Fly + smoke tests
 4. Manual rollback / redeploy: `workflow_dispatch` on the **Deploy** workflow
 

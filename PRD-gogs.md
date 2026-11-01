@@ -1,8 +1,8 @@
 # PRD — Gogs Provider
 
-**Status:** Draft for future implementation. **Blocked** by Phases 1–3
-of the [provider plugins PRD](./PRD.md), by the Phase 4 `terms`, and by the
-generic prerequisites in §3.1/§3.7 of that PRD.
+**Status:** Draft, not scheduled. Its prerequisites — Phases 0–4 of the
+[provider plugins PRD](./PRD.md), including the `terms` vocabulary and the
+generic prerequisites in §3.1/§3.7 — are done (v1.1.0).
 **Date:** 2026-10-24
 **Type:** `feat` (new provider; no change to the core)
 

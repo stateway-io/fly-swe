@@ -347,9 +347,9 @@ executable and transcript format, but no per-step calls. This variant is
 less tested upstream, so the spike should try it first.
 
 **Alternative**: Claude Code and Codex are supported natively. If fly-swe
-ever implements a concrete `CodingAgentDelegator`
-(`runner/delegators/__init__.py` defines the protocol but has no
-implementation yet), capture would come almost for free with that engine.
+ever delegates to one of those engines (an earlier, unimplemented
+delegator protocol was removed in v1.1.10), capture would come almost for
+free with that engine.
 Changing the engine just to get capture is not justified.
 
 ## 8. Risks and open questions

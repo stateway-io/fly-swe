@@ -4,6 +4,12 @@
 > evaluation and landscape survey as of the date below; it is not kept in
 > sync with the codebase. For current, authoritative behaviour see
 > [`docs/operations.md`](../operations.md) and the source under `src/`.
+>
+> **Since this snapshot:** the `CodingAgentDelegator` protocol
+> (`runner/delegators/`) was removed in v1.1.10 without an implementation;
+> `webhook/validation.py` moved into `providers/github/webhook.py`; and the
+> §7.3 gaps were closed — the trajectory is persisted per task and no write
+> token reaches the agent's process (see [`SECURITY.md`](../../SECURITY.md)).
 
 **Version:** 1.0
 **Date:** 2026-09-03
