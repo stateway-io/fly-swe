@@ -82,7 +82,7 @@ class SQLiteStore:
         `DROP COLUMN` can't remove a NOT NULL column without a default, so
         `tasks` is rebuilt v2-style in one transaction, keeping every row
         and the ids `task_events` points to. Like v7, this is a documented
-        exception to the additive-migration rule (P4, see
+        exception to the additive-migration rule (see
         docs/operations.md): an older image can't insert into the new
         shape, so roll back by restoring a volume snapshot. Idempotent:
         guarded by `PRAGMA table_info`, a no-op on fresh DBs where
@@ -154,7 +154,7 @@ class SQLiteStore:
         v2-style (create, copy every row, drop, rename) in one transaction,
         with existing rows assigned to the `github` instance — the only one
         that existed before. This is the documented exception to the
-        additive-migration rule (P4, see docs/operations.md). Idempotent:
+        additive-migration rule (see docs/operations.md). Idempotent:
         guarded by `PRAGMA table_info`, a no-op on fresh DBs where
         schema.sql already created the new shape.
 
@@ -300,7 +300,7 @@ class SQLiteStore:
 
         Unlike _migrate_v1.._migrate_v3, this never rebuilds `tasks`: it is
         only ``CREATE TABLE IF NOT EXISTS`` plus its partial index, the
-        additive form the additive-migration rule requires (P4). Idempotent —
+        additive form the additive-migration rule requires. Idempotent —
         a no-op once the table exists (including on fresh DBs, where
         schema.sql already created it)."""
         self.conn.executescript(
@@ -857,7 +857,7 @@ class SQLiteStore:
 
     def touch_issue_work(self, provider_instance: str, issue_repo: str, issue_number: int) -> None:
         """Bump ``updated_at`` without changing any other field — records that
-        an external event (e.g. ``issues.reopened``, R7.2) was seen."""
+        an external event (e.g. ``issues.reopened``) was seen."""
         self.conn.execute(
             "UPDATE issue_work SET updated_at = ? "
             "WHERE provider_instance = ? AND issue_repo = ? AND issue_number = ?",
@@ -866,8 +866,8 @@ class SQLiteStore:
         self.conn.commit()
 
     def list_open_issue_work(self, limit: int) -> list[IssueWork]:
-        """Open work rows, oldest first — the reconciliation sweep's input
-        (R7.3/R7.4). Served by ``idx_issue_work_open``."""
+        """Open work rows, oldest first — the reconciliation sweep's input.
+        Served by ``idx_issue_work_open``."""
         if limit <= 0:
             return []
         rows = self.conn.execute(

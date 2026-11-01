@@ -70,7 +70,7 @@ class AgentResult:
     # "summarize what you changed and why" instruction in prompts/system.md
     # actually feeds something instead of being silently discarded.
     submission: str | None = None
-    # R5: on a block outcome (task_timeout / budget_exceeded / cost_unavailable)
+    # On a block outcome (task_timeout / budget_exceeded / cost_unavailable)
     # the runner summarizes the interrupted attempt here — mechanical (zero
     # cost) or LLM per `resume.summary_on_block`. The executor persists it on
     # `issue_work` and injects it into the next run. None on success or when
@@ -182,9 +182,9 @@ def _is_transient_llm_error(exc: BaseException) -> bool:
 
 
 def _fetch_comment_history(task: Task, settings: Settings, forge: ForgeClient) -> list[Comment]:
-    """The issue's recent comments, normalized, for the run context (R3.2).
+    """The issue's recent comments, normalized, for the run context.
 
-    Best-effort (R3.6): any failure — bad credentials, the forge down —
+    Best-effort: any failure — bad credentials, the forge down —
     returns an empty list and the run still gets the triggering comment,
     which rode in on the webhook payload. A freshly ``opened`` issue has no
     thread, so that trigger is skipped entirely.
@@ -205,7 +205,7 @@ def _fetch_comment_history(task: Task, settings: Settings, forge: ForgeClient) -
 
 
 # Outcomes where the agent did real, paid work that a resume can build on —
-# the ones that get a WIP push and a block summary (R4.3, R5).
+# the ones that get a WIP push and a block summary.
 _BLOCK_ERRORS = {
     "task_timeout",
     "budget_exceeded",
@@ -230,7 +230,7 @@ _SALVAGE_ERRORS = _BLOCK_ERRORS | {
 def _maybe_block_summary(
     agent, settings: Settings, workspace_path: str, error: str | None
 ) -> tuple[str | None, str, float]:
-    """Summarize the interrupted attempt for the next run (R5). Best-effort:
+    """Summarize the interrupted attempt for the next run. Best-effort:
     any failure leaves the block without a summary rather than crashing the
     task — the WIP on the branch is the real safety net. Returns
     ``(text_or_None, kind, extra_cost_usd)``."""
@@ -319,12 +319,12 @@ class MiniSWERunner:
         user_message = build_user_message(task, terms)
 
         # The discussion thread reaches the model as a Jinja *value* through
-        # the static <comments> block (R3, D8) — never concatenated into
+        # the static <comments> block — never concatenated into
         # template text. The caller fetched it from the forge.
         agent.extra_template_vars["comments"] = build_comments_block(
             task, comment_history or [], settings
         )
-        # The prior attempt's handoff note, same value-only path (R5.6). Set
+        # The prior attempt's handoff note, same value-only path. Set
         # only on a resume; agent_factory seeds it "" for the first attempt.
         if resume_summary:
             agent.extra_template_vars["resume_summary"] = resume_summary
@@ -341,7 +341,7 @@ class MiniSWERunner:
             finally:
                 _reap_agent_processes(agent, task)
         except CostUnavailableError:
-            # Strict cost tracking refused to proceed unmetered (R5.5.3) —
+            # Strict cost tracking refused to proceed unmetered —
             # a terminal, alert-worthy stop, not a generic crash to retry.
             exit_status, submission = "cost_unavailable", None
         except ProviderBudgetExceededError as exc:
@@ -935,7 +935,7 @@ def _consume_checks_sentinel(ws_path: Path) -> list[ReportedCheck]:
 def _resolve_test_command(project: ProjectProfile, sentinel_command: str | None) -> str | None:
     """Decide which command (if any) verifies the agent's changes.
 
-    Priority order (A10 / R5.6.5): (1) ``project.test_command``, if
+    Priority order: (1) ``project.test_command``, if
     explicitly configured on the resolved repo route — config always wins,
     even if the agent used something else; (2) ``sentinel_command``, the
     first line of the ``.agent-test-command`` sentinel file the agent may
@@ -958,8 +958,8 @@ def _run_test_command(
 
     This runs in the worker process, *after* the LLM agent's own run has
     ended — never as part of its bash loop — so ``testing_notes`` reflects
-    an objective, code-driven result instead of the agent's self-report
-    (R5.6.5). It reuses the same env allowlist (``_sandboxed_env``) and
+    an objective, code-driven result instead of the agent's self-report.
+    It reuses the same env allowlist (``_sandboxed_env``) and
     timeout/process-group-kill subprocess helper (``_run``) that the
     agent's own sandboxed bash commands use
     (``issue_agent.runner.environment``), rather than a fresh, unaudited
@@ -1320,7 +1320,7 @@ def _build_abort_comment(
 @dataclass
 class WipOutcome:
     """What `_preserve_wip_on_block` did with the partial work — drives the
-    block comment (R4.6, R4.7)."""
+    block comment."""
 
     reason: str = "disabled"  # disabled | no_changes | pushed | push_failed | max_attempts
     branch: str = ""
@@ -1649,7 +1649,7 @@ def _build_test_retry_comment(
 
 
 # One-line description of why the previous attempt stopped, for the
-# continuation comment (R1.4). Keyed by the `last_error` persisted on
+# continuation comment. Keyed by the `last_error` persisted on
 # issue_work when a run blocked.
 _PRIOR_STOP_REASONS: dict[str, str] = {
     "budget_exceeded": "the per-task budget was exceeded",
@@ -1673,7 +1673,7 @@ def _build_initial_comment(
     pr_number: int | None = None,
     published_branch: bool = False,
 ) -> str:
-    """Announce the start (or resumption) of work on an issue (R1.1, R1.4).
+    """Announce the start (or resumption) of work on an issue.
 
     Carries the attempt number, the frozen work branch and the task id.
     `work.attempts` is 0 on the first run and incremented on each resume;
@@ -1701,7 +1701,7 @@ def _build_initial_comment(
 
 
 def _build_progress_comment(task: Task, iteration: int, cost_usd: float, agent_name: str) -> str:
-    """The "still working" comment posted mid-run every N iterations (R6.1)."""
+    """The "still working" comment posted mid-run every N iterations."""
     return (
         f"🤖 **{agent_name}** is still working on this issue.\n\n"
         f"Iteration: {iteration} | Accumulated cost: US$ {cost_usd:.2f}\n\n"
@@ -1713,8 +1713,8 @@ def _make_progress_reporter(
     out: _Outbound, task: Task, agent_name: str, task_log
 ) -> Callable[[int, float], None]:
     """A callback the agent invokes mid-run to post a progress comment. The
-    subclass already caps frequency and count and swallows errors (R6.3,
-    R6.4); this only builds the text and posts it."""
+    subclass already caps frequency and count and swallows errors;
+    this only builds the text and posts it."""
 
     def _report(iteration: int, cost_usd: float) -> None:
         out.comment(_build_progress_comment(task, iteration, cost_usd, agent_name))
@@ -1731,15 +1731,15 @@ def _open_or_resume_issue_work(
     issue_title: str,
 ) -> tuple[IssueWork, bool, bool]:
     """Get the `issue_work` row for this issue, opening it on the first FIX
-    run and resuming it on later ones (R4.1). Returns
+    run and resuming it on later ones. Returns
     ``(work, resumed, force_continue)``.
 
     The work branch is computed once here — from the issue title in effect
     at open time — and frozen on the row; every subsequent run reads it back
-    instead of recomputing from a payload that may have changed (C4). A row
+    instead of recomputing from a payload that may have changed. A row
     left `closed` is normally treated as absent (a new work item starts
     fresh) — with one exception: a row closed as `pr_opened` (or, on a forge
-    with no PR API, `branch_published` — PRD §3.7) is reopened *in place*
+    with no PR API, `branch_published`) is reopened *in place*
     instead, so a maintainer's follow-up comment continues from the
     delivered branch rather than re-cloning and re-doing the work from
     scratch. `force_continue` is True only for that reopen — it tells
@@ -1788,7 +1788,7 @@ def _open_or_resume_issue_work(
         branch = _branch()
         if work is not None:
             # A closed row (no_changes/max_attempts/terminal_failure — the
-            # delivered cases are handled above, and R7.6 already intercepted
+            # delivered cases are handled above, and the closed-issue guard already intercepted
             # the one closed_reason, `issue_closed`, that must NOT restart)
             # is a spent work item — the PK forbids a second `open`, so drop
             # it and start fresh.
@@ -1810,7 +1810,7 @@ def _open_or_resume_issue_work(
 
     updates: dict = {"attempts": work.attempts + 1, "last_task_id": task.id}
     # A blank work_branch means a prior WIP push failed and the row was reset
-    # for a clean restart (R4.4): recompute the branch from the current title
+    # for a clean restart: recompute the branch from the current title
     # now, keeping the attempts counter (and the max_attempts cap) intact.
     if not work.work_branch:
         updates["work_branch"] = _branch()
@@ -1917,7 +1917,7 @@ def _close_issue_work(
 
 def _remote_branch_exists(ws_path: Path, branch: str, git_env: dict[str, str]) -> bool:
     """Whether ``branch`` is on the target remote — decides resume-from-branch
-    vs. start-from-base (R4.2). Any failure is treated as "not there", so a
+    vs. start-from-base. Any failure is treated as "not there", so a
     flaky ``ls-remote`` degrades to a clean restart rather than a crash."""
     try:
         out = _run_git(
@@ -1947,8 +1947,8 @@ def _preserve_wip_on_block(
 ) -> WipOutcome:
     """Commit and push the partial work to the frozen branch before cleanup,
     persist the block summary, and decide whether the work stays open, closes
-    with ``no_changes`` (nothing to resume, R4.5), or closes with
-    ``max_attempts`` (retry ceiling, R4.7).
+    with ``no_changes`` (nothing to resume), or closes with
+    ``max_attempts`` (retry ceiling).
 
     The block is always recorded on the row (``last_error`` / ``last_task_id``)
     so ``resume.enabled: false`` keeps the behavior from before resume existed."""
@@ -2146,7 +2146,7 @@ def _fail(
         "cost_usd": cost_usd,
         "iterations": iterations,
     }
-    # R8.2: entries for a task that is part of an issue_work item carry which
+    # Entries for a task that is part of an issue_work item carry which
     # attempt and branch it ran on.
     if work is not None:
         audit["attempts"] = work.attempts
@@ -2206,7 +2206,7 @@ def run_task(store: SQLiteStore, task: Task, settings: Settings, plugin: Provide
 
     issue_title = _extract_issue_title(task)
 
-    # R7.6: the issue was closed (webhook or reconciliation) while this task
+    # The issue was closed (webhook or reconciliation) while this task
     # sat in the queue. Abort without cost — no clone, no agent, no comment
     # (commenting on a closed issue is noise). The row stays closed; a fresh
     # trigger on a reopened issue starts new work explicitly.
@@ -2224,18 +2224,18 @@ def run_task(store: SQLiteStore, task: Task, settings: Settings, plugin: Provide
         )
         return
 
-    # Per-issue work state (R4.1). The work branch is frozen on this
+    # Per-issue work state. The work branch is frozen on this
     # row the first time the issue is worked — computed from task.workflow
     # (frozen at webhook-ingestion time, NOT route.workflow which reflects
     # the current config) and the title in effect then — and read back on
     # every later run, so editing the issue title between attempts can't
-    # silently move the branch (C4).
+    # silently move the branch.
     work, resumed, force_continue = _open_or_resume_issue_work(
         store, task, settings, route, issue_title
     )
     branch = work.work_branch
     # On a resume, the prior attempt's handoff note rides into the next run's
-    # prompt (R3.1 item 4, R5.6). A delivered reopen (`force_continue`)
+    # prompt. A delivered reopen (`force_continue`)
     # gets this too, regardless of `resume.enabled` — it's a distinct
     # feature from the block-retry resume machinery that flag gates.
     resume_summary = (
@@ -2287,7 +2287,7 @@ def run_task(store: SQLiteStore, task: Task, settings: Settings, plugin: Provide
 
     try:
         # A resume clones the base (so `_salvage_agent_commits` keeps its
-        # `origin/<base_branch>` ref, R4.2) and then checks out the work
+        # `origin/<base_branch>` ref) and then checks out the work
         # branch's tip when it exists on the remote — otherwise it starts
         # fresh from the base, exactly like a first run.
         checked_out_wip = False
@@ -2297,7 +2297,7 @@ def run_task(store: SQLiteStore, task: Task, settings: Settings, plugin: Provide
             if _remote_branch_exists(ws_path, branch, git_env):
                 # Deepen the shallow base clone so the work branch and
                 # `origin/<base_branch>` share history — `_salvage_agent_commits`
-                # walks `origin/<base>..HEAD` (R4.2). Best-effort: a no-op /
+                # walks `origin/<base>..HEAD`. Best-effort: a no-op /
                 # error when the clone is already complete.
                 with contextlib.suppress(Exception):
                     _run_git(ws_path, "fetch", "--unshallow", "origin", env=git_env)
@@ -2437,9 +2437,9 @@ def run_task(store: SQLiteStore, task: Task, settings: Settings, plugin: Provide
                 # A block (or an unexpected failure, e.g. the LLM provider
                 # dropping the connection): preserve the partial work on the
                 # branch and keep `issue_work` open so the next trigger
-                # resumes it (R4.3). `_preserve_wip_on_block` may instead
-                # close it — `no_changes` when there is nothing to resume
-                # (R4.5), `max_attempts` when the retry ceiling is hit (R4.7).
+                # resumes it. `_preserve_wip_on_block` may instead
+                # close it — `no_changes` when there is nothing to resume,
+                # `max_attempts` when the retry ceiling is hit.
                 block_persist_result = (
                     result
                     if accumulated_cost == 0.0 and accumulated_iterations == 0
@@ -2810,7 +2810,7 @@ def run_task(store: SQLiteStore, task: Task, settings: Settings, plugin: Provide
             return
 
         try:
-            # origin is already the tokenless URL Workspace.clone() set up (A2);
+            # origin is already the tokenless URL Workspace.clone() set up;
             # authenticate this push via env only, never by rewriting the remote
             # URL — that would put the credential back into .git/config.
             _run_git(ws_path, "push", "-f", "origin", branch, env=out.git_env())

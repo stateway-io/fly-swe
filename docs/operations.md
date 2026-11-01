@@ -200,7 +200,7 @@ There is a salvage path — the executor detects commits the agent made on
 top of the clone point and folds them back into the tree (logged as
 `agent_self_committed`) — but it is a safety net, not the design.
 
-The agent's sandbox has **no push credential and no `gh`** (finding A2), so
+The agent's sandbox has **no push credential and no `gh`**, so
 it can never actually push or open a PR; the only failure mode is a local
 commit.
 

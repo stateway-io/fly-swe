@@ -1,5 +1,5 @@
 """LiteLLM-backed checks about the configured model — provider resolution and
-function-calling support (R5.5.1, R5.5.2).
+function-calling support.
 
 The provider is always a parameter here: an explicit ``llm.provider`` from the
 config, or the prefix LiteLLM parses out of the model string. It is never

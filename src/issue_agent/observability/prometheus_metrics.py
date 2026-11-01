@@ -30,8 +30,8 @@ budget_used_today_usd = Gauge(
     ["provider_instance", "repo"],
 )
 
-# R8.3. Cardinality stays bounded: one series per repo, mirroring
-# the existing repo-labelled metrics (R5.2.6). Every repo-labelled
+# Cardinality stays bounded: one series per repo, mirroring
+# the existing repo-labelled metrics. Every repo-labelled
 # metric also carries `provider_instance`: the same owner/name can live on two
 # forges (PRD Phase 4).
 issue_work_resumes_total = Counter(

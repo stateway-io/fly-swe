@@ -312,7 +312,7 @@ This is a recorded decision ("scoped LocalWorkspace, not Docker sandbox", with D
 
 ### 6.4 Operational notes already paid for in production
 
-Our internal deploy notes record the specific pitfalls of this setup, and they remain valid: the Docker image is a snapshot of the repo at deploy time; **Fly secrets don't sync with `.env`**; a 503 on `/readyz` makes the proxy block external traffic; the `LLM_MODEL` prefix must match the key's provider. Any sandbox change runs into these same points.
+Known deploy pitfalls of this setup, still valid: the Docker image is a snapshot of the repo at deploy time; **Fly secrets don't sync with `.env`**; a 503 on `/readyz` makes the proxy block external traffic; the `LLM_MODEL` prefix must match the key's provider. Any sandbox change runs into these same points.
 
 ---
 

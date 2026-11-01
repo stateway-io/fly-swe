@@ -276,7 +276,7 @@ class TestParseGitStatus:
         assert _parse_git_status("  \n\n  ") == []
 
 
-# ── _resolve_test_command (A10 / R5.6.5) ────────────────────────────
+# ── _resolve_test_command ────────────────────────────
 
 
 def _route_project(settings: Settings, issue_repo: str = "stateway-io/stateway-issues"):
@@ -1118,7 +1118,7 @@ class TestRunTask:
     def test_route_not_found_fails_recoverable_with_explicit_message(
         self, store: SQLiteStore, settings: Settings
     ) -> None:
-        """R5.2: if task.repo no longer resolves via settings.route_for()
+        """If task.repo no longer resolves via settings.route_for()
         (e.g. config.yaml's repos: list changed between webhook enqueue and
         worker execution), run_task must fail the task explicitly instead of
         letting an AttributeError/None-access bubble out further down (e.g.
@@ -1225,7 +1225,7 @@ class TestRunTask:
         mock_git: MagicMock,
         store: SQLiteStore,
     ) -> None:
-        """R5.3.1: a gitflow-routed pair must branch off `base_branch`
+        """A gitflow-routed pair must branch off `base_branch`
         itself (not the trunk_based `<branch_prefix>/issue-<n>-<slug>`
         shape) and open the PR against that same branch, honoring
         route.draft/route.labels too. If the code hardcoded/ignored
@@ -1489,7 +1489,7 @@ class TestRunTask:
         mock_ws_instance.clone.assert_called_once()
         runner.run.assert_called_once()
         gh.pulls.create_pr.assert_called_once()
-        # initial "started work" comment (R1) + the fix comment
+        # initial "started work" comment + the fix comment
         assert len(gh.comments()) == 2
         assert "PR" in gh.comments()[-1]
         mock_ws_instance.cleanup.assert_called_once()
@@ -1779,7 +1779,7 @@ class TestRunTask:
         store: SQLiteStore,
         settings: Settings,
     ) -> None:
-        """R5.3.5: when `ws.clone(target_branch=task.base_branch)` fails
+        """When `ws.clone(target_branch=task.base_branch)` fails
         (e.g. the configured base_branch doesn't exist in target_repo), the
         persisted error must name the offending base_branch, the target
         repo, and the repo's actual default branch — not just re-surface
@@ -1880,7 +1880,7 @@ class TestRunTask:
         assert updated.status is TaskStatus.FAILED_TERMINAL
         assert "agent_crashed" in (updated.error or "")
 
-        # initial "started work" comment (R1) + the abort comment
+        # initial "started work" comment + the abort comment
         assert len(gh.comments()) == 2
         assert "aborted" in gh.comments()[-1].lower()
 
@@ -1920,7 +1920,7 @@ class TestRunTask:
         assert updated.cost_usd == 2.00
         assert updated.iterations == 20
 
-        assert len(gh.comments()) == 2  # initial (R1) + abort
+        assert len(gh.comments()) == 2  # initial + abort
         assert "aborted" in gh.comments()[-1].lower()
 
     @patch("issue_agent.runner.executor._run_git")
@@ -1994,7 +1994,7 @@ class TestRunTask:
         assert updated.cost_usd == 1.50
         assert updated.iterations == 15
 
-        assert len(gh.comments()) == 2  # initial (R1) + abort
+        assert len(gh.comments()) == 2  # initial + abort
         assert "aborted" in gh.comments()[-1].lower()
 
     @patch("issue_agent.runner.executor.send_budget_alert")
@@ -2072,7 +2072,7 @@ class TestRunTask:
         assert updated.status is TaskStatus.ABORTED_POLICY
         assert "no_changes" in (updated.error or "")
 
-        assert len(gh.comments()) == 2  # initial (R1) + abort
+        assert len(gh.comments()) == 2  # initial + abort
         # `no_changes` is a verdict, not a failure: the comment leads with
         # that framing so the agent's own report (which must cite the commit
         # that already landed the fix) reads as the content, not as an error.
@@ -2500,7 +2500,7 @@ class TestTestFailureRetryLoop:
 class TestIssueWorkLifecycle:
     """The executor opens/reads an `issue_work` record at the start of
     every FIX run, freezes the work branch there, posts an initial comment,
-    and closes the record on the run's outcome (R1, R4.1, R8.1)."""
+    and closes the record on the run's outcome."""
 
     _GIT_SUCCESS = ["", " M src/foo.py\n", "", "", ""]  # checkout, status, add, commit, push
 
@@ -2804,8 +2804,8 @@ class TestIssueWorkLifecycle:
 
 
 class TestFaseDGuardAndObservability:
-    """R7.6 (refuse a run whose issue was closed meanwhile), R8.2
-    (audit carries attempts/work_branch), R8.3 (resume counter)."""
+    """Refuse a run whose issue was closed meanwhile; the audit carries
+    attempts/work_branch; the resume counter."""
 
     _GIT_SUCCESS = ["", " M src/foo.py\n", "", "", ""]
 
@@ -3026,7 +3026,7 @@ class TestFaseDGuardAndObservability:
 class TestResumeAndWipPreservation:
     """On a block the executor commits and pushes the partial work to
     the frozen branch before cleanup, persists the summary, and keeps
-    `issue_work` open so the next trigger resumes it (R4.2–R4.8, R5)."""
+    `issue_work` open so the next trigger resumes it."""
 
     _ISSUE_REPO = "stateway-io/stateway-issues"
     _TARGET = "stateway-io/stateway-agent-fixtures"
@@ -3596,7 +3596,7 @@ class TestResumeAndWipPreservation:
         assert store.get_task(task.id).status is TaskStatus.ABORTED_BUDGET
         work = store.get_issue_work("github", self._ISSUE_REPO, 42)
         assert work.state == "open"
-        assert work.work_branch == ""  # R4.4: recompute next run
+        assert work.work_branch == ""  # Recompute next run
         warn = gh.comments()[-1]
         assert "could not preserve" in warn.lower()
 
@@ -4113,7 +4113,7 @@ class TestMiniSWERunner:
     def test_time_exceeded_exit_status_maps_to_task_timeout(
         self, mock_build_agent: MagicMock
     ) -> None:
-        """A5/A6: DefaultAgent.run() enforces wall_time_limit_seconds natively
+        """DefaultAgent.run() enforces wall_time_limit_seconds natively
         (mini-swe-agent >= 2.3.0) and returns exit_status="TimeExceeded"
         instead of raising. MiniSWERunner must consume that return value."""
         from issue_agent.runner.executor import MiniSWERunner
@@ -4141,7 +4141,7 @@ class TestMiniSWERunner:
     def test_limits_exceeded_exit_status_maps_to_budget_exceeded_when_ambiguous(
         self, mock_build_agent: MagicMock
     ) -> None:
-        """A5: agent.run() returning exit_status="LimitsExceeded" (cost_limit
+        """Agent.run() returning exit_status="LimitsExceeded" (cost_limit
         or step_limit hit) must not be reported as success. When both the
         step and cost limits are hit on the same call (or neither counter is
         configured), the generic "budget_exceeded" code is kept as a
@@ -4282,7 +4282,7 @@ class TestMiniSWERunner:
     def test_cost_unavailable_error_maps_to_cost_unavailable(
         self, mock_build_agent: MagicMock
     ) -> None:
-        """R5.5.3: a strict-mode CostUnavailableError is distinct from a
+        """A strict-mode CostUnavailableError is distinct from a
         generic exception — it must surface as error='cost_unavailable' so the
         executor aborts the task and alerts, rather than retrying it."""
         from issue_agent.runner.executor import MiniSWERunner
@@ -4531,7 +4531,7 @@ class TestMiniSWERunner:
 
 
 class TestMiniSWERunnerBlockSummary:
-    """R5: on a block outcome the runner produces a summary of the
+    """On a block outcome the runner produces a summary of the
     interrupted attempt and attaches it to the AgentResult, so the executor can
     persist it and push the WIP before cleanup."""
 
@@ -4639,7 +4639,7 @@ class TestMiniSWERunnerBlockSummary:
 
     @patch("issue_agent.runner.agent_factory.build_agent")
     def test_on_progress_callback_is_handed_to_build_agent(self, mock_build, repo: Path) -> None:
-        """R6: the runner forwards the executor's progress callback
+        """The runner forwards the executor's progress callback
         straight to build_agent, which decides whether to wrap the agent."""
         from issue_agent.runner.executor import MiniSWERunner
 
@@ -4703,7 +4703,7 @@ class TestMiniSWERunnerBlockSummary:
 
 
 class TestMiniSWERunnerCommentContext:
-    """R3: the triggering comment and the filtered discussion thread reach
+    """The triggering comment and the filtered discussion thread reach
     the model through agent.extra_template_vars["comments"]."""
 
     _COMMENT_TRIGGER = make_trigger_event(

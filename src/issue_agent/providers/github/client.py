@@ -64,7 +64,7 @@ class GitHubClient:
         self, full_name: str, issue_number: int, limit: int, identity: BotIdentity
     ) -> list[Comment]:
         """The issue's ``limit`` most recent comments as canonical
-        ``Comment``s (R3.2, PRD §3.1).
+        ``Comment``s.
 
         Returned in chronological order. Plain models — not PyGithub objects —
         so the run-context assembly downstream stays a pure, testable function

@@ -329,7 +329,7 @@ def _registry(forge: FakeForge | None = None) -> ProviderRegistry:
 
 
 class TestReconcileIssueWork:
-    """R7.3–R7.5: the sweep that closes an open ``issue_work`` whose
+    """The sweep that closes an open ``issue_work`` whose
     issue was closed behind the agent's back (missed webhook / downtime)."""
 
     def _open(self, store: SQLiteStore, n: int) -> None:

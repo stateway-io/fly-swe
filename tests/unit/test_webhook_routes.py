@@ -47,8 +47,8 @@ def _parsed(trigger_kind: TriggerKind, repo: str = "owner/issues", n: int = 1) -
 
 
 class TestIssueClosedObservability:
-    """R8.1/R8.3: closing an ``issue_work`` via the
-    ``issues.closed`` webhook — the primary close path (D6) — must leave the
+    """Closing an ``issue_work`` via the
+    ``issues.closed`` webhook — the primary close path — must leave the
     same audit/metric trail the executor-driven closes do."""
 
     def test_closing_open_work_writes_audit_and_observes_metric(
@@ -91,7 +91,7 @@ class TestIssueClosedObservability:
 
 
 class TestReopenClearsIssueClosedBlock:
-    """A row closed with ``issue_closed`` makes the R7.6 executor guard abort
+    """A row closed with ``issue_closed`` makes the closed-issue executor guard abort
     every future run on that issue. Reopening the issue means that close is no
     longer true, so the spent row must be dropped — a later comment then
     starts fresh work (§3.3)."""

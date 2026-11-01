@@ -69,7 +69,7 @@ class TestIssueAuthor:
     def test_bot_issue_author_passes_despite_none_association(self):
         # The reporter is a bot (e.g. a monitoring integration). Its follow-up
         # comments must keep reaching the agent for as long as the issue is
-        # open — a maintainer may reopen it (R2.1, user directive).
+        # open — a maintainer may reopen it.
         assert (
             _allowed(
                 author_login="watchdog[bot]",

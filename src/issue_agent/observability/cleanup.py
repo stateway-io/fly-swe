@@ -56,7 +56,7 @@ def _utcnow() -> datetime:
 def _default_issue_state_fn(
     registry: ProviderRegistry,
 ) -> Callable[[str, str, int], str]:
-    """Build the real "is this issue closed on the forge?" probe (R7.3): each
+    """Build the real "is this issue closed on the forge?" probe: each
     row is looked up on the provider instance that recorded it. An instance
     no longer configured raises ``KeyError``, which fails only that row."""
 
@@ -74,11 +74,11 @@ def reconcile_issue_work(
     *,
     issue_state_fn: Callable[[str, str, int], str] | None = None,
 ) -> ReconcileResult:
-    """Close every open ``issue_work`` whose issue is already closed on the forge
-    (R7.3). This is the safety net for a missed ``issues.closed`` webhook or a
-    service outage — not the primary path (R7.5), which is the zero-cost
+    """Close every open ``issue_work`` whose issue is already closed on the forge.
+    This is the safety net for a missed ``issues.closed`` webhook or a
+    service outage — not the primary path, which is the zero-cost
     handler. Bounded by ``resume_reconcile_max_per_cycle`` forge lookups per
-    call (R7.4); a per-row failure is logged and the sweep continues. Like
+    call; a per-row failure is logged and the sweep continues. Like
     ``run_maintenance``, the whole sweep is best-effort — it never propagates."""
     result = ReconcileResult()
     try:

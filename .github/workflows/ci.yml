@@ -161,8 +161,8 @@ jobs:
 
   # Gating build only — no push, no registry. `flyctl deploy` builds the
   # image on Fly's remote builder at release time, which is too late to
-  # catch a broken Dockerfile (finding A3). The build context is the repo
-  # root, same as `flyctl deploy` (see docs/deploy/fly-agent-deploy-issues.md).
+  # catch a broken Dockerfile. The build context is the repo root, same as
+  # `flyctl deploy`.
   docker:
     needs: changes
     if: needs.changes.outputs.code == 'true'

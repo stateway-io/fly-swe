@@ -599,7 +599,7 @@ class TestMigrateV3:
 
 class TestIssueWork:
     """Per-issue work state (`issue_work`), one row per (issue_repo,
-    issue_number), spanning as many tasks as needed (R4.1)."""
+    issue_number), spanning as many tasks as needed."""
 
     def test_get_missing_returns_none(self, store: SQLiteStore) -> None:
         assert store.get_issue_work("github", "owner/repo", 42) is None
@@ -689,7 +689,7 @@ class TestIssueWork:
 
 
 class TestIssueWorkLifecycleQueries:
-    """`touch_issue_work` and `list_open_issue_work` (R7.2, R7.3)."""
+    """`touch_issue_work` and `list_open_issue_work`."""
 
     def test_touch_bumps_updated_at_only(self, store: SQLiteStore) -> None:
         store.open_issue_work("github", "owner/repo", 1, "owner/t", "main", "b")
@@ -735,7 +735,7 @@ class TestIssueWorkLifecycleQueries:
 
 class TestMigrateV4:
     """_migrate_v4 adds the `issue_work` table to databases created before
-    it existed — a pure additive CREATE TABLE, never a rebuild of `tasks` (P4)."""
+    it existed — a pure additive CREATE TABLE, never a rebuild of `tasks`."""
 
     def _create_pre_v4_db(self, db_path: str) -> None:
         conn = sqlite3.connect(db_path)
@@ -944,7 +944,7 @@ class TestMigrateV6:
 class TestMigrateV7:
     """_migrate_v7 keys `processed_deliveries` and `issue_work` by provider
     instance — a rebuild, since a PK can't change in place (the documented
-    exception to P4) — and widens the pending-task index to the instance."""
+    exception to the additive-migration rule) — and widens the pending-task index to the instance."""
 
     def _create_pre_v7_db(self, db_path: str) -> None:
         TestMigrateV4()._create_pre_v4_db(db_path)

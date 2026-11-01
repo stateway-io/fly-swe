@@ -41,7 +41,7 @@ class Workspace:
 
     @property
     def _remote_url(self) -> str:
-        # Deliberately tokenless (A2): git persists whatever URL it's given
+        # Deliberately tokenless: git persists whatever URL it's given
         # into .git/config, so a tokened URL here would leak the write
         # credential to anything that can read the cloned workspace — the
         # agent included. Authentication for the clone itself travels via

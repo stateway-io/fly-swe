@@ -16,7 +16,7 @@ from issue_agent.runner.guards import SANDBOX_MARKER_ENV, reap_tagged_processes
 
 logger = get_logger(__name__)
 
-# Allowlist for the agent's bash subprocess environment (finding A2).
+# Allowlist for the agent's bash subprocess environment.
 #
 # `LocalEnvironment.execute` (mini-swe-agent 2.2.8) runs every agent command
 # with `env=os.environ | self.config.env` — `config.env` can only ADD keys,
@@ -64,7 +64,7 @@ _SUBMISSION_MARKER = "COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT"
 #
 # These are *additions* to the environment, not ``_ENV_ALLOWLIST`` entries:
 # every value is a literal, none is read from ``os.environ``, so they open no
-# path for a secret to reach the agent (A2).
+# path for a secret to reach the agent.
 _NONINTERACTIVE_ENV = {
     "PAGER": "cat",
     "MANPAGER": "cat",
@@ -193,7 +193,7 @@ class SandboxedLocalEnvironment(LocalEnvironment):
         )
 
     def get_template_vars(self, **kwargs) -> dict[str, Any]:
-        # Drop os.environ from the Jinja namespace entirely (A1 defense in
+        # Drop os.environ from the Jinja namespace entirely (defense in
         # depth): upstream's get_template_vars merges the full worker
         # environment into every rendered template.
         return recursive_merge(self.config.model_dump(), platform.uname()._asdict(), kwargs)
@@ -205,10 +205,10 @@ def _run(
     """Like subprocess.run, but kills the whole process group on timeout so no children are orphaned.
     The command runs as ``nice -n 19 /bin/sh -c`` (plain ``/bin/sh -c`` where ``nice`` is missing).
 
-    Verbatim port of ``minisweagent.environments.local._run`` (2.3.0+, see A6):
+    Verbatim port of ``minisweagent.environments.local._run`` (2.3.0+):
     upstream's own ``LocalEnvironment.execute`` calls this, but our
     ``execute()`` override above can't call it directly without also
-    inheriting ``os.environ | self.config.env`` (the A2 secrets leak), so the
+    inheriting ``os.environ | self.config.env`` (which leaked secrets into the agent), so the
     helper is duplicated here with an explicit ``env`` parameter instead.
     """
     nice = shutil.which("nice")

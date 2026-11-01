@@ -26,7 +26,7 @@ class E2ESettingsNoEnv(Settings):
 
 @pytest.fixture
 def e2e_test_repo() -> str:
-    """Repo used by E2E tests — test-only config, not part of Settings (R5.1.6)."""
+    """Repo used by E2E tests — test-only config, not part of Settings."""
     return os.environ.get("E2E_TEST_REPO", "stateway-io/stateway-issues")
 
 

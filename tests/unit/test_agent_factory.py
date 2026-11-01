@@ -99,7 +99,7 @@ class TestBuildAgent:
 
 
 class TestProgressReportingAgent:
-    """R6: a DefaultAgent subclass that posts a progress comment
+    """A DefaultAgent subclass that posts a progress comment
     every N iterations, capped per run, best-effort."""
 
     def _agent(self, on_progress, every: int = 20, mx: int = 2) -> ProgressReportingAgent:
@@ -426,7 +426,7 @@ class TestModelKwargsAndTracking:
         assert mock_agent_cls.call_args[1]["system_template"] == "docs prompt"
 
     def test_instance_template_is_the_static_task_template(self) -> None:
-        """A1 fix: instance_template must never be issue-derived text — it is
+        """instance_template must never be issue-derived text — it is
         always the static INSTANCE_TEMPLATE ({{ task }}), regardless of the task.
         build_user_message() is no longer called here; MiniSWERunner passes the
         issue-derived message through agent.run(task=...) instead."""

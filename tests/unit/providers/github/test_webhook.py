@@ -186,7 +186,7 @@ class TestInferTriggerKind:
             ("issues", "opened", TriggerKind.ISSUE_OPENED),
             ("issues", "labeled", TriggerKind.LABEL_ADDED),
             ("issue_comment", "created", TriggerKind.COMMENT_COMMAND),
-            # R7.1: the lifecycle events are recognized so the
+            # The lifecycle events are recognized so the
             # handler can close/record `issue_work` without enqueuing a Task.
             ("issues", "closed", TriggerKind.ISSUE_CLOSED),
             ("issues", "reopened", TriggerKind.ISSUE_REOPENED),

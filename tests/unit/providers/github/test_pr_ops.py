@@ -63,7 +63,7 @@ class TestGitHubPRText:
         assert "Iterations: 0" in body
 
     def test_cross_repo_body_closes_the_qualified_issue(self, transport: GitHubTransport) -> None:
-        """Bug A4: an unqualified `Closes #N` would point GitHub's auto-close
+        """An unqualified `Closes #N` would point GitHub's auto-close
         at issue #N of the target repo instead of the issue repo."""
         body = pr_text.pr_body(
             issue_ref="owner/issues#42",
