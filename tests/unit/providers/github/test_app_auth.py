@@ -69,7 +69,9 @@ class TestGitHubAppAuthPerInstallationCache:
         assert token == "ghs_installation_token"
         mock_integration.get_access_token.assert_called_once_with(111)
 
-    def test_get_token_caches_per_installation(self, settings: Settings, mock_integration: MagicMock) -> None:
+    def test_get_token_caches_per_installation(
+        self, settings: Settings, mock_integration: MagicMock
+    ) -> None:
         auth = GitHubAppAuth(settings.providers["github"])
         t1 = auth.get_token(111)
         t2 = auth.get_token(111)
@@ -104,9 +106,7 @@ class TestGitHubAppAuthPerInstallationCache:
     def test_get_token_refreshes_when_expired(
         self, settings: Settings, mock_integration: MagicMock, installation_id: int
     ) -> None:
-        mock_integration.get_access_token.return_value = _make_token(
-            "t", timedelta(minutes=2)
-        )
+        mock_integration.get_access_token.return_value = _make_token("t", timedelta(minutes=2))
         auth = GitHubAppAuth(settings.providers["github"])
         auth.get_token(installation_id)
         auth.get_token(installation_id)
@@ -116,32 +116,38 @@ class TestGitHubAppAuthPerInstallationCache:
     def test_get_token_does_not_refresh_when_far_from_expiry(
         self, settings: Settings, mock_integration: MagicMock, installation_id: int
     ) -> None:
-        mock_integration.get_access_token.return_value = _make_token(
-            "t", timedelta(minutes=30)
-        )
+        mock_integration.get_access_token.return_value = _make_token("t", timedelta(minutes=30))
         auth = GitHubAppAuth(settings.providers["github"])
         auth.get_token(installation_id)
         auth.get_token(installation_id)
         mock_integration.get_access_token.assert_called_once_with(installation_id)
 
-    def test_get_client_returns_github_instance(self, settings: Settings, mock_integration: MagicMock) -> None:
+    def test_get_client_returns_github_instance(
+        self, settings: Settings, mock_integration: MagicMock
+    ) -> None:
         auth = GitHubAppAuth(settings.providers["github"])
         client = auth.get_client(111)
         assert isinstance(client, Github)
 
-    def test_get_client_uses_cached_token(self, settings: Settings, mock_integration: MagicMock) -> None:
+    def test_get_client_uses_cached_token(
+        self, settings: Settings, mock_integration: MagicMock
+    ) -> None:
         auth = GitHubAppAuth(settings.providers["github"])
         auth.get_client(111)
         auth.get_client(111)
         mock_integration.get_access_token.assert_called_once_with(111)
 
-    def test_fetch_token_updates_cache(self, settings: Settings, mock_integration: MagicMock) -> None:
+    def test_fetch_token_updates_cache(
+        self, settings: Settings, mock_integration: MagicMock
+    ) -> None:
         auth = GitHubAppAuth(settings.providers["github"])
         token1 = auth._fetch_token(111)
         assert token1 == "ghs_installation_token"
         assert auth._cache[111].token == "ghs_installation_token"
 
-    def test_get_token_propagates_exception(self, settings: Settings, mock_integration: MagicMock) -> None:
+    def test_get_token_propagates_exception(
+        self, settings: Settings, mock_integration: MagicMock
+    ) -> None:
         mock_integration.get_access_token.side_effect = Exception("API error")
         auth = GitHubAppAuth(settings.providers["github"])
         with pytest.raises(Exception, match="API error"):
@@ -181,7 +187,9 @@ class TestApiBaseUrl:
             patch("issue_agent.providers.github.auth.Github") as mg,
         ):
             mi.return_value.get_access_token.return_value = mock_auth
-            auth = GitHubAppAuth(_make_settings(PROVIDERS=github_providers(host=host)).providers["github"])
+            auth = GitHubAppAuth(
+                _make_settings(PROVIDERS=github_providers(host=host)).providers["github"]
+            )
             auth.get_client(111)
 
         assert mi.call_args.kwargs["base_url"] == api_url

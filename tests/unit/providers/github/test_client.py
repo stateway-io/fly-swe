@@ -99,13 +99,21 @@ class TestGitHubClient:
         mock_auth.get_client.assert_any_call(222)
         assert mock_auth.get_client.call_count == 2
 
-    def test_get_repo(self, client: GitHubClient, mock_github: MagicMock, mock_repo: MagicMock) -> None:
+    def test_get_repo(
+        self, client: GitHubClient, mock_github: MagicMock, mock_repo: MagicMock
+    ) -> None:
         mock_github.get_repo.return_value = mock_repo
         repo = client.get_repo("owner/test-repo")
         assert repo is mock_repo
         mock_github.get_repo.assert_called_once_with("owner/test-repo")
 
-    def test_get_issue(self, client: GitHubClient, mock_github: MagicMock, mock_repo: MagicMock, mock_issue: MagicMock) -> None:
+    def test_get_issue(
+        self,
+        client: GitHubClient,
+        mock_github: MagicMock,
+        mock_repo: MagicMock,
+        mock_issue: MagicMock,
+    ) -> None:
         mock_github.get_repo.return_value = mock_repo
         mock_repo.get_issue.return_value = mock_issue
 
@@ -115,7 +123,13 @@ class TestGitHubClient:
         mock_github.get_repo.assert_called_once_with("owner/test-repo")
         mock_repo.get_issue.assert_called_once_with(42)
 
-    def test_get_issue_comments(self, client: GitHubClient, mock_github: MagicMock, mock_repo: MagicMock, mock_issue: MagicMock) -> None:
+    def test_get_issue_comments(
+        self,
+        client: GitHubClient,
+        mock_github: MagicMock,
+        mock_repo: MagicMock,
+        mock_issue: MagicMock,
+    ) -> None:
         c1 = MagicMock(spec=IssueComment)
         c2 = MagicMock(spec=IssueComment)
         mock_github.get_repo.return_value = mock_repo
@@ -146,9 +160,7 @@ class TestGitHubClient:
             m.created_at = datetime(2026, 9, 8, 12, cid, 0)
             m.raw_data = {
                 "author_association": assoc,
-                "performed_via_github_app": (
-                    {"id": via_app_id} if via_app_id else None
-                ),
+                "performed_via_github_app": ({"id": via_app_id} if via_app_id else None),
             }
             return m
 
@@ -173,7 +185,9 @@ class TestGitHubClient:
         assert result[1].author.is_self is True
         assert result[1].author.association == "none"
 
-    def test_find_pr_by_branch_found(self, client: GitHubClient, mock_github: MagicMock, mock_repo: MagicMock, mock_pr: MagicMock) -> None:
+    def test_find_pr_by_branch_found(
+        self, client: GitHubClient, mock_github: MagicMock, mock_repo: MagicMock, mock_pr: MagicMock
+    ) -> None:
         mock_github.get_repo.return_value = mock_repo
         mock_repo.get_pulls.return_value = [mock_pr]
         mock_pr.head.ref = "agent/issue-42-fix-typo"
@@ -186,7 +200,9 @@ class TestGitHubClient:
             head="owner:agent/issue-42-fix-typo",
         )
 
-    def test_find_pr_by_branch_not_found(self, client: GitHubClient, mock_github: MagicMock, mock_repo: MagicMock) -> None:
+    def test_find_pr_by_branch_not_found(
+        self, client: GitHubClient, mock_github: MagicMock, mock_repo: MagicMock
+    ) -> None:
         mock_github.get_repo.return_value = mock_repo
         mock_repo.get_pulls.return_value = []
 
@@ -215,9 +231,7 @@ class TestGitHubClient:
     ) -> None:
         """The branch has no PR: the run must learn that and open one, not
         inherit the unrelated PR the unfiltered list starts with."""
-        mock_github.get_repo.return_value = _FakeRepo(
-            [_fake_pr(244, "dev-some-other-issue")]
-        )
+        mock_github.get_repo.return_value = _FakeRepo([_fake_pr(244, "dev-some-other-issue")])
 
         result = client.find_pr_by_branch("owner/test-repo", "agent/issue-42-fix-typo")
 
@@ -233,7 +247,9 @@ class TestGitHubClient:
 
         assert client.find_pr_by_branch("owner/test-repo", "agent/issue-42-fix-typo") is None
 
-    def test_get_pull_request(self, client: GitHubClient, mock_github: MagicMock, mock_repo: MagicMock, mock_pr: MagicMock) -> None:
+    def test_get_pull_request(
+        self, client: GitHubClient, mock_github: MagicMock, mock_repo: MagicMock, mock_pr: MagicMock
+    ) -> None:
         mock_github.get_repo.return_value = mock_repo
         mock_repo.get_pull.return_value = mock_pr
 
@@ -242,7 +258,14 @@ class TestGitHubClient:
         assert pr is mock_pr
         mock_repo.get_pull.assert_called_once_with(99)
 
-    def test_create_comment(self, client: GitHubClient, mock_github: MagicMock, mock_repo: MagicMock, mock_issue: MagicMock, mock_comment: MagicMock) -> None:
+    def test_create_comment(
+        self,
+        client: GitHubClient,
+        mock_github: MagicMock,
+        mock_repo: MagicMock,
+        mock_issue: MagicMock,
+        mock_comment: MagicMock,
+    ) -> None:
         mock_github.get_repo.return_value = mock_repo
         mock_repo.get_issue.return_value = mock_issue
         mock_issue.create_comment.return_value = mock_comment
@@ -252,7 +275,9 @@ class TestGitHubClient:
         assert comment is mock_comment
         mock_issue.create_comment.assert_called_once_with("Hello from agent")
 
-    def test_create_pr(self, client: GitHubClient, mock_github: MagicMock, mock_repo: MagicMock, mock_pr: MagicMock) -> None:
+    def test_create_pr(
+        self, client: GitHubClient, mock_github: MagicMock, mock_repo: MagicMock, mock_pr: MagicMock
+    ) -> None:
         mock_github.get_repo.return_value = mock_repo
         mock_repo.create_pull.return_value = mock_pr
 
@@ -272,7 +297,9 @@ class TestGitHubClient:
             base="main",
         )
 
-    def test_create_pr_with_extra_kwargs(self, client: GitHubClient, mock_github: MagicMock, mock_repo: MagicMock, mock_pr: MagicMock) -> None:
+    def test_create_pr_with_extra_kwargs(
+        self, client: GitHubClient, mock_github: MagicMock, mock_repo: MagicMock, mock_pr: MagicMock
+    ) -> None:
         mock_github.get_repo.return_value = mock_repo
         mock_repo.create_pull.return_value = mock_pr
 
@@ -300,6 +327,8 @@ class TestGitHubClient:
         gh = client.get_github()
         assert gh is mock_auth.get_client.return_value
 
-    def test_get_repo_passes_correct_args(self, client: GitHubClient, mock_github: MagicMock) -> None:
+    def test_get_repo_passes_correct_args(
+        self, client: GitHubClient, mock_github: MagicMock
+    ) -> None:
         client.get_repo("a/b")
         mock_github.get_repo.assert_called_once_with("a/b")

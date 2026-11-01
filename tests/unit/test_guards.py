@@ -117,9 +117,7 @@ class TestCheckRepoAllowed:
         assert msg == ""
 
     def test_repo_not_allowed(self) -> None:
-        settings = _make_settings(
-            REPO_ROUTES=[{"issues": "stateway-io/other-repo"}]
-        )
+        settings = _make_settings(REPO_ROUTES=[{"issues": "stateway-io/other-repo"}])
         task = _make_task()
         ok, msg = check_repo_allowed(task, settings)
         assert not ok
@@ -199,9 +197,7 @@ def _comment_task(login: str, association: str) -> Task:
     trigger = make_trigger_event(
         TriggerKind.COMMENT_COMMAND,
         issue=make_issue(author=make_author(login="reporter")),
-        trigger_comment=make_comment(
-            author=make_author(login=login, association=association)
-        ),
+        trigger_comment=make_comment(author=make_author(login=login, association=association)),
     )
     return make_task(trigger, trigger_kind=TriggerKind.COMMENT_COMMAND)
 

@@ -82,9 +82,17 @@ class _Runner:
         self.resume_summary: str | None = None
 
     def run(
-        self, workspace_path: str, task: Task, settings: Settings, route=None,
-        resume_summary=None, on_progress=None, toolchain_env=None, branch_status=None,
-        comment_history=None, terms=None,
+        self,
+        workspace_path: str,
+        task: Task,
+        settings: Settings,
+        route=None,
+        resume_summary=None,
+        on_progress=None,
+        toolchain_env=None,
+        branch_status=None,
+        comment_history=None,
+        terms=None,
     ) -> AgentResult:
         self.branch_status = branch_status
         self.terms = terms
@@ -141,8 +149,12 @@ class BranchEnv:
         self.store.open_issue_work("github", ISSUES_REPO, 42, TARGET_REPO, "main", BRANCH)
         self.store.update_issue_work(
             "github",
-            ISSUES_REPO, 42, state="closed", closed_reason="branch_published",
-            last_summary=EARLIER_SUMMARY, last_summary_kind="submission",
+            ISSUES_REPO,
+            42,
+            state="closed",
+            closed_reason="branch_published",
+            last_summary=EARLIER_SUMMARY,
+            last_summary_kind="submission",
         )
         return self.publish(BRANCH, {"docs.md": BRANCH_DOCS, "src/fix.md": "fixed\n"})
 
@@ -152,7 +164,8 @@ class BranchEnv:
     def remote_contains(self, ancestor: str, ref: str) -> bool:
         result = subprocess.run(
             ["git", "merge-base", "--is-ancestor", ancestor, ref],
-            cwd=self.remote, capture_output=True,
+            cwd=self.remote,
+            capture_output=True,
         )
         return result.returncode == 0
 
@@ -174,7 +187,9 @@ class BranchEnv:
             trigger_json=make_trigger_event(
                 kind,
                 issue=make_issue(
-                    repo=ISSUES_REPO, number=42, title="Fix broken link in docs",
+                    repo=ISSUES_REPO,
+                    number=42,
+                    title="Fix broken link in docs",
                     author=Author(),
                 ),
                 actor=make_author(login="maintainer"),
@@ -221,9 +236,7 @@ COMPARE_URL = f"{FAKE_HOST}/{TARGET_REPO}/-/compare/main...{BRANCH}"
 
 
 class TestFirstDelivery:
-    def test_pushes_the_branch_and_comments_with_the_compare_link(
-        self, env: BranchEnv
-    ) -> None:
+    def test_pushes_the_branch_and_comments_with_the_compare_link(self, env: BranchEnv) -> None:
         task = env.run(_Runner({"docs.md": BRANCH_DOCS}))
 
         assert task.status is TaskStatus.SUCCEEDED
@@ -318,9 +331,7 @@ class TestFollowUp:
         delivered = env.comments()[-1]
         assert "still reports conflicts between the branch and `main`" in delivered
 
-    def test_an_unresolved_base_merge_keeps_the_branch_followable(
-        self, env: BranchEnv
-    ) -> None:
+    def test_an_unresolved_base_merge_keeps_the_branch_followable(self, env: BranchEnv) -> None:
         seeded = env.seed_published_branch()
         env.publish("main", {"docs.md": BASE_ADVANCED_DOCS})
 

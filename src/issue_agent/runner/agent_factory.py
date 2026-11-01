@@ -157,9 +157,7 @@ def build_agent(
         # budget guards failed in production (R5.5.3). lenient keeps the old
         # warn-and-carry-on behavior.
         cost_tracking = "default" if profile.cost_tracking == "strict" else "ignore_errors"
-        set_cache_control = (
-            "default_end" if profile.prompt_caching == "default_end" else None
-        )
+        set_cache_control = "default_end" if profile.prompt_caching == "default_end" else None
         model_kwargs = _model_kwargs(profile)
         if settings.llm_request_timeout_seconds > 0:
             model_kwargs["timeout"] = settings.llm_request_timeout_seconds
@@ -192,9 +190,7 @@ def build_agent(
     # R6.2: a progress-reporting subclass only when there is somewhere to
     # report to (on_progress) and reporting is enabled (threshold > 0);
     # otherwise the plain agent, unchanged.
-    progress_on = (
-        on_progress is not None and settings.comments_progress_every_iterations > 0
-    )
+    progress_on = on_progress is not None and settings.comments_progress_every_iterations > 0
     agent_cls = ProgressReportingAgent if progress_on else DefaultAgent
     extra_agent_kwargs: dict = (
         {

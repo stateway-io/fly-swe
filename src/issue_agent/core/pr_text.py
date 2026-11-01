@@ -73,9 +73,7 @@ def pr_body(
     ]
 
     if files_changed:
-        files_lines = "\n".join(
-            f"- `{path}` — {reason}" for path, reason in files_changed
-        )
+        files_lines = "\n".join(f"- `{path}` — {reason}" for path, reason in files_changed)
         parts.append(f"## Files changed\n{files_lines}")
 
     if testing_notes:

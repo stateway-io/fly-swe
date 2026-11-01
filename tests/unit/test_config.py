@@ -116,9 +116,7 @@ class TestLoadFromDotenv:
         # repo_routes is fed only by YAML/init kwargs, never a scalar env var —
         # SettingsDotenv has yaml_file=None, so it stays empty unless passed
         # explicitly via the REPO_ROUTES init kwarg (validation_alias).
-        s = self._make(
-            REPO_ROUTES=[{"issues": "a/b"}, {"issues": "c/d"}, {"issues": "e/f"}]
-        )
+        s = self._make(REPO_ROUTES=[{"issues": "a/b"}, {"issues": "c/d"}, {"issues": "e/f"}])
         assert s.allowed_repos == ["a/b", "c/d", "e/f"]
 
     def test_private_key_inline(self):
@@ -138,8 +136,6 @@ class TestLoadFromDotenv:
         s = self._make(GITHUB_INSTALLATION_ID=12345, GITHUB_APP_ID=7)
         assert not hasattr(s, "github_installation_id")
         assert not hasattr(s, "github_app_id")
-
-
 
 
 class TestSingleton:
@@ -335,9 +331,7 @@ class TestLlmConfigFields:
     def test_providers_pass_through_from_yaml(self):
         from issue_agent.config import flatten_yaml_config
 
-        providers = {
-            "github": {"type": "github", "app_id": 1, "bot_login": "agent[bot]"}
-        }
+        providers = {"github": {"type": "github", "app_id": 1, "bot_login": "agent[bot]"}}
         flat = flatten_yaml_config({"providers": providers})
         assert flat["PROVIDERS"] == providers
 
@@ -390,9 +384,7 @@ class TestLlmConfigFields:
 
     def test_yaml_supplies_llm_block_env_still_wins(self, tmp_path, monkeypatch):
         yaml_path = tmp_path / "config.yaml"
-        yaml_path.write_text(
-            "llm:\n  cost_tracking: lenient\n  temperature: 0.5\n"
-        )
+        yaml_path.write_text("llm:\n  cost_tracking: lenient\n  temperature: 0.5\n")
         monkeypatch.setenv("CONFIG_FILE", str(yaml_path))
         monkeypatch.setenv("LLM_COST_TRACKING", "strict")
         s = _SettingsIsolated(
@@ -418,10 +410,7 @@ class TestCommentsConfig:
         assert self._settings().comments_initial_comment is True
 
     def test_initial_comment_env_override(self):
-        assert (
-            self._settings(COMMENTS_INITIAL_COMMENT="false").comments_initial_comment
-            is False
-        )
+        assert self._settings(COMMENTS_INITIAL_COMMENT="false").comments_initial_comment is False
 
     def test_initial_comment_flattened_from_yaml(self):
         from issue_agent.config import flatten_yaml_config
@@ -478,9 +467,7 @@ class TestCommentsConfig:
 
     def test_author_filter_enabled_env_override(self):
         assert (
-            self._settings(
-                COMMENTS_AUTHOR_FILTER_ENABLED="false"
-            ).comments_author_filter_enabled
+            self._settings(COMMENTS_AUTHOR_FILTER_ENABLED="false").comments_author_filter_enabled
             is False
         )
 
@@ -549,10 +536,7 @@ class TestResumeConfig:
         assert self._settings(RESUME_ENABLED="false").resume_enabled is False
 
     def test_summary_policy_env_override(self):
-        assert (
-            self._settings(RESUME_SUMMARY_ON_BLOCK="llm").resume_summary_on_block
-            == "llm"
-        )
+        assert self._settings(RESUME_SUMMARY_ON_BLOCK="llm").resume_summary_on_block == "llm"
 
     def test_flattened_from_yaml(self):
         from issue_agent.config import flatten_yaml_config
@@ -816,7 +800,10 @@ class TestYamlSourcePrecedence:
 
     def test_node_heap_cap_defaults_to_a_share_of_vm_memory(self, tmp_path, monkeypatch):
         monkeypatch.setenv("CONFIG_FILE", str(tmp_path / "does-not-exist.yaml"))
-        for var in ("TOOLCHAINS_NODEJS_MAX_OLD_SPACE_PERCENT", "TOOLCHAINS_NODEJS_MAX_OLD_SPACE_MB"):
+        for var in (
+            "TOOLCHAINS_NODEJS_MAX_OLD_SPACE_PERCENT",
+            "TOOLCHAINS_NODEJS_MAX_OLD_SPACE_MB",
+        ):
             monkeypatch.delenv(var, raising=False)
         s = _SettingsIsolated(**self._BASE_KWARGS)
         assert s.toolchains_nodejs_max_old_space_percent == 40
@@ -1125,9 +1112,7 @@ class TestRepoRoutes:
         with pytest.raises(ValidationError):
             RepoRoute(issues="owner/repo", workflow="rebase_flow")
 
-    def test_invalid_workflow_in_yaml_fails_settings_construction(
-        self, tmp_path, monkeypatch
-    ):
+    def test_invalid_workflow_in_yaml_fails_settings_construction(self, tmp_path, monkeypatch):
         yaml_path = self._write_yaml(
             tmp_path,
             """
@@ -1153,9 +1138,7 @@ class TestRepoLlmOverride:
         p.write_text(contents)
         return p
 
-    def test_repo_without_llm_block_inherits_every_global_field(
-        self, tmp_path, monkeypatch
-    ):
+    def test_repo_without_llm_block_inherits_every_global_field(self, tmp_path, monkeypatch):
         yaml_path = self._write_yaml(
             tmp_path,
             """
@@ -1210,9 +1193,7 @@ class TestRepoLlmOverride:
 
         assert s.llm_request_timeout_seconds == 30
 
-    def test_explicit_null_temperature_resets_a_global_temperature(
-        self, tmp_path, monkeypatch
-    ):
+    def test_explicit_null_temperature_resets_a_global_temperature(self, tmp_path, monkeypatch):
         yaml_path = self._write_yaml(
             tmp_path,
             """
@@ -1230,9 +1211,7 @@ class TestRepoLlmOverride:
         assert s.llm_profile(None).temperature == 0.2
         assert s.llm_profile(s.route_for("github", "owner/repo")).temperature is None
 
-    def test_repo_reasoning_effort_override_wins_over_global(
-        self, tmp_path, monkeypatch
-    ):
+    def test_repo_reasoning_effort_override_wins_over_global(self, tmp_path, monkeypatch):
         yaml_path = self._write_yaml(
             tmp_path,
             """
@@ -1270,9 +1249,7 @@ class TestRepoLlmOverride:
         assert s.llm_profile(None).reasoning_effort == "high"
         assert s.llm_profile(s.route_for("github", "owner/repo")).reasoning_effort is None
 
-    def test_repo_reasoning_effort_override_rejects_unknown_value(
-        self, tmp_path, monkeypatch
-    ):
+    def test_repo_reasoning_effort_override_rejects_unknown_value(self, tmp_path, monkeypatch):
         yaml_path = self._write_yaml(
             tmp_path,
             """
@@ -1286,9 +1263,7 @@ class TestRepoLlmOverride:
         with pytest.raises(ValidationError):
             _SettingsIsolated(**self._BASE_KWARGS)
 
-    def test_empty_string_base_url_clears_the_global_base_url(
-        self, tmp_path, monkeypatch
-    ):
+    def test_empty_string_base_url_clears_the_global_base_url(self, tmp_path, monkeypatch):
         yaml_path = self._write_yaml(
             tmp_path,
             """
@@ -1328,9 +1303,7 @@ class TestRepoLlmOverride:
         assert profile.fallback_model == "global/fallback"  # untouched -> global
         assert profile.fallback_base_url == "https://repo-fallback.example"
 
-    def test_fallback_null_disables_failover_for_this_repo(
-        self, tmp_path, monkeypatch
-    ):
+    def test_fallback_null_disables_failover_for_this_repo(self, tmp_path, monkeypatch):
         yaml_path = self._write_yaml(
             tmp_path,
             """
@@ -1393,9 +1366,7 @@ class TestRepoLlmOverride:
         with pytest.raises(ValidationError):
             _SettingsIsolated(**self._BASE_KWARGS)
 
-    def test_explicit_null_observation_max_chars_is_rejected(
-        self, tmp_path, monkeypatch
-    ):
+    def test_explicit_null_observation_max_chars_is_rejected(self, tmp_path, monkeypatch):
         yaml_path = self._write_yaml(
             tmp_path,
             """
@@ -1601,9 +1572,7 @@ class TestProviderInstances:
         return _SettingsIsolated(LLM_API_KEY="k", **overrides)
 
     def test_single_instance_is_the_default_route_provider(self):
-        s = self._make(
-            PROVIDERS=github_providers(), REPO_ROUTES=[{"issues": "o/r"}]
-        )
+        s = self._make(PROVIDERS=github_providers(), REPO_ROUTES=[{"issues": "o/r"}])
         assert s.repo_routes[0].provider == "github"
         assert s.route_for("github", "o/r") is s.repo_routes[0]
 
@@ -1738,13 +1707,15 @@ class TestNestedEnvSpike:
         )
         llm_api_key: str = Field(default="", validation_alias="LLM_API_KEY")
         max_task_retries: int = Field(default=3, validation_alias="MAX_TASK_RETRIES")
-        providers: dict[str, Any] = Field(
-            default_factory=dict, validation_alias="PROVIDERS"
-        )
+        providers: dict[str, Any] = Field(default_factory=dict, validation_alias="PROVIDERS")
 
         @classmethod
         def settings_customise_sources(
-            cls, settings_cls, init_settings, env_settings, dotenv_settings,
+            cls,
+            settings_cls,
+            init_settings,
+            env_settings,
+            dotenv_settings,
             file_secret_settings,
         ):
             yaml = InitSettingsSource(settings_cls, cls._yaml)

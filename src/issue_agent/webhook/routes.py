@@ -92,9 +92,7 @@ def _handle_issue_lifecycle(
     # ISSUE_CLOSED
     if work is not None and work.state == "open":
         store.close_issue_work(instance, repo, issue_number, "issue_closed")
-        observe_issue_work_closed(
-            work.target_repo, work.attempts, provider_instance=instance
-        )
+        observe_issue_work_closed(work.target_repo, work.attempts, provider_instance=instance)
         write_audit_entry(
             settings.data_dir,
             {
@@ -154,9 +152,7 @@ async def handle_webhook(instance_id: str, request: Request) -> Response:
     except WebhookRejectedError as rejected:
         # Never recorded as processed: an unauthenticated request must not
         # be able to burn a real delivery id.
-        bind_context(logger, delivery_id=delivery_id, event=event).warning(
-            rejected.log_event
-        )
+        bind_context(logger, delivery_id=delivery_id, event=event).warning(rejected.log_event)
         return JSONResponse(
             status_code=rejected.status,
             content={"error": rejected.error},
@@ -175,9 +171,7 @@ async def handle_webhook(instance_id: str, request: Request) -> Response:
     except WebhookRejectedError as rejected:
         if rejected.mark_reason is not None:
             store.mark_delivery_processed(instance_id, delivery_id, event, rejected.mark_reason)
-        bind_context(logger, delivery_id=delivery_id, event=event).warning(
-            rejected.log_event
-        )
+        bind_context(logger, delivery_id=delivery_id, event=event).warning(rejected.log_event)
         return JSONResponse(
             status_code=rejected.status,
             content={"error": rejected.error},
@@ -216,9 +210,9 @@ async def handle_webhook(instance_id: str, request: Request) -> Response:
     if reason is not None:
         # No network call follows on this path — safe to mark immediately.
         store.mark_delivery_processed(instance_id, delivery_id, event, action)
-        bind_context(
-            logger, delivery_id=delivery_id, event=event, action=action
-        ).info(_IGNORED_LOG_EVENTS.get(reason, "ignored_event"))
+        bind_context(logger, delivery_id=delivery_id, event=event, action=action).info(
+            _IGNORED_LOG_EVENTS.get(reason, "ignored_event")
+        )
         return JSONResponse(
             status_code=200,
             content={"status": "ignored", "reason": reason},

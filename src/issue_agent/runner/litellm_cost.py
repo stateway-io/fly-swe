@@ -121,7 +121,9 @@ class CostAwareLitellmModel(LitellmModel):
     """
 
     abort_exceptions = [
-        *LitellmModel.abort_exceptions, TimeExceeded, ProviderBudgetExceededError,
+        *LitellmModel.abort_exceptions,
+        TimeExceeded,
+        ProviderBudgetExceededError,
     ]
 
     def __init__(self, *, wall_time_limit_seconds: int = 0, **kwargs) -> None:
@@ -152,7 +154,9 @@ class CostAwareLitellmModel(LitellmModel):
                     }
                 )
             request_timeout = call_kwargs.get("timeout", self.config.model_kwargs.get("timeout"))
-            call_kwargs["timeout"] = min(request_timeout, remaining) if request_timeout else remaining
+            call_kwargs["timeout"] = (
+                min(request_timeout, remaining) if request_timeout else remaining
+            )
 
         if self._attempt > 1 and self._is_openrouter():
             extra_body = call_kwargs.get("extra_body", self.config.model_kwargs.get("extra_body"))
@@ -187,9 +191,7 @@ class CostAwareLitellmModel(LitellmModel):
             return {"cost": provider_cost}
 
         try:
-            cost = litellm.cost_calculator.completion_cost(
-                response, model=self.config.model_name
-            )
+            cost = litellm.cost_calculator.completion_cost(response, model=self.config.model_name)
         except Exception as exc:
             return self._cost_unavailable(str(exc))
 
@@ -202,12 +204,12 @@ class CostAwareLitellmModel(LitellmModel):
         """Strict (``cost_tracking != "ignore_errors"``) aborts the task;
         lenient logs and carries on with ``0.0`` (the pre-R5.5 behavior)."""
         if self.config.cost_tracking == "ignore_errors":
-            logger.warning(
-                "llm_cost_unavailable", model=self.config.model_name, error=reason
-            )
+            logger.warning("llm_cost_unavailable", model=self.config.model_name, error=reason)
             return {"cost": 0.0}
         logger.error(
-            "llm_cost_unavailable", model=self.config.model_name, error=reason,
+            "llm_cost_unavailable",
+            model=self.config.model_name,
+            error=reason,
             action="task_aborted",
         )
         raise CostUnavailableError(
@@ -231,7 +233,8 @@ class CostAwareLitellmModel(LitellmModel):
         # template that ever references {{ model_kwargs }} can't leak them.
         template_vars = super().get_template_vars(**kwargs)
         model_kwargs = {
-            k: v for k, v in (template_vars.get("model_kwargs") or {}).items()
+            k: v
+            for k, v in (template_vars.get("model_kwargs") or {}).items()
             if k in self._TEMPLATE_SAFE_MODEL_KWARGS
         }
         return {**template_vars, "model_kwargs": model_kwargs}

@@ -48,17 +48,11 @@ def e2e_settings() -> Settings:
         LLM_API_KEY=os.environ["LLM_API_KEY"],
         REPO_ROUTES=[
             {
-                "issues": os.environ.get(
-                    "E2E_TEST_REPO", "stateway-io/stateway-issues"
-                ),
-                "target": os.environ.get(
-                    "E2E_TARGET_REPO", "stateway-io/stateway-agent-fixtures"
-                ),
+                "issues": os.environ.get("E2E_TEST_REPO", "stateway-io/stateway-issues"),
+                "target": os.environ.get("E2E_TARGET_REPO", "stateway-io/stateway-agent-fixtures"),
             }
         ],
         MAX_ITERATIONS=int(os.environ.get("MAX_ITERATIONS", "50")),
-        MAX_BUDGET_PER_TASK_USD=float(
-            os.environ.get("MAX_BUDGET_PER_TASK_USD", "2.00")
-        ),
+        MAX_BUDGET_PER_TASK_USD=float(os.environ.get("MAX_BUDGET_PER_TASK_USD", "2.00")),
         LOG_LEVEL=os.environ.get("LOG_LEVEL", "info"),
     )

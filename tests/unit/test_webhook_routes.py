@@ -20,7 +20,10 @@ if TYPE_CHECKING:
 
 class SettingsNoEnv(Settings):
     model_config = SettingsConfigDict(
-        env_file=None, env_prefix="", extra="ignore", yaml_file=None,
+        env_file=None,
+        env_prefix="",
+        extra="ignore",
+        yaml_file=None,
     )
 
 
@@ -52,15 +55,10 @@ class TestIssueClosedObservability:
         self, store: SQLiteStore, tmp_path
     ) -> None:
         settings = _settings(tmp_path)
-        store.open_issue_work(
-            "github",
-            "owner/issues", 1, "owner/code", "main", "agent/issue-1-x"
-        )
+        store.open_issue_work("github", "owner/issues", 1, "owner/code", "main", "agent/issue-1-x")
         store.update_issue_work("github", "owner/issues", 1, attempts=2)
 
-        with patch(
-            "issue_agent.webhook.routes.observe_issue_work_closed"
-        ) as observe:
+        with patch("issue_agent.webhook.routes.observe_issue_work_closed") as observe:
             status, reason = _handle_issue_lifecycle(
                 store, settings, _parsed(TriggerKind.ISSUE_CLOSED)
             )
@@ -69,9 +67,7 @@ class TestIssueClosedObservability:
         observe.assert_called_once_with("owner/code", 2, provider_instance="github")
 
         closed = [
-            e
-            for e in read_audit_entries(str(tmp_path))
-            if e.get("event") == "issue_work_closed"
+            e for e in read_audit_entries(str(tmp_path)) if e.get("event") == "issue_work_closed"
         ]
         assert len(closed) == 1
         assert closed[0]["closed_reason"] == "issue_closed"
@@ -81,14 +77,10 @@ class TestIssueClosedObservability:
         assert closed[0]["provider_instance"] == "github"
         assert closed[0]["issue_number"] == 1
 
-    def test_closing_with_no_open_work_writes_nothing(
-        self, store: SQLiteStore, tmp_path
-    ) -> None:
+    def test_closing_with_no_open_work_writes_nothing(self, store: SQLiteStore, tmp_path) -> None:
         settings = _settings(tmp_path)
 
-        with patch(
-            "issue_agent.webhook.routes.observe_issue_work_closed"
-        ) as observe:
+        with patch("issue_agent.webhook.routes.observe_issue_work_closed") as observe:
             status, reason = _handle_issue_lifecycle(
                 store, settings, _parsed(TriggerKind.ISSUE_CLOSED)
             )
@@ -104,14 +96,9 @@ class TestReopenClearsIssueClosedBlock:
     longer true, so the spent row must be dropped — a later comment then
     starts fresh work (§3.3)."""
 
-    def test_reopen_drops_a_row_closed_by_issue_closed(
-        self, store: SQLiteStore, tmp_path
-    ) -> None:
+    def test_reopen_drops_a_row_closed_by_issue_closed(self, store: SQLiteStore, tmp_path) -> None:
         settings = _settings(tmp_path)
-        store.open_issue_work(
-            "github",
-            "owner/issues", 1, "owner/code", "main", "agent/issue-1-x"
-        )
+        store.open_issue_work("github", "owner/issues", 1, "owner/code", "main", "agent/issue-1-x")
         store.close_issue_work("github", "owner/issues", 1, "issue_closed")
 
         status, reason = _handle_issue_lifecycle(
@@ -132,23 +119,16 @@ class TestReopenClearsIssueClosedBlock:
         self, store: SQLiteStore, tmp_path
     ) -> None:
         settings = _settings(tmp_path)
-        store.open_issue_work(
-            "github",
-            "owner/issues", 1, "owner/code", "main", "agent/issue-1-x"
-        )
+        store.open_issue_work("github", "owner/issues", 1, "owner/code", "main", "agent/issue-1-x")
         store.close_issue_work("github", "owner/issues", 1, "max_attempts")
 
-        _handle_issue_lifecycle(
-            store, settings, _parsed(TriggerKind.ISSUE_REOPENED)
-        )
+        _handle_issue_lifecycle(store, settings, _parsed(TriggerKind.ISSUE_REOPENED))
 
         work = store.get_issue_work("github", "owner/issues", 1)
         assert work is not None
         assert work.closed_reason == "max_attempts"
 
-    def test_reopen_with_no_row_is_a_noop(
-        self, store: SQLiteStore, tmp_path
-    ) -> None:
+    def test_reopen_with_no_row_is_a_noop(self, store: SQLiteStore, tmp_path) -> None:
         settings = _settings(tmp_path)
 
         status, reason = _handle_issue_lifecycle(

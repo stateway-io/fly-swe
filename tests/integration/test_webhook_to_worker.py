@@ -42,9 +42,7 @@ class TestNoLabels:
         self, store: SQLiteStore, app: AsyncClient, worker_settings: Settings
     ) -> None:
         body = make_github_payload(issue_number=10)
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as c:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
             resp = await c.post(
                 "/webhooks/github",
                 content=body,
@@ -91,9 +89,7 @@ class TestQuestionLabel:
         self, store: SQLiteStore, app: AsyncClient, worker_settings: Settings
     ) -> None:
         body = make_github_payload(issue_number=20, labels=["question"])
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as c:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
             resp = await c.post(
                 "/webhooks/github",
                 content=body,
@@ -123,13 +119,13 @@ class TestQuestionLabel:
 
         events = _task_events(store, task_id)
         assert any(
-            e["type"] == "state_change" and e["payload"].get("to") == "succeeded"
-            for e in events
+            e["type"] == "state_change" and e["payload"].get("to") == "succeeded" for e in events
         )
 
         audit = _audit_lines(worker_settings)
         assert any(
-            "task_processed" in line and '"outcome": "succeeded"' in line
+            "task_processed" in line
+            and '"outcome": "succeeded"' in line
             and '"action": "triage_only"' in line
             for line in audit
         )
@@ -141,9 +137,7 @@ class TestBugLabel:
         self, store: SQLiteStore, app: AsyncClient, worker_settings: Settings
     ) -> None:
         body = make_github_payload(issue_number=30, labels=["bug"])
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as c:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
             resp = await c.post(
                 "/webhooks/github",
                 content=body,
@@ -180,9 +174,7 @@ class TestBugLabel:
         the category-specific prompt files were unreachable in production.
         """
         body = make_github_payload(issue_number=31, labels=["bug"])
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as c:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
             resp = await c.post(
                 "/webhooks/github",
                 content=body,
@@ -200,9 +192,7 @@ class TestBugLabel:
         assert task is not None
         assert task.label_category == "bug"
 
-        system_prompt = load_system_prompt(
-            task.label_category, worker_settings.prompt_category_map
-        )
+        system_prompt = load_system_prompt(task.label_category, worker_settings.prompt_category_map)
         assert "classified as a **bug**" in system_prompt
         assert "Reproduce the bug" in system_prompt
 
@@ -213,9 +203,7 @@ class TestAgentSkipLabel:
         self, store: SQLiteStore, app: AsyncClient, worker_settings: Settings
     ) -> None:
         body = make_github_payload(issue_number=40, labels=["agent-skip"])
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as c:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
             resp = await c.post(
                 "/webhooks/github",
                 content=body,

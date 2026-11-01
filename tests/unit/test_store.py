@@ -147,9 +147,7 @@ class TestUpdateStatus:
         assert updated.iterations == 5
         assert updated.status is TaskStatus.FAILED_TERMINAL
 
-    def test_all_terminal_statuses_set_completed_at(
-        self, store: SQLiteStore
-    ) -> None:
+    def test_all_terminal_statuses_set_completed_at(self, store: SQLiteStore) -> None:
         statuses = [
             TaskStatus.SUCCEEDED,
             TaskStatus.FAILED_RECOVERABLE,
@@ -165,9 +163,7 @@ class TestUpdateStatus:
             assert retrieved is not None
             assert retrieved.completed_at is not None, f"{status} should set completed_at"
 
-    def test_update_nonexistent_task_does_not_raise(
-        self, store: SQLiteStore
-    ) -> None:
+    def test_update_nonexistent_task_does_not_raise(self, store: SQLiteStore) -> None:
         store.update_status("nonexistent", TaskStatus.SUCCEEDED)
 
 
@@ -213,9 +209,7 @@ class TestActiveCreationTaskCheck:
         )
 
     def test_pending_labeled_task_is_active(self, store: SQLiteStore) -> None:
-        task = _make_task(
-            delivery_id="d1", issue_number=7, trigger_kind=TriggerKind.LABEL_ADDED
-        )
+        task = _make_task(delivery_id="d1", issue_number=7, trigger_kind=TriggerKind.LABEL_ADDED)
         store.insert_task(task)
         assert (
             store.has_active_creation_task_for_issue("github", "stateway-io/stateway-issues", 7)
@@ -256,9 +250,7 @@ class TestActiveCreationTaskCheck:
             is False
         )
 
-    def test_comment_command_task_is_not_a_creation_task(
-        self, store: SQLiteStore
-    ) -> None:
+    def test_comment_command_task_is_not_a_creation_task(self, store: SQLiteStore) -> None:
         """An in-flight comment_command task must never count here — it
         would make a genuinely new, unrelated `issues.labeled` event get
         silently dropped just because some other task is active on the
@@ -284,18 +276,14 @@ class TestInsertTaskUnlessActiveCreationTask:
         first = _make_task(delivery_id="d1", issue_number=21)
         store.insert_task(first)
 
-        second = _make_task(
-            delivery_id="d2", issue_number=21, trigger_kind=TriggerKind.LABEL_ADDED
-        )
+        second = _make_task(delivery_id="d2", issue_number=21, trigger_kind=TriggerKind.LABEL_ADDED)
         task_id = store.insert_task_unless_active_creation_task(second)
 
         assert task_id is None
         assert store.get_queue_depth() == 1
 
     def test_skips_when_labeled_already_active(self, store: SQLiteStore) -> None:
-        first = _make_task(
-            delivery_id="d1", issue_number=22, trigger_kind=TriggerKind.LABEL_ADDED
-        )
+        first = _make_task(delivery_id="d1", issue_number=22, trigger_kind=TriggerKind.LABEL_ADDED)
         store.insert_task(first)
 
         second = _make_task(delivery_id="d2", issue_number=22)
@@ -329,9 +317,7 @@ class TestOrphanedTasks:
         orphans = store.find_orphaned_tasks("1970-01-01T00:00:00Z")
         assert len(orphans) == 0
 
-        orphans = store.find_orphaned_tasks(
-            "2099-01-01T00:00:00Z"
-        )
+        orphans = store.find_orphaned_tasks("2099-01-01T00:00:00Z")
         assert len(orphans) == 1
         assert orphans[0].id == task.id
 
@@ -347,12 +333,8 @@ class TestTaskEvents:
     def test_append_and_retrieve(self, store: SQLiteStore) -> None:
         task = _make_task()
         store.insert_task(task)
-        store.append_task_event(
-            task.id, "state_change", {"from": "pending", "to": "running"}
-        )
-        store.append_task_event(
-            task.id, "llm_call", {"tokens": 123}
-        )
+        store.append_task_event(task.id, "state_change", {"from": "pending", "to": "running"})
+        store.append_task_event(task.id, "llm_call", {"tokens": 123})
         events = store.get_task_events(task.id)
         assert len(events) == 2
         assert events[0].event_type == "state_change"
@@ -366,9 +348,7 @@ class TestTaskEvents:
     def test_event_payload_is_stored(self, store: SQLiteStore) -> None:
         task = _make_task()
         store.insert_task(task)
-        store.append_task_event(
-            task.id, "test", {"key": "value", "nested": {"a": 1}}
-        )
+        store.append_task_event(task.id, "test", {"key": "value", "nested": {"a": 1}})
         events = store.get_task_events(task.id)
         payload = json.loads(events[0].payload_json)
         assert payload["key"] == "value"
@@ -513,13 +493,8 @@ class TestMigrateV2:
         row = store.conn.execute("SELECT COUNT(*) AS cnt FROM tasks").fetchone()
         assert row["cnt"] == 1
 
-    def test_new_db_already_has_columns_and_skips_migration(
-        self, store: SQLiteStore
-    ) -> None:
-        columns = {
-            row["name"]
-            for row in store.conn.execute("PRAGMA table_info(tasks)").fetchall()
-        }
+    def test_new_db_already_has_columns_and_skips_migration(self, store: SQLiteStore) -> None:
+        columns = {row["name"] for row in store.conn.execute("PRAGMA table_info(tasks)").fetchall()}
         assert "target_repo" in columns
         assert "base_branch" in columns
         assert "workflow" in columns
@@ -585,8 +560,7 @@ class TestMigrateV3:
                 )
             """)
             conn.execute(
-                "INSERT INTO daily_budget (date, total_cost_usd, task_count) "
-                "VALUES (?, ?, ?)",
+                "INSERT INTO daily_budget (date, total_cost_usd, task_count) VALUES (?, ?, ?)",
                 ("2026-05-16", 9.99, 3),
             )
             conn.commit()
@@ -613,17 +587,12 @@ class TestMigrateV3:
         store.init()
         store.init()
 
-        row = store.conn.execute(
-            "SELECT COUNT(*) AS cnt FROM daily_budget"
-        ).fetchone()
+        row = store.conn.execute("SELECT COUNT(*) AS cnt FROM daily_budget").fetchone()
         assert row["cnt"] == 1
 
-    def test_new_db_already_has_scope_and_skips_migration(
-        self, store: SQLiteStore
-    ) -> None:
+    def test_new_db_already_has_scope_and_skips_migration(self, store: SQLiteStore) -> None:
         columns = {
-            row["name"]
-            for row in store.conn.execute("PRAGMA table_info(daily_budget)").fetchall()
+            row["name"] for row in store.conn.execute("PRAGMA table_info(daily_budget)").fetchall()
         }
         assert "scope" in columns
 
@@ -635,12 +604,9 @@ class TestIssueWork:
     def test_get_missing_returns_none(self, store: SQLiteStore) -> None:
         assert store.get_issue_work("github", "owner/repo", 42) is None
 
-    def test_open_creates_open_record_with_frozen_branch(
-        self, store: SQLiteStore
-    ) -> None:
+    def test_open_creates_open_record_with_frozen_branch(self, store: SQLiteStore) -> None:
         work = store.open_issue_work(
-            "github",
-            "owner/repo", 42, "owner/target", "main", "agent/issue-42-fix-thing"
+            "github", "owner/repo", 42, "owner/target", "main", "agent/issue-42-fix-thing"
         )
         assert isinstance(work, IssueWork)
         assert work.issue_repo == "owner/repo"
@@ -666,24 +632,17 @@ class TestIssueWork:
         with pytest.raises(sqlite3.IntegrityError):
             store.open_issue_work("github", "owner/repo", 42, "owner/target", "main", "b2")
 
-    def test_same_number_different_repo_is_independent(
-        self, store: SQLiteStore
-    ) -> None:
+    def test_same_number_different_repo_is_independent(self, store: SQLiteStore) -> None:
         store.open_issue_work("github", "owner/a", 42, "owner/a", "main", "ba")
         store.open_issue_work("github", "owner/b", 42, "owner/b", "main", "bb")
         assert store.get_issue_work("github", "owner/a", 42).work_branch == "ba"
         assert store.get_issue_work("github", "owner/b", 42).work_branch == "bb"
 
-    def test_update_bumps_attempts_and_touches_updated_at(
-        self, store: SQLiteStore
-    ) -> None:
+    def test_update_bumps_attempts_and_touches_updated_at(self, store: SQLiteStore) -> None:
         store.open_issue_work("github", "owner/repo", 42, "owner/target", "main", "b")
         before = store.get_issue_work("github", "owner/repo", 42)
         time.sleep(0.01)
-        store.update_issue_work(
-            "github",
-            "owner/repo", 42, attempts=1, last_task_id="task-abc"
-        )
+        store.update_issue_work("github", "owner/repo", 42, attempts=1, last_task_id="task-abc")
         after = store.get_issue_work("github", "owner/repo", 42)
         assert after.attempts == 1
         assert after.last_task_id == "task-abc"
@@ -723,10 +682,7 @@ class TestIssueWork:
             ("owner/repo", 42),
         )
         store.conn.commit()
-        fresh = store.open_issue_work(
-            "github",
-            "owner/repo", 42, "owner/target", "main", "b2"
-        )
+        fresh = store.open_issue_work("github", "owner/repo", 42, "owner/target", "main", "b2")
         assert fresh.attempts == 0
         assert fresh.work_branch == "b2"
         assert fresh.state == "open"
@@ -751,9 +707,7 @@ class TestIssueWorkLifecycleQueries:
     def test_touch_missing_row_does_not_raise(self, store: SQLiteStore) -> None:
         store.touch_issue_work("github", "owner/repo", 999)
 
-    def test_list_open_returns_only_open_oldest_first(
-        self, store: SQLiteStore
-    ) -> None:
+    def test_list_open_returns_only_open_oldest_first(self, store: SQLiteStore) -> None:
         store.open_issue_work("github", "owner/repo", 1, "owner/t", "main", "b1")
         time.sleep(0.01)
         store.open_issue_work("github", "owner/repo", 2, "owner/t", "main", "b2")
@@ -853,9 +807,7 @@ class TestMigrateV4:
         store.open_issue_work("github", "owner/repo", 42, "owner/repo", "main", "b")
         store.init()
 
-        row = store.conn.execute(
-            "SELECT COUNT(*) AS cnt FROM issue_work"
-        ).fetchone()
+        row = store.conn.execute("SELECT COUNT(*) AS cnt FROM issue_work").fetchone()
         assert row["cnt"] == 1
 
     def test_new_db_has_issue_work_table(self, store: SQLiteStore) -> None:
@@ -921,7 +873,9 @@ class TestMigrateV5:
         assert work.total_cost_usd == 0.0
         assert work.total_iterations == 0
 
-        store.update_issue_work("github", "owner/repo", 42, total_cost_usd=0.02, total_iterations=40)
+        store.update_issue_work(
+            "github", "owner/repo", 42, total_cost_usd=0.02, total_iterations=40
+        )
         work = store.get_issue_work("github", "owner/repo", 42)
         assert work is not None
         assert work.total_cost_usd == 0.02
@@ -936,15 +890,13 @@ class TestMigrateV5:
         store.init()
 
         columns = {
-            row["name"]
-            for row in store.conn.execute("PRAGMA table_info(issue_work)").fetchall()
+            row["name"] for row in store.conn.execute("PRAGMA table_info(issue_work)").fetchall()
         }
         assert {"total_cost_usd", "total_iterations"} <= columns
 
     def test_new_db_has_total_columns(self, store: SQLiteStore) -> None:
         columns = {
-            row["name"]
-            for row in store.conn.execute("PRAGMA table_info(issue_work)").fetchall()
+            row["name"] for row in store.conn.execute("PRAGMA table_info(issue_work)").fetchall()
         }
         assert {"total_cost_usd", "total_iterations"} <= columns
 
@@ -981,17 +933,11 @@ class TestMigrateV6:
         store.init()
         store.init()
 
-        columns = {
-            row["name"]
-            for row in store.conn.execute("PRAGMA table_info(tasks)").fetchall()
-        }
+        columns = {row["name"] for row in store.conn.execute("PRAGMA table_info(tasks)").fetchall()}
         assert {"trigger_json", "provider_instance", "credentials_ref"} <= columns
 
     def test_new_db_has_trigger_columns(self, store: SQLiteStore) -> None:
-        columns = {
-            row["name"]
-            for row in store.conn.execute("PRAGMA table_info(tasks)").fetchall()
-        }
+        columns = {row["name"] for row in store.conn.execute("PRAGMA table_info(tasks)").fetchall()}
         assert {"trigger_json", "provider_instance", "credentials_ref"} <= columns
 
 
@@ -1051,10 +997,13 @@ class TestMigrateV7:
         store.init()
 
         assert self._pk(store, "processed_deliveries") == [
-            "provider_instance", "delivery_id",
+            "provider_instance",
+            "delivery_id",
         ]
         assert self._pk(store, "issue_work") == [
-            "provider_instance", "issue_repo", "issue_number",
+            "provider_instance",
+            "issue_repo",
+            "issue_number",
         ]
         assert store.is_delivery_processed("github", "d1")
         work = store.get_issue_work("github", "owner/repo", 42)
@@ -1073,9 +1022,7 @@ class TestMigrateV7:
 
         columns = [
             r["name"]
-            for r in store.conn.execute(
-                "PRAGMA index_info(idx_tasks_unique_pending)"
-            ).fetchall()
+            for r in store.conn.execute("PRAGMA index_info(idx_tasks_unique_pending)").fetchall()
         ]
         assert columns == ["provider_instance", "repo", "issue_number", "trigger_kind"]
 
@@ -1087,19 +1034,21 @@ class TestMigrateV7:
         store.init()
         store.init()
 
-        assert store.conn.execute(
-            "SELECT COUNT(*) AS cnt FROM issue_work"
-        ).fetchone()["cnt"] == 1
-        assert store.conn.execute(
-            "SELECT COUNT(*) AS cnt FROM processed_deliveries"
-        ).fetchone()["cnt"] == 1
+        assert store.conn.execute("SELECT COUNT(*) AS cnt FROM issue_work").fetchone()["cnt"] == 1
+        assert (
+            store.conn.execute("SELECT COUNT(*) AS cnt FROM processed_deliveries").fetchone()["cnt"]
+            == 1
+        )
 
     def test_new_db_already_has_the_new_keys(self, store: SQLiteStore) -> None:
         assert self._pk(store, "processed_deliveries") == [
-            "provider_instance", "delivery_id",
+            "provider_instance",
+            "delivery_id",
         ]
         assert self._pk(store, "issue_work") == [
-            "provider_instance", "issue_repo", "issue_number",
+            "provider_instance",
+            "issue_repo",
+            "issue_number",
         ]
 
 
@@ -1135,9 +1084,7 @@ class TestMigrateV8:
             conn.close()
 
     def _columns(self, store: SQLiteStore) -> set[str]:
-        return {
-            r["name"] for r in store.conn.execute("PRAGMA table_info(tasks)").fetchall()
-        }
+        return {r["name"] for r in store.conn.execute("PRAGMA table_info(tasks)").fetchall()}
 
     def _indexes(self, store: SQLiteStore) -> set[str]:
         return {
@@ -1159,10 +1106,14 @@ class TestMigrateV8:
         task = store.get_task("t2")
         assert task is not None
         assert (task.target_repo, task.base_branch, task.workflow) == (
-            "owner/code", "develop", "gitflow",
+            "owner/code",
+            "develop",
+            "gitflow",
         )
         assert (task.trigger_json, task.provider_instance, task.credentials_ref) == (
-            '{"x": 1}', "ghe", "99",
+            '{"x": 1}',
+            "ghe",
+            "99",
         )
         assert (task.cost_usd, task.iterations) == (1.25, 4)
         assert [e.event_type for e in store.get_task_events("t2")] == ["started"]
@@ -1176,13 +1127,13 @@ class TestMigrateV8:
         store.init()
 
         assert {
-            "idx_tasks_unique_pending", "idx_tasks_status", "idx_tasks_heartbeat",
+            "idx_tasks_unique_pending",
+            "idx_tasks_status",
+            "idx_tasks_heartbeat",
         } <= self._indexes(store)
         columns = [
             r["name"]
-            for r in store.conn.execute(
-                "PRAGMA index_info(idx_tasks_unique_pending)"
-            ).fetchall()
+            for r in store.conn.execute("PRAGMA index_info(idx_tasks_unique_pending)").fetchall()
         ]
         assert columns == ["provider_instance", "repo", "issue_number", "trigger_kind"]
         with pytest.raises(sqlite3.IntegrityError):
@@ -1198,9 +1149,7 @@ class TestMigrateV8:
         store.init()
         store.init()
 
-        assert store.conn.execute(
-            "SELECT COUNT(*) AS cnt FROM tasks"
-        ).fetchone()["cnt"] == 2
+        assert store.conn.execute("SELECT COUNT(*) AS cnt FROM tasks").fetchone()["cnt"] == 2
 
     def test_full_chain_from_a_pre_v2_db(self, tmp_path) -> None:
         db_path = str(tmp_path / "pre-v2.db")
@@ -1252,9 +1201,7 @@ class TestProviderInstanceIsolation:
     def test_active_creation_task_is_per_instance(self, store: SQLiteStore) -> None:
         store.insert_task(_make_task(provider_instance="github"))
 
-        assert store.has_active_creation_task_for_issue(
-            "github", "stateway-io/stateway-issues", 42
-        )
+        assert store.has_active_creation_task_for_issue("github", "stateway-io/stateway-issues", 42)
         assert not store.has_active_creation_task_for_issue(
             "ghe", "stateway-io/stateway-issues", 42
         )
@@ -1283,8 +1230,12 @@ class TestCloseIssueWorkTotals:
 
         store.close_issue_work(
             "github",
-            "owner/repo", 7, "pr_opened", pr_number=99,
-            total_cost_usd=0.03, total_iterations=56,
+            "owner/repo",
+            7,
+            "pr_opened",
+            pr_number=99,
+            total_cost_usd=0.03,
+            total_iterations=56,
         )
 
         work = store.get_issue_work("github", "owner/repo", 7)
@@ -1310,18 +1261,14 @@ class TestFetchNextFairness:
     """fetch_next does cheap round-robin between repos so one repo's
     backlog can't starve another repo's tasks that arrived later."""
 
-    def test_second_repo_not_stuck_behind_first_repos_backlog(
-        self, store: SQLiteStore
-    ) -> None:
+    def test_second_repo_not_stuck_behind_first_repos_backlog(self, store: SQLiteStore) -> None:
         # 3 tasks from repo A, then 1 from repo B, all pending with
         # increasing created_at (insertion order == creation order here).
         for i in range(3):
             store.insert_task(
                 _make_task(delivery_id=f"a-{i}", repo="owner/repo-a", issue_number=100 + i)
             )
-        store.insert_task(
-            _make_task(delivery_id="b-0", repo="owner/repo-b", issue_number=200)
-        )
+        store.insert_task(_make_task(delivery_id="b-0", repo="owner/repo-b", issue_number=200))
 
         dispatched = []
         for _ in range(4):

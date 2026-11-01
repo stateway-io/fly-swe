@@ -87,10 +87,7 @@ class SQLiteStore:
         shape, so roll back by restoring a volume snapshot. Idempotent:
         guarded by `PRAGMA table_info`, a no-op on fresh DBs where
         schema.sql already created the new shape."""
-        columns = {
-            row["name"]
-            for row in self.conn.execute("PRAGMA table_info(tasks)").fetchall()
-        }
+        columns = {row["name"] for row in self.conn.execute("PRAGMA table_info(tasks)").fetchall()}
         if not columns & {"payload_json", "installation_id"}:
             return
 
@@ -129,9 +126,7 @@ class SQLiteStore:
                   credentials_ref   TEXT
                 )
             """)
-            self.conn.execute(
-                f"INSERT INTO tasks_v8 ({kept}) SELECT {kept} FROM tasks"
-            )
+            self.conn.execute(f"INSERT INTO tasks_v8 ({kept}) SELECT {kept} FROM tasks")
             self.conn.execute("DROP TABLE tasks")
             self.conn.execute("ALTER TABLE tasks_v8 RENAME TO tasks")
             self.conn.execute(
@@ -168,19 +163,14 @@ class SQLiteStore:
         recreated whenever it doesn't cover `provider_instance` yet."""
         deliveries = {
             row["name"]
-            for row in self.conn.execute(
-                "PRAGMA table_info(processed_deliveries)"
-            ).fetchall()
+            for row in self.conn.execute("PRAGMA table_info(processed_deliveries)").fetchall()
         }
         work = {
-            row["name"]
-            for row in self.conn.execute("PRAGMA table_info(issue_work)").fetchall()
+            row["name"] for row in self.conn.execute("PRAGMA table_info(issue_work)").fetchall()
         }
         index_columns = {
             row["name"]
-            for row in self.conn.execute(
-                "PRAGMA index_info(idx_tasks_unique_pending)"
-            ).fetchall()
+            for row in self.conn.execute("PRAGMA index_info(idx_tasks_unique_pending)").fetchall()
         }
         if (
             "provider_instance" in deliveries
@@ -273,10 +263,7 @@ class SQLiteStore:
         table_info` like `_migrate_v5` — idempotent, including on fresh DBs
         where schema.sql already created the columns. Existing rows keep a
         NULL `trigger_json`; the worker's payload guard fails them."""
-        columns = {
-            row["name"]
-            for row in self.conn.execute("PRAGMA table_info(tasks)").fetchall()
-        }
+        columns = {row["name"] for row in self.conn.execute("PRAGMA table_info(tasks)").fetchall()}
         if "trigger_json" not in columns:
             self.conn.execute("ALTER TABLE tasks ADD COLUMN trigger_json TEXT")
         if "provider_instance" not in columns:
@@ -296,8 +283,7 @@ class SQLiteStore:
         table_info` like `_migrate_v3` — idempotent, including on fresh DBs
         where schema.sql already created the columns."""
         columns = {
-            row["name"]
-            for row in self.conn.execute("PRAGMA table_info(issue_work)").fetchall()
+            row["name"] for row in self.conn.execute("PRAGMA table_info(issue_work)").fetchall()
         }
         if "total_cost_usd" not in columns:
             self.conn.execute(
@@ -346,8 +332,7 @@ class SQLiteStore:
     def _migrate_v3(self) -> None:
         """Add scope to daily_budget, with composite PK (date, scope)."""
         columns = {
-            row["name"]
-            for row in self.conn.execute("PRAGMA table_info(daily_budget)").fetchall()
+            row["name"] for row in self.conn.execute("PRAGMA table_info(daily_budget)").fetchall()
         }
         if "scope" in columns:
             return
@@ -375,10 +360,7 @@ class SQLiteStore:
 
     def _migrate_v2(self) -> None:
         """Add target_repo/installation_id/base_branch/workflow to tasks."""
-        columns = {
-            row["name"]
-            for row in self.conn.execute("PRAGMA table_info(tasks)").fetchall()
-        }
+        columns = {row["name"] for row in self.conn.execute("PRAGMA table_info(tasks)").fetchall()}
         if "target_repo" in columns:
             return
 
@@ -432,7 +414,9 @@ class SQLiteStore:
                 "CREATE UNIQUE INDEX IF NOT EXISTS idx_tasks_unique_pending "
                 "ON tasks(repo, issue_number, trigger_kind) WHERE status = 'pending'"
             )
-            self.conn.execute("CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status, created_at)")
+            self.conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status, created_at)"
+            )
             self.conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_tasks_heartbeat "
                 "ON tasks(status, heartbeat_at) WHERE status = 'running'"
@@ -484,7 +468,9 @@ class SQLiteStore:
                 "CREATE UNIQUE INDEX IF NOT EXISTS idx_tasks_unique_pending "
                 "ON tasks(repo, issue_number, trigger_kind) WHERE status = 'pending'"
             )
-            self.conn.execute("CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status, created_at)")
+            self.conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status, created_at)"
+            )
             self.conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_tasks_heartbeat "
                 "ON tasks(status, heartbeat_at) WHERE status = 'running'"
@@ -505,8 +491,7 @@ class SQLiteStore:
 
     def is_delivery_processed(self, provider_instance: str, delivery_id: str) -> bool:
         row = self.conn.execute(
-            "SELECT 1 FROM processed_deliveries "
-            "WHERE provider_instance = ? AND delivery_id = ?",
+            "SELECT 1 FROM processed_deliveries WHERE provider_instance = ? AND delivery_id = ?",
             (provider_instance, delivery_id),
         ).fetchone()
         return row is not None
@@ -611,18 +596,14 @@ class SQLiteStore:
                 "UPDATE tasks SET status = ?, started_at = ?, heartbeat_at = ? WHERE id = ?",
                 (TaskStatus.RUNNING.value, now, now, task_id),
             )
-            task_row = conn.execute(
-                "SELECT * FROM tasks WHERE id = ?", (task_id,)
-            ).fetchone()
+            task_row = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
             conn.commit()
             return Task(**dict(task_row))
         except Exception:
             conn.rollback()
             raise
 
-    def update_status(
-        self, task_id: str, status: TaskStatus, **extra: Any
-    ) -> None:
+    def update_status(self, task_id: str, status: TaskStatus, **extra: Any) -> None:
         now = _utcnow()
         fields: dict[str, Any] = {"status": status.value}
 
@@ -632,15 +613,11 @@ class SQLiteStore:
         elif status in _TERMINAL_STATUSES:
             fields.setdefault("completed_at", now)
 
-        fields.update(
-            {k: v for k, v in extra.items() if v is not None}
-        )
+        fields.update({k: v for k, v in extra.items() if v is not None})
 
         set_clause = ", ".join(f"{k} = ?" for k in fields)
         values = list(fields.values()) + [task_id]
-        self.conn.execute(
-            f"UPDATE tasks SET {set_clause} WHERE id = ?", values
-        )
+        self.conn.execute(f"UPDATE tasks SET {set_clause} WHERE id = ?", values)
         self.conn.commit()
 
     def heartbeat(self, task_id: str) -> None:
@@ -651,9 +628,7 @@ class SQLiteStore:
         self.conn.commit()
 
     def get_task(self, task_id: str) -> Task | None:
-        row = self.conn.execute(
-            "SELECT * FROM tasks WHERE id = ?", (task_id,)
-        ).fetchone()
+        row = self.conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
         return Task(**dict(row)) if row else None
 
     def get_queue_depth(self) -> int:
@@ -741,9 +716,7 @@ class SQLiteStore:
         ).fetchall()
         return {r["id"] for r in rows}
 
-    def delete_old_records(
-        self, task_ids: list[str], cutoff: str
-    ) -> dict[str, int]:
+    def delete_old_records(self, task_ids: list[str], cutoff: str) -> dict[str, int]:
         counts: dict[str, int] = {}
         if not task_ids:
             return counts
@@ -779,9 +752,7 @@ class SQLiteStore:
 
     # ── task events ─────────────────────────────────────────────
 
-    def append_task_event(
-        self, task_id: str, event_type: str, payload: dict[str, Any]
-    ) -> None:
+    def append_task_event(self, task_id: str, event_type: str, payload: dict[str, Any]) -> None:
         self.conn.execute(
             "INSERT INTO task_events (task_id, event_type, payload_json) VALUES (?, ?, ?)",
             (task_id, event_type, json.dumps(payload)),
@@ -844,8 +815,14 @@ class SQLiteStore:
                 base_branch, work_branch, state, attempts, created_at, updated_at)
                VALUES (?, ?, ?, ?, ?, ?, 'open', 0, ?, ?)""",
             (
-                provider_instance, issue_repo, issue_number, target_repo,
-                base_branch, work_branch, now, now,
+                provider_instance,
+                issue_repo,
+                issue_number,
+                target_repo,
+                base_branch,
+                work_branch,
+                now,
+                now,
             ),
         )
         self.conn.commit()
@@ -868,9 +845,7 @@ class SQLiteStore:
         )
         self.conn.commit()
 
-    def delete_issue_work(
-        self, provider_instance: str, issue_repo: str, issue_number: int
-    ) -> None:
+    def delete_issue_work(self, provider_instance: str, issue_repo: str, issue_number: int) -> None:
         """Drop the row entirely — used when a closed work item is replaced by
         a fresh one on a new trigger (the PK forbids a second ``open``)."""
         self.conn.execute(
@@ -880,9 +855,7 @@ class SQLiteStore:
         )
         self.conn.commit()
 
-    def touch_issue_work(
-        self, provider_instance: str, issue_repo: str, issue_number: int
-    ) -> None:
+    def touch_issue_work(self, provider_instance: str, issue_repo: str, issue_number: int) -> None:
         """Bump ``updated_at`` without changing any other field — records that
         an external event (e.g. ``issues.reopened``, R7.2) was seen."""
         self.conn.execute(
@@ -898,8 +871,7 @@ class SQLiteStore:
         if limit <= 0:
             return []
         rows = self.conn.execute(
-            "SELECT * FROM issue_work WHERE state = 'open' "
-            "ORDER BY updated_at ASC LIMIT ?",
+            "SELECT * FROM issue_work WHERE state = 'open' ORDER BY updated_at ASC LIMIT ?",
             (limit,),
         ).fetchall()
         return [IssueWork(**dict(r)) for r in rows]

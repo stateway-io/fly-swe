@@ -33,9 +33,7 @@ def _model(**kwargs) -> CostAwareLitellmModel:
 
 def _openrouter_response(cost: float) -> _Response:
     return _Response(
-        hidden_params={
-            "additional_headers": {"llm_provider-x-litellm-response-cost": cost}
-        }
+        hidden_params={"additional_headers": {"llm_provider-x-litellm-response-cost": cost}}
     )
 
 
@@ -44,7 +42,9 @@ class TestProviderReportedCost:
         assert _provider_reported_cost(_openrouter_response(0.0123)) == pytest.approx(0.0123)
 
     def test_reads_response_cost_key(self):
-        assert _provider_reported_cost(_Response(hidden_params={"response_cost": 0.02})) == pytest.approx(0.02)
+        assert _provider_reported_cost(
+            _Response(hidden_params={"response_cost": 0.02})
+        ) == pytest.approx(0.02)
 
     def test_reads_usage_cost_attr(self):
         assert _provider_reported_cost(_Response(usage=_Usage(0.03))) == pytest.approx(0.03)
@@ -105,12 +105,16 @@ class TestCalculateCost:
             "litellm.cost_calculator.completion_cost",
             lambda *a, **k: (_ for _ in ()).throw(AssertionError("should not be consulted")),
         )
-        assert _model(cost_tracking="default")._calculate_cost(_openrouter_response(0.9)) == {"cost": 0.9}
+        assert _model(cost_tracking="default")._calculate_cost(_openrouter_response(0.9)) == {
+            "cost": 0.9
+        }
 
 
 class TestGetTemplateVars:
     def test_strips_api_key_and_api_base(self):
-        model = _model(model_kwargs={"api_key": "sk-secret", "api_base": "https://x", "max_retries": 3})
+        model = _model(
+            model_kwargs={"api_key": "sk-secret", "api_base": "https://x", "max_retries": 3}
+        )
         vars_ = model.get_template_vars()
         assert "api_key" not in vars_["model_kwargs"]
         assert "api_base" not in vars_["model_kwargs"]

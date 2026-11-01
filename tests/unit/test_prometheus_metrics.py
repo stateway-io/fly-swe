@@ -48,9 +48,13 @@ _INSTANCE = "github"
 
 class TestPrometheusMetrics:
     def test_observe_task_result_increments_counter(self) -> None:
-        before = _counter_value(tasks_total.labels(status="succeeded", provider_instance=_INSTANCE, repo=_REPO))
+        before = _counter_value(
+            tasks_total.labels(status="succeeded", provider_instance=_INSTANCE, repo=_REPO)
+        )
         observe_task_result("succeeded", 10.0, 1.5, 5, _REPO, provider_instance=_INSTANCE)
-        after = _counter_value(tasks_total.labels(status="succeeded", provider_instance=_INSTANCE, repo=_REPO))
+        after = _counter_value(
+            tasks_total.labels(status="succeeded", provider_instance=_INSTANCE, repo=_REPO)
+        )
         assert after == before + 1.0
 
     def test_observe_task_result_records_duration_histogram(self) -> None:
@@ -72,17 +76,38 @@ class TestPrometheusMetrics:
         assert after == before + 7.0
 
     def test_observe_task_result_multiple_statuses(self) -> None:
-        before_s = _counter_value(tasks_total.labels(status="succeeded", provider_instance=_INSTANCE, repo=_REPO))
-        before_f = _counter_value(tasks_total.labels(status="failed", provider_instance=_INSTANCE, repo=_REPO))
-        before_a = _counter_value(tasks_total.labels(status="aborted", provider_instance=_INSTANCE, repo=_REPO))
+        before_s = _counter_value(
+            tasks_total.labels(status="succeeded", provider_instance=_INSTANCE, repo=_REPO)
+        )
+        before_f = _counter_value(
+            tasks_total.labels(status="failed", provider_instance=_INSTANCE, repo=_REPO)
+        )
+        before_a = _counter_value(
+            tasks_total.labels(status="aborted", provider_instance=_INSTANCE, repo=_REPO)
+        )
 
         observe_task_result("succeeded", 5.0, 1.0, 3, _REPO, provider_instance=_INSTANCE)
         observe_task_result("failed", 20.0, 0.5, 8, _REPO, provider_instance=_INSTANCE)
         observe_task_result("aborted", 0.0, 0.0, 0, _REPO, provider_instance=_INSTANCE)
 
-        assert _counter_value(tasks_total.labels(status="succeeded", provider_instance=_INSTANCE, repo=_REPO)) == before_s + 1.0
-        assert _counter_value(tasks_total.labels(status="failed", provider_instance=_INSTANCE, repo=_REPO)) == before_f + 1.0
-        assert _counter_value(tasks_total.labels(status="aborted", provider_instance=_INSTANCE, repo=_REPO)) == before_a + 1.0
+        assert (
+            _counter_value(
+                tasks_total.labels(status="succeeded", provider_instance=_INSTANCE, repo=_REPO)
+            )
+            == before_s + 1.0
+        )
+        assert (
+            _counter_value(
+                tasks_total.labels(status="failed", provider_instance=_INSTANCE, repo=_REPO)
+            )
+            == before_f + 1.0
+        )
+        assert (
+            _counter_value(
+                tasks_total.labels(status="aborted", provider_instance=_INSTANCE, repo=_REPO)
+            )
+            == before_a + 1.0
+        )
 
     def test_observe_task_result_labels_are_independent_per_repo(self) -> None:
         """Two repos recording results on the same status must not share a
@@ -90,19 +115,34 @@ class TestPrometheusMetrics:
         collapsed it to a constant) would make repo-b's count include
         repo-a's increments too."""
         repo_a, repo_b = "owner/repo-a", "owner/repo-b"
-        before_a = _counter_value(tasks_total.labels(status="succeeded", provider_instance=_INSTANCE, repo=repo_a))
-        before_b = _counter_value(tasks_total.labels(status="succeeded", provider_instance=_INSTANCE, repo=repo_b))
+        before_a = _counter_value(
+            tasks_total.labels(status="succeeded", provider_instance=_INSTANCE, repo=repo_a)
+        )
+        before_b = _counter_value(
+            tasks_total.labels(status="succeeded", provider_instance=_INSTANCE, repo=repo_b)
+        )
 
         observe_task_result("succeeded", 1.0, 0.1, 1, repo_a, provider_instance=_INSTANCE)
         observe_task_result("succeeded", 1.0, 0.1, 1, repo_a, provider_instance=_INSTANCE)
         observe_task_result("succeeded", 1.0, 0.1, 1, repo_b, provider_instance=_INSTANCE)
 
-        assert _counter_value(tasks_total.labels(status="succeeded", provider_instance=_INSTANCE, repo=repo_a)) == before_a + 2.0
-        assert _counter_value(tasks_total.labels(status="succeeded", provider_instance=_INSTANCE, repo=repo_b)) == before_b + 1.0
+        assert (
+            _counter_value(
+                tasks_total.labels(status="succeeded", provider_instance=_INSTANCE, repo=repo_a)
+            )
+            == before_a + 2.0
+        )
+        assert (
+            _counter_value(
+                tasks_total.labels(status="succeeded", provider_instance=_INSTANCE, repo=repo_b)
+            )
+            == before_b + 1.0
+        )
 
     def test_the_same_repo_on_two_instances_gets_two_series(self) -> None:
         """owner/name is only unique within a forge: with two provider
         instances, the same repo name must not share a series (PRD Phase 4)."""
+
         def count(instance: str) -> float:
             return _counter_value(
                 tasks_total.labels(status="succeeded", provider_instance=instance, repo=_REPO)
@@ -148,10 +188,14 @@ class TestPrometheusMetrics:
             observe_resume,
         )
 
-        before = _counter_value(issue_work_resumes_total.labels(provider_instance=_INSTANCE, repo=_REPO))
+        before = _counter_value(
+            issue_work_resumes_total.labels(provider_instance=_INSTANCE, repo=_REPO)
+        )
         observe_resume(_REPO, provider_instance=_INSTANCE)
         observe_resume(_REPO, provider_instance=_INSTANCE)
-        after = _counter_value(issue_work_resumes_total.labels(provider_instance=_INSTANCE, repo=_REPO))
+        after = _counter_value(
+            issue_work_resumes_total.labels(provider_instance=_INSTANCE, repo=_REPO)
+        )
         assert after == before + 2.0
 
     def test_observe_issue_work_closed_records_attempts_histogram(self) -> None:

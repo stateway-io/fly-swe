@@ -52,9 +52,7 @@ class TestRefsArePassedThrough:
     """The forge formats references; the text builders never assume `#N`."""
 
     def test_commit_message(self) -> None:
-        assert commit_message("!12", "fix it", "bot") == (
-            "fix(!12): fix it\n\nCo-authored-by: bot"
-        )
+        assert commit_message("!12", "fix it", "bot") == ("fix(!12): fix it\n\nCo-authored-by: bot")
 
     def test_pr_title(self) -> None:
         assert pr_title("org/repo#3", "fix it") == "[agent] fix(org/repo#3): fix it"

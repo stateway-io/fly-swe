@@ -31,9 +31,7 @@ class BotIdentity:
         return _derive_bot_login(self.app_name, self.app_bot_login)
 
 
-def bot_identity_from_settings(
-    config: GitHubProviderSettings, agent_name: str
-) -> BotIdentity:
+def bot_identity_from_settings(config: GitHubProviderSettings, agent_name: str) -> BotIdentity:
     return BotIdentity(
         app_id=config.app_id,
         app_name=agent_name,

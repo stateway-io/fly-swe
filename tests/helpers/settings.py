@@ -9,9 +9,7 @@ from tests.helpers.github import TEST_SECRET
 if TYPE_CHECKING:
     from issue_agent.config import Settings
 
-MOCK_PRIVATE_KEY = (
-    "-----BEGIN RSA PRIVATE KEY-----\nMOCKKEY\n-----END RSA PRIVATE KEY-----"
-)
+MOCK_PRIVATE_KEY = "-----BEGIN RSA PRIVATE KEY-----\nMOCKKEY\n-----END RSA PRIVATE KEY-----"
 
 
 def github_provider(**fields: Any) -> dict[str, Any]:
@@ -33,6 +31,4 @@ def github_providers(instance_id: str = "github", **fields: Any) -> dict[str, An
 def with_github(settings: Settings, instance_id: str = "github", **fields: Any) -> Settings:
     """A copy of ``settings`` with fields of one GitHub instance replaced."""
     config = settings.providers[instance_id].model_copy(update=fields)
-    return settings.model_copy(
-        update={"providers": {**settings.providers, instance_id: config}}
-    )
+    return settings.model_copy(update={"providers": {**settings.providers, instance_id: config}})

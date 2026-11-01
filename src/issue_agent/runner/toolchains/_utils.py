@@ -153,16 +153,16 @@ def _move_stripped(source: Path, dest: Path, strip_components: int) -> None:
     for _ in range(strip_components):
         entries = [e for e in current.iterdir() if e.name not in {".DS_Store"}]
         if len(entries) != 1 or not entries[0].is_dir():
-            raise ToolchainExtractError(
-                f"cannot strip {strip_components} components from {source}"
-            )
+            raise ToolchainExtractError(f"cannot strip {strip_components} components from {source}")
         current = entries[0]
 
     dest.mkdir(parents=True, exist_ok=True)
     for item in current.iterdir():
         target = dest / item.name
         if target.exists():
-            shutil.rmtree(target, ignore_errors=True) if item.is_dir() else target.unlink(missing_ok=True)
+            shutil.rmtree(target, ignore_errors=True) if item.is_dir() else target.unlink(
+                missing_ok=True
+            )
         shutil.move(str(item), str(target))
 
 
@@ -202,7 +202,9 @@ def download_and_install(spec: ToolchainSpec, strip_components: int = 1) -> None
 
         _atomic_dir_swap(spec.install_dir, temp_install)
 
-    logger.info("toolchain_installed", name=spec.name, version=spec.version, path=str(spec.install_dir))
+    logger.info(
+        "toolchain_installed", name=spec.name, version=spec.version, path=str(spec.install_dir)
+    )
 
 
 def run_command(

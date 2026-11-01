@@ -16,7 +16,10 @@ from tests.helpers.settings import github_providers
 
 class SettingsNoEnv(Settings):
     model_config = SettingsConfigDict(
-        env_file=None, env_prefix="", extra="ignore", yaml_file=None,
+        env_file=None,
+        env_prefix="",
+        extra="ignore",
+        yaml_file=None,
     )
 
 
@@ -59,13 +62,9 @@ class TestFromSettings:
 
         assert (github.instance_id, ghe.instance_id) == ("github", "ghe")
         body = b"{}"
-        ghe.webhook.verify_signature(
-            {"X-Hub-Signature-256": sign_payload(body, "s2")}, body
-        )
+        ghe.webhook.verify_signature({"X-Hub-Signature-256": sign_payload(body, "s2")}, body)
         with pytest.raises(WebhookRejectedError):
-            github.webhook.verify_signature(
-                {"X-Hub-Signature-256": sign_payload(body, "s2")}, body
-            )
+            github.webhook.verify_signature({"X-Hub-Signature-256": sign_payload(body, "s2")}, body)
 
     def test_no_instances_is_an_empty_registry(self):
         settings = SettingsNoEnv(LLM_API_KEY="k")
@@ -79,9 +78,7 @@ class TestFromSettings:
 
 def test_instance_id_must_match_its_key():
     settings = _settings()
-    plugin = GitHubProviderPlugin.from_settings(
-        "github", settings.providers["github"], settings
-    )
+    plugin = GitHubProviderPlugin.from_settings("github", settings.providers["github"], settings)
 
     with pytest.raises(ValueError, match="registered as 'other'"):
         ProviderRegistry({"other": plugin})

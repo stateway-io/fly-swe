@@ -63,9 +63,7 @@ def app(store: SQLiteStore) -> FastAPI:
     return app
 
 
-def _configure(
-    monkeypatch: pytest.MonkeyPatch, app: FastAPI, settings: Settings
-) -> None:
+def _configure(monkeypatch: pytest.MonkeyPatch, app: FastAPI, settings: Settings) -> None:
     """What the lifespan does at startup: settings, and the provider
     registry built from them."""
     monkeypatch.setattr("issue_agent.webhook.health.get_settings", lambda: settings)
@@ -82,9 +80,7 @@ def _client(app: FastAPI):
 
 class TestHealthz:
     @pytest.mark.asyncio
-    async def test_returns_200(
-        self, monkeypatch: pytest.MonkeyPatch, app: FastAPI
-    ) -> None:
+    async def test_returns_200(self, monkeypatch: pytest.MonkeyPatch, app: FastAPI) -> None:
         _configure(
             monkeypatch,
             app,
@@ -198,9 +194,7 @@ class TestReadyzFunctionCallingCheck:
         )
         monkeypatch.setattr(
             "issue_agent.webhook.health.check_function_calling",
-            lambda model, provider: (
-                "no tools" if model == "repo/model-without-tools" else None
-            ),
+            lambda model, provider: "no tools" if model == "repo/model-without-tools" else None,
         )
         async with _client(app) as c:
             resp = await c.get("/readyz")
@@ -362,7 +356,9 @@ class TestReadyzProviders:
     async def test_provider_config_joins_the_settings_check(
         self, monkeypatch: pytest.MonkeyPatch, app: FastAPI
     ) -> None:
-        _configure(monkeypatch, app, _make_settings(PROVIDERS=github_providers(app_id=0), LLM_API_KEY=""))
+        _configure(
+            monkeypatch, app, _make_settings(PROVIDERS=github_providers(app_id=0), LLM_API_KEY="")
+        )
         async with _client(app) as c:
             resp = await c.get("/readyz")
         assert resp.status_code == 503
@@ -376,7 +372,9 @@ class TestReadyzProviders:
         _configure(monkeypatch, app, settings)
         app.state.registry = ProviderRegistry(
             {
-                "github": GitHubProviderPlugin.from_settings("github", settings.providers["github"], settings),
+                "github": GitHubProviderPlugin.from_settings(
+                    "github", settings.providers["github"], settings
+                ),
                 "forge-b": FakeProvider(
                     "forge-b",
                     secret="s",

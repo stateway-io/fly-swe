@@ -128,9 +128,7 @@ async def readyz(request: Request) -> JSONResponse:
     except Exception as e:
         sqlite_ok, sqlite_msg = False, str(e)
 
-    providers_ok, provider_missing, provider_checks = _provider_checks(
-        _get_registry(request)
-    )
+    providers_ok, provider_missing, provider_checks = _provider_checks(_get_registry(request))
     missing = provider_missing + _missing_settings(settings)
 
     checks = {

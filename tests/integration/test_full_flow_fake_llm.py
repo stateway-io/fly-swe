@@ -98,17 +98,23 @@ def git_workspace(tmp_path: Path) -> Path:
     subprocess.run(["git", "init", "-b", "main"], cwd=repo, check=True, capture_output=True)
     subprocess.run(
         ["git", "config", "user.email", "bot@test.com"],
-        cwd=repo, check=True, capture_output=True,
+        cwd=repo,
+        check=True,
+        capture_output=True,
     )
     subprocess.run(
         ["git", "config", "user.name", "Test Bot"],
-        cwd=repo, check=True, capture_output=True,
+        cwd=repo,
+        check=True,
+        capture_output=True,
     )
     (repo / "README.md").write_text("# Stateway\n\nWelcome.")
     subprocess.run(["git", "add", "-A"], cwd=repo, check=True, capture_output=True)
     subprocess.run(
         ["git", "commit", "-m", "initial commit"],
-        cwd=repo, check=True, capture_output=True,
+        cwd=repo,
+        check=True,
+        capture_output=True,
     )
 
     bare = tmp_path / "remote.git"
@@ -116,11 +122,15 @@ def git_workspace(tmp_path: Path) -> Path:
     subprocess.run(["git", "init", "--bare"], cwd=bare, check=True, capture_output=True)
     subprocess.run(
         ["git", "remote", "add", "origin", str(bare)],
-        cwd=repo, check=True, capture_output=True,
+        cwd=repo,
+        check=True,
+        capture_output=True,
     )
     subprocess.run(
         ["git", "push", "-u", "origin", "main"],
-        cwd=repo, check=True, capture_output=True,
+        cwd=repo,
+        check=True,
+        capture_output=True,
     )
     return repo
 
@@ -144,17 +154,23 @@ def _make_local_git_repo(tmp_path: Path, name: str) -> Path:
     subprocess.run(["git", "init", "-b", "main"], cwd=repo, check=True, capture_output=True)
     subprocess.run(
         ["git", "config", "user.email", "bot@test.com"],
-        cwd=repo, check=True, capture_output=True,
+        cwd=repo,
+        check=True,
+        capture_output=True,
     )
     subprocess.run(
         ["git", "config", "user.name", "Test Bot"],
-        cwd=repo, check=True, capture_output=True,
+        cwd=repo,
+        check=True,
+        capture_output=True,
     )
     (repo / "README.md").write_text(f"# {name}\n\nWelcome.")
     subprocess.run(["git", "add", "-A"], cwd=repo, check=True, capture_output=True)
     subprocess.run(
         ["git", "commit", "-m", "initial commit"],
-        cwd=repo, check=True, capture_output=True,
+        cwd=repo,
+        check=True,
+        capture_output=True,
     )
     return repo
 
@@ -180,9 +196,7 @@ class TestFullFlow:
             responses=[
                 _make_bash_response("echo 'fixed by agent' >> README.md"),
                 _make_bash_response("cat README.md"),
-                _make_bash_response(
-                    "printf 'COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT\\ndone\\n'"
-                ),
+                _make_bash_response("printf 'COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT\\ndone\\n'"),
             ],
             cost_per_call=0.01,
         )
@@ -241,9 +255,7 @@ class TestFullFlow:
         fake = FakeModel(
             responses=[
                 _make_bash_response("echo 'thinking...'"),
-                _make_bash_response(
-                    "printf 'COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT\\ndone\\n'"
-                ),
+                _make_bash_response("printf 'COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT\\ndone\\n'"),
             ],
             cost_per_call=0.01,
         )
@@ -306,9 +318,7 @@ class TestMultiRepoMultiWorkflowIntegration:
 
         def _trigger_json(repo: str, number: int, title: str) -> str:
             return make_trigger_event(
-                issue=make_issue(
-                    repo=repo, number=number, title=title, body="x", labels=["docs"]
-                ),
+                issue=make_issue(repo=repo, number=number, title=title, body="x", labels=["docs"]),
                 actor=make_author(login="testuser"),
             ).model_dump_json()
 
@@ -337,9 +347,7 @@ class TestMultiRepoMultiWorkflowIntegration:
             fake = FakeModel(
                 responses=[
                     _make_bash_response("echo 'fixed by agent' >> README.md"),
-                    _make_bash_response(
-                        "printf 'COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT\\ndone\\n'"
-                    ),
+                    _make_bash_response("printf 'COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT\\ndone\\n'"),
                 ],
                 cost_per_call=0.01,
             )
@@ -356,9 +364,7 @@ class TestMultiRepoMultiWorkflowIntegration:
                     return_value=runner,
                 ),
                 patch("issue_agent.runner.executor._run_git") as mock_git,
-                patch.object(
-                    GitHubClient, "create_pr", return_value=pr_result
-                ) as mock_create_pr,
+                patch.object(GitHubClient, "create_pr", return_value=pr_result) as mock_create_pr,
                 patch.object(GitHubClient, "create_comment"),
                 patch.object(GitHubClient, "find_pr_by_branch", return_value=None),
                 patch.object(GitHubClient, "get_repo") as mock_get_repo,
@@ -507,8 +513,7 @@ class TestAgentLevelCaps:
 
         assert result.cost_usd >= 0.05, f"Expected cost >= 0.05, got {result.cost_usd}"
         assert result.iterations == 2, (
-            f"Expected 2 iterations (cost 0.06 >= 0.05 limit on 3rd call), "
-            f"got {result.iterations}"
+            f"Expected 2 iterations (cost 0.06 >= 0.05 limit on 3rd call), got {result.iterations}"
         )
         # A5: hitting cost_limit must not be reported as a successful run.
         # Only cost_limit is exceeded here (MAX_ITERATIONS=100 is nowhere

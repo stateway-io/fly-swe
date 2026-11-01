@@ -73,8 +73,7 @@ def workspace(settings: Settings, mock_auth: MagicMock) -> Workspace:
 class TestWorkspace:
     def test_path_format(self, workspace: Workspace) -> None:
         expected = Path(
-            "/tmp/test-workspace-data/workspaces/task-abc-123"
-            "/stateway-io/stateway-agent-fixtures"
+            "/tmp/test-workspace-data/workspaces/task-abc-123/stateway-io/stateway-agent-fixtures"
         )
         assert workspace.path == expected
 
@@ -97,7 +96,10 @@ class TestWorkspace:
             ws.clone(target_branch="main")
 
         assert mock_run.call_args_list[2][0][0] == [
-            "git", "config", "user.email", "bot@example.com",
+            "git",
+            "config",
+            "user.email",
+            "bot@example.com",
         ]
 
     def test_clone_creates_directory_and_runs_git(
@@ -120,7 +122,10 @@ class TestWorkspace:
 
         clone_call = mock_run.call_args_list[0]
         assert clone_call[0][0] == [
-            "git", "clone", "--branch", "main",
+            "git",
+            "clone",
+            "--branch",
+            "main",
             "https://github.com/stateway-io/stateway-agent-fixtures.git",
             str(ws_path),
         ]
@@ -139,7 +144,10 @@ class TestWorkspace:
         email_call = mock_run.call_args_list[2]
         # GIT_USER_EMAIL unset: the provider's noreply address for the name.
         assert email_call[0][0] == [
-            "git", "config", "user.email", "issue-agent[bot]@users.noreply.github.com",
+            "git",
+            "config",
+            "user.email",
+            "issue-agent[bot]@users.noreply.github.com",
         ]
         assert email_call[1]["cwd"] == ws_path
 
@@ -171,9 +179,7 @@ class TestWorkspace:
         argv = mock_run.call_args_list[0][0][0]
         assert argv[:3] == ["git", "clone", "--depth=50"]
 
-    def test_clone_cleans_existing_directory(
-        self, workspace: Workspace
-    ) -> None:
+    def test_clone_cleans_existing_directory(self, workspace: Workspace) -> None:
         ws_path = workspace.path
 
         with (
@@ -187,9 +193,7 @@ class TestWorkspace:
         mock_rmtree.assert_called_once_with(ws_path, ignore_errors=True)
         assert mock_run.call_count == 3
 
-    def test_clone_uses_custom_branch(
-        self, workspace: Workspace
-    ) -> None:
+    def test_clone_uses_custom_branch(self, workspace: Workspace) -> None:
         with (
             patch.object(Path, "exists", return_value=False),
             patch("subprocess.run") as mock_run,
@@ -201,9 +205,7 @@ class TestWorkspace:
         branch_idx = clone_call[0][0].index("--branch") + 1
         assert clone_call[0][0][branch_idx] == "develop"
 
-    def test_clone_propagates_subprocess_error(
-        self, workspace: Workspace
-    ) -> None:
+    def test_clone_propagates_subprocess_error(self, workspace: Workspace) -> None:
         with (
             patch.object(Path, "exists", return_value=False),
             patch("subprocess.run", side_effect=subprocess.CalledProcessError(128, "git clone")),
@@ -248,7 +250,11 @@ class TestWorkspace:
     def test_clone_scopes_the_auth_header_to_a_custom_github_host(
         self, mock_auth: MagicMock
     ) -> None:
-        ws = _workspace("t-ghe", _make_settings(PROVIDERS=github_providers(host="https://ghe.example.com")), mock_auth)
+        ws = _workspace(
+            "t-ghe",
+            _make_settings(PROVIDERS=github_providers(host="https://ghe.example.com")),
+            mock_auth,
+        )
         with (
             patch.object(Path, "exists", return_value=False),
             patch("subprocess.run") as mock_run,
@@ -261,9 +267,7 @@ class TestWorkspace:
             "http.https://ghe.example.com.extraHeader"
         )
 
-    def test_cleanup_removes_directory(
-        self, workspace: Workspace
-    ) -> None:
+    def test_cleanup_removes_directory(self, workspace: Workspace) -> None:
         with (
             patch.object(Path, "exists", return_value=True) as mock_exists,
             patch("shutil.rmtree") as mock_rmtree,
@@ -273,9 +277,7 @@ class TestWorkspace:
         mock_exists.assert_called_once()
         mock_rmtree.assert_called_once_with(workspace.path, ignore_errors=True)
 
-    def test_cleanup_skips_if_not_exists(
-        self, workspace: Workspace
-    ) -> None:
+    def test_cleanup_skips_if_not_exists(self, workspace: Workspace) -> None:
         with (
             patch.object(Path, "exists", return_value=False) as mock_exists,
             patch("shutil.rmtree") as mock_rmtree,
@@ -285,9 +287,7 @@ class TestWorkspace:
         mock_exists.assert_called_once()
         mock_rmtree.assert_not_called()
 
-    def test_remote_url_reflects_default_github_host(
-        self, mock_auth: MagicMock
-    ) -> None:
+    def test_remote_url_reflects_default_github_host(self, mock_auth: MagicMock) -> None:
         """Sanity check for the default: with no providers.github.host
         override, the host stays "https://github.com" and _remote_url uses
         it (not a hardcoded literal — see test below for the custom case)."""
@@ -348,9 +348,7 @@ class TestWorkspaceSlugAndTransport:
     """The workspace treats the repo slug as opaque and gets every URL and
     credential from the forge's transport (PRD §3.2)."""
 
-    def test_clone_url_and_credential_come_from_the_transport(
-        self, settings: Settings
-    ) -> None:
+    def test_clone_url_and_credential_come_from_the_transport(self, settings: Settings) -> None:
         plugin = FakeProvider("fake", secret="s")
         ws = Workspace("t1", "group/sub/project", settings, plugin.transport())
 

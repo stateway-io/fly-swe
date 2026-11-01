@@ -22,9 +22,7 @@ class DailyBudgetMetrics:
         return asdict(self)
 
 
-def get_daily_budget_metrics(
-    store: SQLiteStore, settings: Settings
-) -> DailyBudgetMetrics:
+def get_daily_budget_metrics(store: SQLiteStore, settings: Settings) -> DailyBudgetMetrics:
     today = datetime.now(UTC).strftime("%Y-%m-%d")
     budget = store.get_daily_budget(today, "global")
     remaining = max(0.0, settings.max_daily_budget_usd - budget.total_cost_usd)

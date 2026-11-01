@@ -27,9 +27,7 @@ def _make_settings(tmp_path, **overrides) -> Settings:
         PROVIDERS=github_providers(app_id="1", app_private_key="k", webhook_secret="s"),
         LLM_API_KEY="k",
         DATA_DIR=str(tmp_path / "data"),
-        REPO_ROUTES=[
-            {"issues": "owner/issues-repo", "target": "owner/code-repo"}
-        ],
+        REPO_ROUTES=[{"issues": "owner/issues-repo", "target": "owner/code-repo"}],
     )
     defaults.update(overrides)
     return SettingsNoEnv(**defaults)
@@ -79,9 +77,7 @@ class _Patched:
         self.mock_runner_instance.run.return_value = agent_result
 
         self._patches = [
-            patch(
-                "issue_agent.runner.diagnose.Workspace", return_value=self.mock_workspace
-            ),
+            patch("issue_agent.runner.diagnose.Workspace", return_value=self.mock_workspace),
             patch(
                 "issue_agent.runner.executor.MiniSWERunner",
                 return_value=self.mock_runner_instance,
@@ -166,15 +162,19 @@ class TestRunDiagnosisHappyPath:
         assert final.iterations == 3
         assert "bug" in comment_body
 
-        assert store.get_daily_budget(
-            __import__("datetime").datetime.now(__import__("datetime").UTC).strftime("%Y-%m-%d"),
-            "owner/code-repo",
-        ).total_cost_usd == 0.05
+        assert (
+            store.get_daily_budget(
+                __import__("datetime")
+                .datetime.now(__import__("datetime").UTC)
+                .strftime("%Y-%m-%d"),
+                "owner/code-repo",
+            ).total_cost_usd
+            == 0.05
+        )
 
         audit = _audit_lines(settings)
         assert any(
-            '"action": "diagnose"' in line and '"outcome": "succeeded"' in line
-            for line in audit
+            '"action": "diagnose"' in line and '"outcome": "succeeded"' in line for line in audit
         )
 
     def test_diverging_verdict_still_succeeds(self, tmp_path) -> None:
@@ -204,7 +204,9 @@ class TestRunDiagnosisHappyPath:
         store.insert_task(task)
         fetched = store.fetch_next()
 
-        agent_result = AgentResult(success=False, error="task_timeout", cost_usd=0.20, iterations=40)
+        agent_result = AgentResult(
+            success=False, error="task_timeout", cost_usd=0.20, iterations=40
+        )
 
         with _Patched(tmp_path, agent_result, sentinel_content=None) as p:
             run_diagnosis(store, fetched, settings, p.plugin)
@@ -258,9 +260,7 @@ class TestRunDiagnosisHappyPath:
         assert final.status is TaskStatus.SUCCEEDED
 
         audit = _audit_lines(settings)
-        assert any(
-            '"outcome": "succeeded_with_comment_error"' in line for line in audit
-        )
+        assert any('"outcome": "succeeded_with_comment_error"' in line for line in audit)
 
     def test_workspace_cleanup_always_called(self, tmp_path) -> None:
         settings = _make_settings(tmp_path)
@@ -308,8 +308,10 @@ class TestRunDiagnosisUsesTheProvider:
         sentinel = json.dumps({"actual_category": "bug", "confidence": "high", "rationale": ""})
         agent_result = AgentResult(success=True, cost_usd=0.0, iterations=1)
 
-        with _Patched(tmp_path, agent_result, sentinel) as p, \
-             patch("issue_agent.runner.diagnose.Workspace") as mock_ws_cls:
+        with (
+            _Patched(tmp_path, agent_result, sentinel) as p,
+            patch("issue_agent.runner.diagnose.Workspace") as mock_ws_cls,
+        ):
             mock_ws_cls.return_value = p.mock_workspace
             run_diagnosis(store, fetched, settings, p.plugin)
 

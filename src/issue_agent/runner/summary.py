@@ -52,9 +52,7 @@ _LLM_SUMMARY_SYSTEM = (
 
 
 def _git(ws_path: Path, *args: str) -> str:
-    result = subprocess.run(
-        ["git", *args], capture_output=True, text=True, cwd=ws_path
-    )
+    result = subprocess.run(["git", *args], capture_output=True, text=True, cwd=ws_path)
     return result.stdout.strip() if result.returncode == 0 else ""
 
 
@@ -76,8 +74,7 @@ def _recent_actions(messages: list[dict[str, Any]]) -> str:
     ]
     turns = turns[-_RECENT_ACTION_LIMIT:]
     return "\n\n".join(
-        f"[recent step {i}]\n{t[:_RECENT_ACTION_CHARS]}"
-        for i, t in enumerate(turns, 1)
+        f"[recent step {i}]\n{t[:_RECENT_ACTION_CHARS]}" for i, t in enumerate(turns, 1)
     )
 
 
@@ -148,17 +145,13 @@ def summarize_block(
     if policy == "never":
         return "", "", 0.0
 
-    want_llm = policy == _LLM or (
-        policy == "llm_unless_budget" and block_error not in _COST_BLOCKS
-    )
+    want_llm = policy == _LLM or (policy == "llm_unless_budget" and block_error not in _COST_BLOCKS)
 
     if want_llm:
         try:
             text, cost = build_llm_summary(model, messages)
             return _truncate(text, max_chars), _LLM, cost
         except Exception as exc:
-            logger.warning(
-                "llm_block_summary_degraded", error=str(exc), block_error=block_error
-            )
+            logger.warning("llm_block_summary_degraded", error=str(exc), block_error=block_error)
 
     return _truncate(build_mechanical_summary(ws_path, messages), max_chars), _MECHANICAL, 0.0

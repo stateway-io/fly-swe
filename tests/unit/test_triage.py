@@ -29,15 +29,11 @@ class TestBuildTriageComment:
         assert "question" in result.lower()
 
     def test_question_category_mentions_author(self) -> None:
-        result = build_triage_comment(
-            "question", _payload(author="joao"), _AGENT_NAME
-        )
+        result = build_triage_comment("question", _payload(author="joao"), _AGENT_NAME)
         assert "@joao" in result
 
     def test_question_category_mentions_title(self) -> None:
-        result = build_triage_comment(
-            "question", _payload(title="Como usar?"), _AGENT_NAME
-        )
+        result = build_triage_comment("question", _payload(title="Como usar?"), _AGENT_NAME)
         assert "Como usar?" in result
 
     def test_feature_request_category_contains_feature_header(self) -> None:

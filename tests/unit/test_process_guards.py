@@ -286,7 +286,9 @@ class TestShimBeatsTheAgentsNodeOptions:
     def expected(self) -> int:
         out = subprocess.run(
             ["node", f"--max-old-space-size={self._CAP_MB}", "-e", self._PROBE],
-            capture_output=True, text=True, check=True,
+            capture_output=True,
+            text=True,
+            check=True,
         ).stdout
         limit = int(out.strip())
         uncapped = int(
@@ -335,7 +337,9 @@ class TestShimBeatsTheAgentsNodeOptions:
         """Guards the premise: this is the escape the shim exists to close."""
         out = subprocess.run(
             ["sh", "-c", f'NODE_OPTIONS="--max-old-space-size=4096" node -e "{self._PROBE}"'],
-            capture_output=True, text=True, check=True,
+            capture_output=True,
+            text=True,
+            check=True,
         ).stdout
 
         assert int(out.strip()) > 2048
@@ -343,7 +347,9 @@ class TestShimBeatsTheAgentsNodeOptions:
 
 class TestNodeGuardEnv:
     def test_puts_the_shim_first_and_keeps_the_rest_of_the_path(self, tmp_path) -> None:
-        env = node_guard_env({"PATH": "/data/tools/nodejs/20/bin:/usr/bin"}, tmp_path / "shims", 384)
+        env = node_guard_env(
+            {"PATH": "/data/tools/nodejs/20/bin:/usr/bin"}, tmp_path / "shims", 384
+        )
 
         assert env["PATH"] == f"{tmp_path / 'shims'}:/data/tools/nodejs/20/bin:/usr/bin"
         assert env[NODE_HEAP_ENV] == "384"

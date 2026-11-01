@@ -129,7 +129,7 @@ def build_branch_status(
             "`git commit` or `git checkout --ours/--theirs`: the harness records "
             "the merge commit after you finish, and refuses to push if any "
             "marker is left in those files. Do not edit other files just to "
-            "\"sync\" them with the target branch — the merge already did that. "
+            '"sync" them with the target branch — the merge already did that. '
             "List the files you resolved, and how, in your final summary."
         )
     elif status == "merged":
@@ -165,9 +165,7 @@ def load_system_prompt(category: str | None, category_prompt_map: dict[str, str]
     system = _read_prompt_file("system.md")
 
     prompt_file = category_prompt_map.get(category) if category else None
-    label_instructions = (
-        _read_prompt_file(prompt_file) if prompt_file else ""
-    )
+    label_instructions = _read_prompt_file(prompt_file) if prompt_file else ""
 
     return system.replace("{label_instructions}", label_instructions)
 
@@ -184,8 +182,11 @@ def load_diagnose_system_prompt() -> str:
 def _extract_issue_info(trigger: TriggerEvent | None) -> dict[str, Any]:
     if trigger is None:
         return {
-            "title": "(no title)", "body": "", "number": 0,
-            "author": "unknown", "labels": [],
+            "title": "(no title)",
+            "body": "",
+            "number": 0,
+            "author": "unknown",
+            "labels": [],
         }
     issue = trigger.issue
     return {
@@ -273,7 +274,9 @@ def build_comments_block(task: Task, history: list[Comment], settings: Settings)
 
         created_at = c.created_at.isoformat() if c.created_at else ""
         if is_own:
-            header = f"@{c.author.login or settings.agent_name} · you wrote this earlier · {created_at}"
+            header = (
+                f"@{c.author.login or settings.agent_name} · you wrote this earlier · {created_at}"
+            )
         else:
             header = f"@{c.author.login or 'unknown'} · {_association_label(c.author.association)} · {created_at}"
         entries.append(_render_comment(header=header, body=c.body, max_chars=max_chars))
@@ -288,8 +291,6 @@ def build_comments_block(task: Task, history: list[Comment], settings: Settings)
             f"{_association_label(trigger.author.association)} · "
             f"{created_at} · triggered this run"
         )
-        entries.append(
-            _render_comment(header=header, body=trigger.body, max_chars=max_chars)
-        )
+        entries.append(_render_comment(header=header, body=trigger.body, max_chars=max_chars))
 
     return "\n\n".join(entries)

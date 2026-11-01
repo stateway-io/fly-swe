@@ -71,9 +71,7 @@ class GitHubTransport(GitTransport):
             return f"{repo}#{number}"
         return f"#{number}"
 
-    def closing_reference(
-        self, issue_repo: str, number: int, target_repo: str
-    ) -> str | None:
+    def closing_reference(self, issue_repo: str, number: int, target_repo: str) -> str | None:
         ref = self.format_ref("issue", number, repo=issue_repo, from_repo=target_repo)
         return f"Closes {ref}"
 

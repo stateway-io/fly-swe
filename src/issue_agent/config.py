@@ -130,9 +130,9 @@ class RepoLlmOverride(BaseModel):
     # just the five Anthropic effort levels: "minimal" is a legacy-model-only
     # alias for "low", and "none" is an explicit "strip thinking" distinct
     # from leaving the field unset (which never sends the parameter at all).
-    reasoning_effort: (
-        Literal["minimal", "low", "medium", "high", "xhigh", "max", "none"] | None
-    ) = None
+    reasoning_effort: Literal["minimal", "low", "medium", "high", "xhigh", "max", "none"] | None = (
+        None
+    )
     fallback: RepoLlmFallbackOverride | None = None
 
 
@@ -184,9 +184,7 @@ class LlmProfile(BaseModel):
     prompt_caching: Literal["default_end", "none"]
     temperature: float | None
     max_output_tokens: int | None
-    reasoning_effort: (
-        Literal["minimal", "low", "medium", "high", "xhigh", "max", "none"] | None
-    )
+    reasoning_effort: Literal["minimal", "low", "medium", "high", "xhigh", "max", "none"] | None
     observation_max_chars: int
     fallback_model: str
     fallback_base_url: str
@@ -372,13 +370,9 @@ def flatten_yaml_config(raw: dict[str, Any]) -> dict[str, Any]:
     if "enabled" in author_filter:
         flat["COMMENTS_AUTHOR_FILTER_ENABLED"] = author_filter["enabled"]
     if "allow_issue_author" in author_filter:
-        flat["COMMENTS_AUTHOR_FILTER_ALLOW_ISSUE_AUTHOR"] = author_filter[
-            "allow_issue_author"
-        ]
+        flat["COMMENTS_AUTHOR_FILTER_ALLOW_ISSUE_AUTHOR"] = author_filter["allow_issue_author"]
     if "allow_associations" in author_filter:
-        flat["COMMENTS_AUTHOR_FILTER_ALLOW_ASSOCIATIONS"] = author_filter[
-            "allow_associations"
-        ]
+        flat["COMMENTS_AUTHOR_FILTER_ALLOW_ASSOCIATIONS"] = author_filter["allow_associations"]
     if "allowlist" in author_filter:
         flat["COMMENTS_AUTHOR_FILTER_ALLOWLIST"] = author_filter["allowlist"]
 
@@ -386,9 +380,7 @@ def flatten_yaml_config(raw: dict[str, Any]) -> dict[str, Any]:
     if "max_comments" in comments_context:
         flat["COMMENTS_CONTEXT_MAX_COMMENTS"] = comments_context["max_comments"]
     if "max_chars_per_comment" in comments_context:
-        flat["COMMENTS_CONTEXT_MAX_CHARS_PER_COMMENT"] = comments_context[
-            "max_chars_per_comment"
-        ]
+        flat["COMMENTS_CONTEXT_MAX_CHARS_PER_COMMENT"] = comments_context["max_chars_per_comment"]
 
     resume = raw.get("resume") or {}
     if "enabled" in resume:
@@ -492,9 +484,7 @@ class Settings(BaseSettings):
 
     # --- LLM (via LiteLLM) ---
     llm_api_key: str = Field(validation_alias="LLM_API_KEY")
-    llm_model: str = Field(
-        default="anthropic/claude-sonnet-4-5", validation_alias="LLM_MODEL"
-    )
+    llm_model: str = Field(default="anthropic/claude-sonnet-4-5", validation_alias="LLM_MODEL")
     llm_base_url: str = Field(default="", validation_alias="LLM_BASE_URL")
     llm_max_retries: int = Field(default=5, validation_alias="LLM_MAX_RETRIES")
     # Per-request timeout handed to LiteLLM (`timeout`). Without one a
@@ -520,9 +510,7 @@ class Settings(BaseSettings):
     llm_prompt_caching: Literal["default_end", "none"] = Field(
         default="default_end", validation_alias="LLM_PROMPT_CACHING"
     )
-    llm_temperature: float | None = Field(
-        default=None, validation_alias="LLM_TEMPERATURE"
-    )
+    llm_temperature: float | None = Field(default=None, validation_alias="LLM_TEMPERATURE")
     llm_max_output_tokens: int | None = Field(
         default=None, validation_alias="LLM_MAX_OUTPUT_TOKENS"
     )
@@ -548,46 +536,26 @@ class Settings(BaseSettings):
     # Optional failover: LiteLLM retries this model if the primary errors
     # (R5.5). Its key is a secret and stays in env (LLM_FALLBACK_API_KEY),
     # never in config.yaml; empty falls back to LLM_API_KEY.
-    llm_fallback_model: str = Field(
-        default="", validation_alias="LLM_FALLBACK_MODEL"
-    )
-    llm_fallback_base_url: str = Field(
-        default="", validation_alias="LLM_FALLBACK_BASE_URL"
-    )
-    llm_fallback_api_key: str = Field(
-        default="", validation_alias="LLM_FALLBACK_API_KEY"
-    )
+    llm_fallback_model: str = Field(default="", validation_alias="LLM_FALLBACK_MODEL")
+    llm_fallback_base_url: str = Field(default="", validation_alias="LLM_FALLBACK_BASE_URL")
+    llm_fallback_api_key: str = Field(default="", validation_alias="LLM_FALLBACK_API_KEY")
 
     # --- Budgets ---
     max_iterations: int = Field(default=50, validation_alias="MAX_ITERATIONS")
-    max_budget_per_task_usd: float = Field(
-        default=2.00, validation_alias="MAX_BUDGET_PER_TASK_USD"
-    )
-    max_daily_budget_usd: float = Field(
-        default=50.00, validation_alias="MAX_DAILY_BUDGET_USD"
-    )
-    task_timeout_seconds: int = Field(
-        default=900, validation_alias="TASK_TIMEOUT_SECONDS"
-    )
-    command_timeout_seconds: int = Field(
-        default=120, validation_alias="COMMAND_TIMEOUT_SECONDS"
-    )
+    max_budget_per_task_usd: float = Field(default=2.00, validation_alias="MAX_BUDGET_PER_TASK_USD")
+    max_daily_budget_usd: float = Field(default=50.00, validation_alias="MAX_DAILY_BUDGET_USD")
+    task_timeout_seconds: int = Field(default=900, validation_alias="TASK_TIMEOUT_SECONDS")
+    command_timeout_seconds: int = Field(default=120, validation_alias="COMMAND_TIMEOUT_SECONDS")
     max_task_retries: int = Field(default=3, validation_alias="MAX_TASK_RETRIES")
     # Percentage of any single limit (iterations, cost, wall time) past which
     # each observation carries a <budget_status> block telling the agent to
     # wind down — what makes prompts/system.md's "at 80% of budget, leave the
     # best partial edit" instruction executable. 0 disables the block.
-    budget_warn_at_percent: int = Field(
-        default=80, validation_alias="BUDGET_WARN_AT_PERCENT"
-    )
+    budget_warn_at_percent: int = Field(default=80, validation_alias="BUDGET_WARN_AT_PERCENT")
 
     # --- Worker ---
-    poll_interval_seconds: float = Field(
-        default=2.0, validation_alias="POLL_INTERVAL_SECONDS"
-    )
-    orphan_timeout_seconds: int = Field(
-        default=90, validation_alias="ORPHAN_TIMEOUT_SECONDS"
-    )
+    poll_interval_seconds: float = Field(default=2.0, validation_alias="POLL_INTERVAL_SECONDS")
+    orphan_timeout_seconds: int = Field(default=90, validation_alias="ORPHAN_TIMEOUT_SECONDS")
     backoff_schedule_seconds: list[int] = Field(
         default_factory=lambda: [60, 300, 1800],
         validation_alias="BACKOFF_SCHEDULE_SECONDS",
@@ -599,9 +567,7 @@ class Settings(BaseSettings):
     # REPO_ROUTES) — never by an isolated env var, since it's a list of
     # structured objects, not a scalar. D3 of the PRD fixes this list as
     # static (no hot-reload / no DB-backed route table).
-    repo_routes: list[RepoRoute] = Field(
-        default_factory=list, validation_alias="REPO_ROUTES"
-    )
+    repo_routes: list[RepoRoute] = Field(default_factory=list, validation_alias="REPO_ROUTES")
 
     @computed_field
     @property
@@ -683,9 +649,7 @@ class Settings(BaseSettings):
         elif fallback_override is not None:
             fallback_fields = fallback_override.model_fields_set
             fallback_model = (
-                fallback_override.model
-                if "model" in fallback_fields
-                else self.llm_fallback_model
+                fallback_override.model if "model" in fallback_fields else self.llm_fallback_model
             )
             fallback_base_url = (
                 fallback_override.base_url
@@ -706,9 +670,7 @@ class Settings(BaseSettings):
             temperature=pick("temperature", self.llm_temperature),
             max_output_tokens=pick("max_output_tokens", self.llm_max_output_tokens),
             reasoning_effort=pick("reasoning_effort", self.llm_reasoning_effort),
-            observation_max_chars=pick(
-                "observation_max_chars", self.llm_observation_max_chars
-            ),
+            observation_max_chars=pick("observation_max_chars", self.llm_observation_max_chars),
             fallback_model=fallback_model,
             fallback_base_url=fallback_base_url,
             # Always global — RepoLlmOverride has no api_key field.
@@ -729,9 +691,7 @@ class Settings(BaseSettings):
     # positive value becomes `git clone --depth=N`, bounding clone time and
     # volume space on large repos at the cost of that lookup.
     git_clone_depth: int = Field(default=0, validation_alias="GIT_CLONE_DEPTH")
-    git_user_name: str = Field(
-        default="issue-agent[bot]", validation_alias="GIT_USER_NAME"
-    )
+    git_user_name: str = Field(default="issue-agent[bot]", validation_alias="GIT_USER_NAME")
     # Empty = the provider's default for `git_user_name`
     # (GitTransport.default_commit_email).
     git_user_email: str = Field(default="", validation_alias="GIT_USER_EMAIL")
@@ -780,9 +740,7 @@ class Settings(BaseSettings):
                     f"{field_name} contains unknown categor{'y' if len(unknown) == 1 else 'ies'} "
                     f"{sorted(unknown)!r} — must be a subset of {sorted(ALL_CATEGORIES)!r}"
                 )
-        overlap = set(self.policy_triage_only_categories) & set(
-            self.policy_diagnose_categories
-        )
+        overlap = set(self.policy_triage_only_categories) & set(self.policy_diagnose_categories)
         if overlap:
             raise ValueError(
                 "policy_triage_only_categories and policy_diagnose_categories "
@@ -843,18 +801,14 @@ class Settings(BaseSettings):
         default=True, validation_alias="RESUME_PUSH_WIP_ON_BLOCK"
     )
     # R4.7: attempts before the agent gives up and closes with `max_attempts`.
-    resume_max_attempts: int = Field(
-        default=3, validation_alias="RESUME_MAX_ATTEMPTS"
-    )
+    resume_max_attempts: int = Field(default=3, validation_alias="RESUME_MAX_ATTEMPTS")
     # R5.2: never | mechanical | llm_unless_budget | llm. `mechanical` (default)
     # costs zero tokens — it reads the trajectory the agent already produced.
-    resume_summary_on_block: Literal[
-        "never", "mechanical", "llm_unless_budget", "llm"
-    ] = Field(default="mechanical", validation_alias="RESUME_SUMMARY_ON_BLOCK")
-    # R5.5: block summary is truncated to this before it goes to the DB / prompt.
-    resume_summary_max_chars: int = Field(
-        default=4000, validation_alias="RESUME_SUMMARY_MAX_CHARS"
+    resume_summary_on_block: Literal["never", "mechanical", "llm_unless_budget", "llm"] = Field(
+        default="mechanical", validation_alias="RESUME_SUMMARY_ON_BLOCK"
     )
+    # R5.5: block summary is truncated to this before it goes to the DB / prompt.
+    resume_summary_max_chars: int = Field(default=4000, validation_alias="RESUME_SUMMARY_MAX_CHARS")
     # Bounded, in-task auto-retry when the harness's own post-push test
     # verification fails: reuses resume_max_attempts (the SAME cap the
     # block-retry machinery uses, no parallel counter) and re-checks the
@@ -877,18 +831,10 @@ class Settings(BaseSettings):
     alert_webhook_url: str = Field(default="", validation_alias="ALERT_WEBHOOK_URL")
 
     # --- Retention & Cleanup ---
-    events_retention_days: int = Field(
-        default=30, validation_alias="EVENTS_RETENTION_DAYS"
-    )
-    db_retention_days: int = Field(
-        default=90, validation_alias="DB_RETENTION_DAYS"
-    )
-    audit_retention_days: int = Field(
-        default=90, validation_alias="AUDIT_RETENTION_DAYS"
-    )
-    cleanup_interval_minutes: int = Field(
-        default=60, validation_alias="CLEANUP_INTERVAL_MINUTES"
-    )
+    events_retention_days: int = Field(default=30, validation_alias="EVENTS_RETENTION_DAYS")
+    db_retention_days: int = Field(default=90, validation_alias="DB_RETENTION_DAYS")
+    audit_retention_days: int = Field(default=90, validation_alias="AUDIT_RETENTION_DAYS")
+    cleanup_interval_minutes: int = Field(default=60, validation_alias="CLEANUP_INTERVAL_MINUTES")
 
     # --- Toolchains (plugins install runtimes on demand into /data/tools) ---
     toolchains_enabled: bool = Field(default=True, validation_alias="TOOLCHAINS_ENABLED")

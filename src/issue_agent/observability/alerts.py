@@ -106,7 +106,15 @@ def send_budget_alert(
     limit_value = f"{int(limit_usd)}" if metric == "iterations" else f"${limit_usd:.2f}"
 
     if target == "discord":
-        text = _build_message(event, spent_usd, limit_usd, metric=metric, task_id=task_id, issue_number=issue_number, repo=repo)
+        text = _build_message(
+            event,
+            spent_usd,
+            limit_usd,
+            metric=metric,
+            task_id=task_id,
+            issue_number=issue_number,
+            repo=repo,
+        )
         now = datetime.now(UTC)
         payload: dict[str, Any] = {
             "content": text,
@@ -125,7 +133,15 @@ def send_budget_alert(
         }
 
     elif target == "telegram":
-        text = _build_telegram_text(event, spent_usd, limit_usd, metric=metric, task_id=task_id, issue_number=issue_number, repo=repo)
+        text = _build_telegram_text(
+            event,
+            spent_usd,
+            limit_usd,
+            metric=metric,
+            task_id=task_id,
+            issue_number=issue_number,
+            repo=repo,
+        )
         parsed = urlparse(webhook_url)
         qs = parse_qs(parsed.query)
         chat_ids = qs.get("chat_id")
@@ -140,7 +156,15 @@ def send_budget_alert(
         }
 
     else:
-        text = _build_message(event, spent_usd, limit_usd, metric=metric, task_id=task_id, issue_number=issue_number, repo=repo)
+        text = _build_message(
+            event,
+            spent_usd,
+            limit_usd,
+            metric=metric,
+            task_id=task_id,
+            issue_number=issue_number,
+            repo=repo,
+        )
         payload = {
             "content": text,
             "event": event,

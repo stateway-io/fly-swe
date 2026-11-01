@@ -12,7 +12,10 @@ from tests.helpers.settings import github_providers
 
 class SettingsNoEnv(Settings):
     model_config = SettingsConfigDict(
-        env_file=None, env_prefix="", extra="ignore", yaml_file=None,
+        env_file=None,
+        env_prefix="",
+        extra="ignore",
+        yaml_file=None,
     )
 
 
@@ -27,9 +30,7 @@ def _settings(**overrides: Any) -> Settings:
 
 
 def _from_settings(settings: Settings) -> GitHubProviderPlugin:
-    return GitHubProviderPlugin.from_settings(
-        "github", settings.providers["github"], settings
-    )
+    return GitHubProviderPlugin.from_settings("github", settings.providers["github"], settings)
 
 
 class TestFromSettings:
@@ -47,9 +48,7 @@ class TestFromSettings:
         assert author.is_self is True
 
     def test_bot_identity_prefers_the_explicit_login(self):
-        plugin = _from_settings(
-            _settings(PROVIDERS=github_providers(bot_login="Custom[bot]"))
-        )
+        plugin = _from_settings(_settings(PROVIDERS=github_providers(bot_login="Custom[bot]")))
 
         assert plugin.bot_identity().login == "custom[bot]"
 
