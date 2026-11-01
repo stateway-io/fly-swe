@@ -61,3 +61,9 @@ secrets/
 *.db
 *.db-wal
 *.db-shm
+
+# Coverage
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
