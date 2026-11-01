@@ -339,6 +339,42 @@ The LLM request timeout (`llm.request_timeout_seconds`, default 120) makes a
 dead connection fail fast into those retry layers instead of consuming
 `budgets.task_timeout_seconds`.
 
+### How task and command timeouts are counted
+
+`budgets.task_timeout_seconds` limits **each agent run**, not the whole task's
+wall-clock time:
+
+- The clock starts when the agent is built (`DefaultAgent.__init__` in
+  mini-swe-agent, called from `runner/agent_factory.py::build_agent`). The
+  setup that comes before it is **not counted**: the clone, toolchain
+  provisioning (bounded separately by `toolchains.install_timeout_seconds`)
+  and the checkout/merge of the work branch. On a Node.js repo with `npm ci`,
+  that setup alone can take several minutes.
+- The harness wrap-up after the agent stops (WIP push, post-push test
+  verification, opening the PR) is not counted either.
+- The limit is checked **between steps**. A command that is already running
+  is never interrupted by the task limit, so a run can end up to one
+  `command_timeout_seconds` past it.
+- Each LLM call is capped at the time left (`CostAwareLitellmModel` in
+  `runner/litellm_cost.py`). That clock starts at the first LLM call, so it
+  is a few seconds behind the agent's own clock.
+- When the post-push test verification fails and the in-task retry fires
+  (`run_task` loop in `runner/executor.py`), the new pass builds a new agent
+  with **another full `task_timeout_seconds`**.
+
+`budgets.command_timeout_seconds` applies to each shell command on its own:
+the whole process group is killed when the limit is reached. It also bounds
+the harness's post-push test command. It is not capped by the time left of
+the task.
+
+In practice, a task's wall-clock time is about **setup +
+`task_timeout_seconds` × (1 + test retries) + wrap-up**. For example, one
+task with `task_timeout_seconds: 1800` ran for ~35 min: ~5 min of clone and
+`npm ci`, then exactly 1800 s of agent run. When you size the limits, keep
+in mind that a single command can use up to `command_timeout_seconds` of the
+agent's time. Moving to a single per-task deadline is a known open
+improvement.
+
 ### Prompt vocabulary per provider
 
 No prompt names a forge. `prompts/*.md` and `INSTANCE_TEMPLATE`
