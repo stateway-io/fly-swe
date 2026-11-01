@@ -60,6 +60,8 @@ branch `feat/<slug>` (`main` is protected for PRs only).
 uv sync                              # install deps
 uv run pytest                        # run all tests
 uv run pytest tests/unit/test_config.py -v  # specific test
+uv run ruff check && uv run ruff format --check   # lint + format (CI gate)
+uv run pytest tests/unit tests/integration --cov  # coverage (CI gate, floor in pyproject.toml)
 uv run honcho start                  # run locally (web + worker)
 LOG_LEVEL=debug uv run pytest -v     # debug
 ```
@@ -69,7 +71,8 @@ LOG_LEVEL=debug uv run pytest -v     # debug
 - **Every implemented piece of code must have corresponding tests** in the appropriate directory (`tests/unit/`, `tests/integration/`, `tests/e2e/`).
 - Tests are written with `pytest`, not as disposable scripts (`/tmp/`, inline in CLI, etc.).
 - Production scenarios (without `.env`/`config.yaml`) must be simulated with a subclass that nullifies `env_file`/`yaml_file`, not with fragile `monkeypatch`.
-- All implementations must pass `ruff check` and `uv run pytest` before opening a PR.
+- All implementations must pass `ruff check`, `ruff format --check` and `uv run pytest` before opening a PR.
+- Coverage (unit + integration, branch) must stay at or above the `fail_under` floor in `pyproject.toml` (90%); CI fails below it. Don't lower the floor to land a change — add tests.
 - Tests that depend on a real LLM or network go in `e2e/` and are opt-in.
 
 ## Deploy
@@ -125,7 +128,7 @@ ci: add ruff check to CI pipeline [#6]
 
 ### Development branches (in this repository) — trunk-based
 
-`main` is the **only** long-lived branch. Protected (PR + `lint-test` + 1 review,
+`main` is the **only** long-lived branch. Protected (PR + `ci-ok` + 1 review,
 `strict` enabled — the branch must be up to date with `main` before merging).
 Never push directly.
 

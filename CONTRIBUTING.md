@@ -32,7 +32,9 @@ GitHub App setup that local webhook testing needs, and
 
 ```bash
 uv run ruff check          # lint
+uv run ruff format         # format (CI runs `ruff format --check`)
 uv run pytest              # unit + integration tests
+uv run pytest tests/unit tests/integration --cov   # with the coverage gate CI enforces
 uv run pytest tests/unit/test_config.py -v   # a single test file
 ```
 
@@ -61,9 +63,12 @@ uv run pytest tests/unit/test_config.py -v   # a single test file
 ## Opening a PR
 
 1. Fork or branch, make your change with tests, and confirm
-   `ruff check` and `pytest` are green.
-2. Open a PR against `main`. CI (`.github/workflows/ci.yml`) runs lint,
-   unit + integration tests, and a Docker build.
+   `ruff check`, `ruff format --check` and `pytest --cov` are green.
+2. Open a PR against `main`. CI (`.github/workflows/ci.yml`) runs lint and
+   format checks, unit + integration tests with a coverage floor (90%, set in
+   `pyproject.toml`), and a Docker build. The coverage table is in the run's
+   job summary; the HTML report is attached as the `coverage-report` artifact.
+   The required check is `ci-ok`, which aggregates every job.
 3. One review is required before merge.
 
 ## Reporting bugs / requesting features
