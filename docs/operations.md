@@ -833,7 +833,6 @@ with no app to target.
 |---|---|---|
 | `GET /healthz` | 200 | Liveness — always 200 while the process is up |
 | `GET /readyz` | 200 / 503 | SQLite reachable, required settings present, each provider instance's own health check (GitHub: private key looks like a PEM), model function-calling support (advisory) |
-| `GET /metrics` | 200 | Prometheus metrics in OpenMetrics format |
 
 **`/healthz` response** (`service` is the slugified `agent.name`; `version` is
 the installed `fly-swe` distribution version, resolved once at startup via
@@ -904,7 +903,10 @@ issue_agent_issue_work_attempts{provider_instance="<id>", repo="owner/name"}   (
 `owner/name` can exist on two forges. Queries that only `sum by (repo)` keep
 working; add `provider_instance` to tell the instances apart.
 
-Access via `fly proxy` (since metrics port is internal):
+Metrics are **not** served on the public port (8080): `GET /metrics` there
+returns 404. They are exposed only by the internal Prometheus exporter on
+`metrics.port` (default 9090), which `fly.toml` does not publish. Access it via
+`fly proxy`:
 
 ```bash
 fly proxy 9090:9090 --app <app-name>
