@@ -1,6 +1,6 @@
 [project]
 name = "fly-swe"
-version = "1.1.13"
+version = "1.1.14"
 description = "A lightweight, mini-swe-agent-based GitHub issue agent, built for Fly.io and easy to deploy anywhere"
 readme = "README.md"
 license = "AGPL-3.0-only"
