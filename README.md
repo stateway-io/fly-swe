@@ -32,6 +32,12 @@ Label an issue `bug`, `docs`, or `chore`. fly-swe clones the repo, drives
 runs your test suite, and opens a Pull Request that closes the issue —
 truthfully: if the tests didn't pass, the PR says so.
 
+<p align="center">
+  <img src="docs/assets/demo.gif" width="900" alt="A real fly-swe run: a bug-labeled issue, progress comments with iteration count and accumulated cost, the opened pull request, and its 'How I tested' section showing the test command that passed">
+  <br>
+  <sub>A real run, end to end: $0.27 and 85 iterations from label to PR. Repository names and private code are anonymized.</sub>
+</p>
+
 It's a standing service, not a one-shot CLI invocation: a FastAPI webhook
 receiver and a worker, sharing a durable SQLite queue, running as one
 process pair on one small machine. Point it at a repo, and it keeps
