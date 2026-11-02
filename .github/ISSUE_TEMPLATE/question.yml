@@ -1,0 +1,54 @@
+name: Question / Clarification
+description: Ask a question or request clarification about fly-swe.
+title: "[Question] "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reaching out. This template is for questions and clarifications; a maintainer will respond.
+        **Do not paste secrets** into this form.
+
+  - type: input
+    id: title
+    attributes:
+      label: Summary
+      description: A short summary of your question
+    validations:
+      required: true
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: What would you like to know?
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: What you're trying to do, where you're stuck, and what you've already read.
+    validations:
+      required: false
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: If relevant, provide details about your deployment.
+      placeholder: |
+        - fly-swe version: [e.g. 1.1.15]
+        - Where it runs: [e.g. Fly.io, locally, other container platform]
+        - Forge / provider: [e.g. github (github.com)]
+    validations:
+      required: false
+
+  - type: textarea
+    id: references
+    attributes:
+      label: References
+      description: Links to relevant documentation, code, or logs (redacted).
+    validations:
+      required: false

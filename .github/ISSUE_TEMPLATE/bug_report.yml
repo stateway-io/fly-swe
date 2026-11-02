@@ -1,5 +1,6 @@
-name: Bug report
+name: Bug Report
 description: Something in fly-swe doesn't behave as documented.
+title: "[Bug] "
 labels: ["bug"]
 body:
   - type: markdown
@@ -10,14 +11,63 @@ body:
         a private issue into this form. For a security vulnerability, follow
         [SECURITY.md](https://github.com/stateway-io/fly-swe/blob/main/SECURITY.md)
         instead of opening an issue.
+
+        The Priority field is informational: a maintainer applies
+        `severity:high` / `severity:critical` when triaging.
+
+  - type: input
+    id: title
+    attributes:
+      label: Summary
+      description: A short, clear description of the problem
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What happened? Include the trigger (label, comment) and what the agent or service did.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: The relevant parts of `config.yaml` (no secrets) and the steps that lead to the problem.
+      placeholder: |
+        1. Configure '...'
+        2. Open an issue labeled '...'
+        3. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What did you expect to happen instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What actually happened?
+    validations:
+      required: true
+
   - type: input
     id: version
     attributes:
       label: Version
       description: The `version` in `pyproject.toml`, or the release tag you deployed.
-      placeholder: "1.1.8"
+      placeholder: "1.1.15"
     validations:
       required: true
+
   - type: dropdown
     id: deployment
     attributes:
@@ -28,33 +78,34 @@ body:
         - Other container platform
     validations:
       required: true
+
   - type: input
     id: provider
     attributes:
       label: Forge / provider
       description: The provider type of the instance involved, and whether it is self-hosted.
       placeholder: "github (github.com)"
-  - type: textarea
-    id: what-happened
+    validations:
+      required: false
+
+  - type: dropdown
+    id: priority
     attributes:
-      label: What happened?
-      description: Include the trigger (label, comment) and what the agent or service did.
+      label: Priority
+      description: How urgent is this issue?
+      options:
+        - low
+        - medium
+        - high
+        - critical
     validations:
       required: true
-  - type: textarea
-    id: expected
-    attributes:
-      label: What did you expect to happen?
-    validations:
-      required: true
-  - type: textarea
-    id: reproduce
-    attributes:
-      label: Steps to reproduce
-      description: The relevant parts of `config.yaml` (no secrets) and the steps that lead to the problem.
+
   - type: textarea
     id: logs
     attributes:
       label: Logs
       description: Relevant structured log lines (`flyctl logs` or local output). Redact tokens and private content.
       render: text
+    validations:
+      required: false

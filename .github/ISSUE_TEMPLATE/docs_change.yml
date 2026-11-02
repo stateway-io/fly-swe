@@ -1,0 +1,63 @@
+name: Documentation Change
+description: Report a documentation issue or suggest an improvement.
+title: "[Docs] "
+labels: ["docs"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve the documentation. Clear details help us fix it faster.
+
+  - type: input
+    id: title
+    attributes:
+      label: Summary
+      description: A short, clear description of the documentation issue
+    validations:
+      required: true
+
+  - type: textarea
+    id: location
+    attributes:
+      label: Affected page / section
+      description: Where did you find the issue? Paste a URL, file path, or section heading.
+      placeholder: |
+        e.g. docs/operations.md, section "Configuration"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What is wrong, unclear, outdated, or missing?
+    validations:
+      required: true
+
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested change
+      description: If you have a proposed wording or fix, paste it here.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      description: How important is this documentation fix?
+      options:
+        - low
+        - medium
+        - high
+    validations:
+      required: true
+
+  - type: textarea
+    id: references
+    attributes:
+      label: References
+      description: Links to related issues, PRs, or the source code the docs should match.
+    validations:
+      required: false

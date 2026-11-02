@@ -3,3 +3,6 @@ contact_links:
   - name: Report a security vulnerability
     url: https://github.com/stateway-io/fly-swe/blob/main/SECURITY.md
     about: Please report vulnerabilities privately, as described in SECURITY.md — not in a public issue.
+  - name: Contact
+    url: mailto:hello@stateway.io
+    about: For other inquiries or questions
