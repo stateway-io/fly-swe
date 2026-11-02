@@ -113,6 +113,28 @@ never for git.
   `Closes` references are automatically qualified as `owner/repo#N` so
   GitHub's auto-close still works.
 
+## What it costs
+
+Two line items: the Fly Machine, and the LLM tokens each issue consumes.
+
+- **Infrastructure:** the default `fly.toml` runs one always-on `shared-cpu-1x`
+  Machine with 1&nbsp;GB of RAM, plus a 1&nbsp;GB volume. That comes to roughly
+  US$6/month at Fly's [published pricing](https://fly.io/pricing/) when
+  this was written.
+- **LLM, measured on a real repository:** 10 consecutive issues (bugs and docs)
+  on a TypeScript monorepo, mostly with GLM-5.3 (`z-ai/glm-5.3`). Every one
+  ended in a human-reviewed PR.
+
+  | | Cost per issue | Iterations |
+  |---|---|---|
+  | Median | ~US$0.31 | ~80 |
+  | Cheapest | US$0.02 | 13 |
+  | Most expensive | US$1.85 | 225 (two automatic retries after a failed verification) |
+
+  The total for all 10 was about US$4.50. Cost depends heavily on the model, on
+  the repository and on the issue. The [budget caps](#configuration-at-a-glance)
+  bound the worst case regardless.
+
 ## Quickstart — deploy in ~10 minutes
 
 This is the fast path; every step links to the full procedure in
