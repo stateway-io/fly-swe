@@ -118,74 +118,42 @@ class TestMainAppLifespan:
                 get_settings.cache_clear()
 
     @pytest.mark.asyncio
-    async def test_lifespan_logs_function_calling_warning(self, monkeypatch) -> None:
-        from unittest.mock import MagicMock
-
+    async def test_lifespan_starts_function_calling_check_in_background(self, monkeypatch) -> None:
+        """The advisory check needs LiteLLM, whose import takes seconds: the
+        lifespan only starts it, so it never holds the port closed."""
         import issue_agent.main as main_mod
         from issue_agent.main import lifespan
+        from issue_agent.webhook.function_calling import FunctionCallingCheck
+
+        started: list[FunctionCallingCheck] = []
+        monkeypatch.setattr(FunctionCallingCheck, "start", lambda self: started.append(self))
 
         with tempfile.TemporaryDirectory() as tmpdir:
             settings = _make_settings(DATA_DIR=tmpdir)
-            get_settings.cache_clear()
             monkeypatch.setattr(main_mod, "get_settings", lambda: settings)
-            monkeypatch.setattr(
-                main_mod, "check_function_calling", lambda model, provider: "no tools"
-            )
-            fake_logger = MagicMock()
-            monkeypatch.setattr(main_mod, "logger", fake_logger)
 
             app = FastAPI()
             async with lifespan(app):
-                pass
+                assert started == [app.state.function_calling]
+                assert app.state.function_calling.result == "pending"
 
-        warned = [
-            c
-            for c in fake_logger.warning.call_args_list
-            if c.args[:1] == ("llm_function_calling_unsupported",)
-        ]
-        assert warned
 
-    @pytest.mark.asyncio
-    async def test_lifespan_warns_for_a_model_only_a_repo_override_uses(self, monkeypatch) -> None:
-        """A repo's `llm.model` override must be checked even when the global
-        default model supports function calling fine — it isn't hidden behind
-        a healthy global default."""
-        from unittest.mock import MagicMock
+class TestWebBootPathAvoidsLiteLLM:
+    def test_importing_the_web_app_does_not_import_litellm(self) -> None:
+        """LiteLLM (and mini-swe-agent, which pulls it in) costs seconds to
+        import; the web process must open its port without it. Checked in a
+        fresh interpreter, since this test session imports both elsewhere."""
+        import subprocess
+        import sys
 
-        import issue_agent.main as main_mod
-        from issue_agent.main import lifespan
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            settings = _make_settings(
-                DATA_DIR=tmpdir,
-                LLM_MODEL="global/model",
-                REPO_ROUTES=[
-                    {
-                        "issues": "owner/repo",
-                        "llm": {"model": "repo/model-without-tools"},
-                    }
-                ],
-            )
-            get_settings.cache_clear()
-            monkeypatch.setattr(main_mod, "get_settings", lambda: settings)
-            monkeypatch.setattr(
-                main_mod,
-                "check_function_calling",
-                lambda model, provider: "no tools" if model == "repo/model-without-tools" else None,
-            )
-            fake_logger = MagicMock()
-            monkeypatch.setattr(main_mod, "logger", fake_logger)
-
-            app = FastAPI()
-            async with lifespan(app):
-                pass
-
-        warned_models = [
-            c.kwargs.get("model")
-            for c in fake_logger.warning.call_args_list
-            if c.args[:1] == ("llm_function_calling_unsupported",)
-        ]
-        assert warned_models == ["repo/model-without-tools"]
+        code = (
+            "import sys, issue_agent.main; "
+            "print(sorted(m for m in ('litellm', 'minisweagent') if m in sys.modules))"
+        )
+        out = subprocess.run(
+            [sys.executable, "-c", code], capture_output=True, text=True, check=True
+        )
+        assert out.stdout.strip().splitlines()[-1] == "[]"
 
     @pytest.mark.asyncio
     async def test_lifespan_creates_data_dir_if_not_exists(self) -> None:

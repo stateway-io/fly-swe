@@ -100,6 +100,7 @@ type: concise description [#issue]
 | `fix` | Bug fix |
 | `docs` | Documentation (AGENTS.md, README, docs/, etc.) |
 | `refactor` | Refactoring with no behavior change |
+| `perf` | Performance improvement with no functional change |
 | `test` | Adding or fixing tests |
 | `chore` | Maintenance (deps, CI, config, tooling) |
 | `ci` | Changes to CI/CD pipelines |
@@ -141,6 +142,7 @@ prefix matches the Conventional Commit `type`:
 | `fix/<slug>` | Bug fix |
 | `docs/<slug>` | Documentation |
 | `refactor/<slug>` | Refactoring |
+| `perf/<slug>` | Performance |
 | `test/<slug>` | Tests |
 | `chore/<slug>` | Maintenance (deps, config, tooling) |
 | `ci/<slug>` | CI/CD pipelines |
@@ -163,13 +165,17 @@ set of changes is ready for production:
    **current `origin/main`** (never from local `main`, which may be stale)
 3. `git status --porcelain` — verify the tree is clean
 4. Implement with atomic commits (standard above)
-5. **Bump `version` in `pyproject.toml`** (semver: `patch` = fix, `minor` = feat,
+5. **Bump `version` in `pyproject.toml`** (semver: `patch` = fix/perf, `minor` = feat,
    `major` = breaking — matching the highest-ranking Conventional Commit type
    in the branch) and run `uv lock` to sync `uv.lock`, as its own
    `chore: bump version to X.Y.Z` commit. Every PR into `main` bumps the
    version itself — don't defer it to a follow-up PR.
-6. If authorized: `git push -u origin feat/<slug>` and open a PR to `main` with the same title as the commit
-7. **Never push without explicit permission** — the human reviews all commits before pushing
+6. When the session's work is finished (checks above green), push the feature
+   branch: `git push -u origin <type>/<slug>`. Pushing a feature branch needs
+   no extra permission — it never touches `main`, and the human reviews the
+   commits there.
+7. **Never open a PR without explicit permission** — ask first; once
+   authorized, open it to `main` with the same title as the commit
 
 ## Key Security Rules
 - Secrets in `fly secrets set` / env (`PROVIDERS__<ID>__*` for provider instances), **never** in the repository nor in `config.yaml` — the loader rejects them there (see `docs/operations.md` § Configuration)
