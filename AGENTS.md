@@ -54,6 +54,18 @@ the coding agent edits files and leaves the changes in the working tree; the
 harness owns git (branch, commit, push, PR). Commits go on your feature
 branch `feat/<slug>` (`main` is protected for PRs only).
 
+### Bugs found during a session
+
+- **Blocking bug** — if a bug blocks the task at hand, fix it in the current
+  session, in its own commit (`fix: ...`), separate from the task's commits.
+- **Bug introduced in this session** — fix it in the current session too, in
+  its own commit; don't fold the fix into an unrelated commit.
+- **Any other bug** — don't fix it in passing. Check whether an issue already
+  exists (`gh issue list --search "<keywords>" --state all`); if not, open one
+  following `.github/ISSUE_TEMPLATE/bug_report.yml` (its `[Bug] ` title prefix,
+  `bug` label and fields as body sections). Security vulnerabilities follow
+  [`SECURITY.md`](./SECURITY.md), never a public issue.
+
 ## Build & Test
 
 ```bash
@@ -171,11 +183,14 @@ set of changes is ready for production:
    `chore: bump version to X.Y.Z` commit. Every PR into `main` bumps the
    version itself — don't defer it to a follow-up PR.
 6. When the session's work is finished (checks above green), push the feature
-   branch: `git push -u origin <type>/<slug>`. Pushing a feature branch needs
-   no extra permission — it never touches `main`, and the human reviews the
-   commits there.
+   branch: `git push -u origin <type>/<slug>`. Pushing is **pre-approved** — it
+   never touches `main`, and the human reviews the commits there.
 7. **Never open a PR without explicit permission** — ask first; once
-   authorized, open it to `main` with the same title as the commit
+   authorized, open it to `main` with the same title as the commit.
+   **Exception — ephemeral environments** (e.g. Claude Code in the cloud, where
+   the session and its sandbox go away when it ends): opening the PR is
+   pre-approved, but it must be a **draft** (`gh pr create --draft`), so a human
+   still marks it ready and reviews it.
 
 ## Key Security Rules
 - Secrets in `fly secrets set` / env (`PROVIDERS__<ID>__*` for provider instances), **never** in the repository nor in `config.yaml` — the loader rejects them there (see `docs/operations.md` § Configuration)
