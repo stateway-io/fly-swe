@@ -170,8 +170,12 @@ set of changes is ready for production:
    in the branch) and run `uv lock` to sync `uv.lock`, as its own
    `chore: bump version to X.Y.Z` commit. Every PR into `main` bumps the
    version itself — don't defer it to a follow-up PR.
-6. If authorized: `git push -u origin feat/<slug>` and open a PR to `main` with the same title as the commit
-7. **Never push without explicit permission** — the human reviews all commits before pushing
+6. When the session's work is finished (checks above green), push the feature
+   branch: `git push -u origin <type>/<slug>`. Pushing a feature branch needs
+   no extra permission — it never touches `main`, and the human reviews the
+   commits there.
+7. **Never open a PR without explicit permission** — ask first; once
+   authorized, open it to `main` with the same title as the commit
 
 ## Key Security Rules
 - Secrets in `fly secrets set` / env (`PROVIDERS__<ID>__*` for provider instances), **never** in the repository nor in `config.yaml` — the loader rejects them there (see `docs/operations.md` § Configuration)
