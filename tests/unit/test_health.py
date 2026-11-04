@@ -12,6 +12,7 @@ from issue_agent.providers.base import ProviderHealth
 from issue_agent.providers.github.plugin import GitHubProviderPlugin
 from issue_agent.providers.registry import ProviderRegistry
 from issue_agent.queue.store import SQLiteStore
+from issue_agent.webhook.function_calling import FunctionCallingCheck
 from issue_agent.webhook.health import router as health_router
 from tests.fakes.fake_provider import FakeProvider
 from tests.helpers.settings import github_providers
@@ -64,10 +65,14 @@ def app(store: SQLiteStore) -> FastAPI:
 
 
 def _configure(monkeypatch: pytest.MonkeyPatch, app: FastAPI, settings: Settings) -> None:
-    """What the lifespan does at startup: settings, and the provider
-    registry built from them."""
+    """What the lifespan does at startup: settings, the provider registry
+    built from them, and the function-calling check."""
     monkeypatch.setattr("issue_agent.webhook.health.get_settings", lambda: settings)
     app.state.registry = ProviderRegistry.from_settings(settings)
+    # The lifespan starts this check in a thread; here it runs inline, so a
+    # test sees its finished answer (call _configure after patching it).
+    app.state.function_calling = FunctionCallingCheck(settings)
+    app.state.function_calling.run()
 
 
 def _client(app: FastAPI):
@@ -157,15 +162,11 @@ class TestReadyzFunctionCallingCheck:
     async def test_advisory_only_does_not_flip_readiness(
         self, monkeypatch: pytest.MonkeyPatch, app: FastAPI
     ) -> None:
-        _configure(
-            monkeypatch,
-            app,
-            _make_settings(),
-        )
         monkeypatch.setattr(
-            "issue_agent.webhook.health.check_function_calling",
+            "issue_agent.runner.llm_support.check_function_calling",
             lambda model, provider: "LiteLLM reports it may not support function calling",
         )
+        _configure(monkeypatch, app, _make_settings())
         async with _client(app) as c:
             resp = await c.get("/readyz")
         assert resp.status_code == 200
@@ -179,6 +180,10 @@ class TestReadyzFunctionCallingCheck:
     ) -> None:
         """A repo's `llm.model` override must be checked even when the global
         default model supports function calling fine."""
+        monkeypatch.setattr(
+            "issue_agent.runner.llm_support.check_function_calling",
+            lambda model, provider: "no tools" if model == "repo/model-without-tools" else None,
+        )
         _configure(
             monkeypatch,
             app,
@@ -192,10 +197,6 @@ class TestReadyzFunctionCallingCheck:
                 ],
             ),
         )
-        monkeypatch.setattr(
-            "issue_agent.webhook.health.check_function_calling",
-            lambda model, provider: "no tools" if model == "repo/model-without-tools" else None,
-        )
         async with _client(app) as c:
             resp = await c.get("/readyz")
         assert resp.status_code == 200
@@ -203,6 +204,30 @@ class TestReadyzFunctionCallingCheck:
         assert data["status"] == "ready"  # advisory only, never flips readiness
         assert "repo/model-without-tools" in data["checks"]["llm_function_calling"]
         assert "global/model" not in data["checks"]["llm_function_calling"]
+
+    @pytest.mark.asyncio
+    async def test_pending_while_the_check_runs(
+        self, monkeypatch: pytest.MonkeyPatch, app: FastAPI
+    ) -> None:
+        """Right after boot the check is still running in the background: the
+        app is already ready, and says the advisory answer is pending."""
+        _configure(monkeypatch, app, _make_settings())
+        app.state.function_calling = FunctionCallingCheck(_make_settings())  # not run yet
+        async with _client(app) as c:
+            resp = await c.get("/readyz")
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "ready"
+        assert resp.json()["checks"]["llm_function_calling"] == "pending"
+
+    @pytest.mark.asyncio
+    async def test_pending_when_the_app_never_started_the_check(
+        self, monkeypatch: pytest.MonkeyPatch, app: FastAPI
+    ) -> None:
+        _configure(monkeypatch, app, _make_settings())
+        del app.state.function_calling
+        async with _client(app) as c:
+            resp = await c.get("/readyz")
+        assert resp.json()["checks"]["llm_function_calling"] == "pending"
 
 
 class TestReadyzOwnBotLoginCheck:

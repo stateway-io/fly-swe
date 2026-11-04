@@ -9,7 +9,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
 from issue_agent.config import Settings, get_settings
-from issue_agent.runner.llm_support import check_function_calling, resolve_provider
+from issue_agent.webhook.function_calling import PENDING
 
 if TYPE_CHECKING:
     from issue_agent.providers.registry import ProviderRegistry
@@ -75,26 +75,13 @@ def _provider_checks(registry: ProviderRegistry) -> tuple[bool, list[str], dict[
     return ok, missing, checks
 
 
-def _check_function_calling(settings: Settings) -> str:
+def _function_calling_status(request: Request) -> str:
     """Informational only — never flips readiness (LiteLLM's capability map has
-    false negatives for models it doesn't know). Covers every distinct model
-    this deployment might run: the global default plus any repo's `llm.model`
-    override (Settings.llm_profile), so a repo pinned to a model without
-    function-calling support isn't hidden behind a healthy global default."""
-    profiles = [settings.llm_profile(None)] + [
-        settings.llm_profile(route) for route in settings.repo_routes
-    ]
-    seen: set[str] = set()
-    warnings: list[str] = []
-    for profile in profiles:
-        if profile.model in seen:
-            continue
-        seen.add(profile.model)
-        provider = resolve_provider(profile.model, profile.provider)
-        warning = check_function_calling(profile.model, provider)
-        if warning:
-            warnings.append(f"{profile.model}: {warning}")
-    return f"warning: {'; '.join(warnings)}" if warnings else "ok"
+    false negatives for models it doesn't know). The check itself runs in the
+    background from the app's lifespan (``webhook/function_calling.py``):
+    ``pending`` until it finishes, or when the app was started without it."""
+    check = getattr(request.app.state, "function_calling", None)
+    return check.result if check is not None else PENDING
 
 
 @router.get("/healthz")
@@ -135,7 +122,7 @@ async def readyz(request: Request) -> JSONResponse:
         "sqlite": sqlite_msg,
         "settings": f"missing: {', '.join(missing)}" if missing else "ok",
         **provider_checks,
-        "llm_function_calling": _check_function_calling(settings),
+        "llm_function_calling": _function_calling_status(request),
     }
 
     all_ok = sqlite_ok and not missing and providers_ok
