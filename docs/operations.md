@@ -882,7 +882,11 @@ readiness.
 LiteLLM's capability map says `llm.model` may not support function/tool calling
 (the agent drives the model through a bash tool and needs it). It never flips
 readiness, because that map has false negatives for models LiteLLM doesn't know.
-The same warning is logged once at startup.
+The check runs once, in a background thread, right after the web process starts
+(the same warning is logged then as `llm_function_calling_unsupported`): it
+needs LiteLLM, whose import takes seconds, and doing it before the port opens
+would delay every webhook the Fly proxy holds during a cold start. Until it
+finishes — normally a few seconds after boot — it reads `pending`.
 
 ### Metrics (`/metrics`)
 
