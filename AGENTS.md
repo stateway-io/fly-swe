@@ -100,6 +100,7 @@ type: concise description [#issue]
 | `fix` | Bug fix |
 | `docs` | Documentation (AGENTS.md, README, docs/, etc.) |
 | `refactor` | Refactoring with no behavior change |
+| `perf` | Performance improvement with no functional change |
 | `test` | Adding or fixing tests |
 | `chore` | Maintenance (deps, CI, config, tooling) |
 | `ci` | Changes to CI/CD pipelines |
@@ -141,6 +142,7 @@ prefix matches the Conventional Commit `type`:
 | `fix/<slug>` | Bug fix |
 | `docs/<slug>` | Documentation |
 | `refactor/<slug>` | Refactoring |
+| `perf/<slug>` | Performance |
 | `test/<slug>` | Tests |
 | `chore/<slug>` | Maintenance (deps, config, tooling) |
 | `ci/<slug>` | CI/CD pipelines |
@@ -163,7 +165,7 @@ set of changes is ready for production:
    **current `origin/main`** (never from local `main`, which may be stale)
 3. `git status --porcelain` — verify the tree is clean
 4. Implement with atomic commits (standard above)
-5. **Bump `version` in `pyproject.toml`** (semver: `patch` = fix, `minor` = feat,
+5. **Bump `version` in `pyproject.toml`** (semver: `patch` = fix/perf, `minor` = feat,
    `major` = breaking — matching the highest-ranking Conventional Commit type
    in the branch) and run `uv lock` to sync `uv.lock`, as its own
    `chore: bump version to X.Y.Z` commit. Every PR into `main` bumps the
