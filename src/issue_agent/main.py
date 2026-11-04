@@ -13,7 +13,7 @@ from issue_agent.observability.prometheus_metrics import (
 )
 from issue_agent.providers.registry import ProviderRegistry
 from issue_agent.queue.store import SQLiteStore
-from issue_agent.runner.llm_support import check_function_calling, resolve_provider
+from issue_agent.webhook.function_calling import FunctionCallingCheck
 from issue_agent.webhook.health import router as health_router
 from issue_agent.webhook.routes import router as webhook_router
 
@@ -35,27 +35,12 @@ async def lifespan(app: FastAPI):
     app.state.store = store
     app.state.registry = ProviderRegistry.from_settings(settings)
 
-    # Check every distinct model this deployment might run: the global
-    # default plus any repo's `llm.model` override (Settings.llm_profile),
-    # so a repo pinned to a model without function-calling support isn't
-    # hidden behind a healthy global default.
-    profiles = [settings.llm_profile(None)] + [
-        settings.llm_profile(route) for route in settings.repo_routes
-    ]
-    checked_models: set[str] = set()
-    for profile in profiles:
-        if profile.model in checked_models:
-            continue
-        checked_models.add(profile.model)
-        provider = resolve_provider(profile.model, profile.provider)
-        fc_warning = check_function_calling(profile.model, provider)
-        if fc_warning:
-            logger.warning(
-                "llm_function_calling_unsupported",
-                model=profile.model,
-                provider=provider or "(derived)",
-                detail=fc_warning,
-            )
+    # Advisory only, and it needs LiteLLM — whose import alone takes seconds.
+    # Running it here would hold uvicorn's port closed (and every webhook the
+    # Fly proxy is queueing during a cold start) until it finished, so it runs
+    # in the background and /readyz reports "pending" meanwhile.
+    app.state.function_calling = FunctionCallingCheck(settings)
+    app.state.function_calling.start()
 
     init_metrics(settings)
 
