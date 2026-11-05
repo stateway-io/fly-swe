@@ -74,6 +74,8 @@ tells contributors to "commit and open a PR" doesn't cause chaos — the
 system prompt tells the agent to follow those files for style and tests,
 never for git.
 
+[![Watch a one-minute video tour of fly-swe](https://gitdiagram.com/video-badge.svg)](https://gitdiagram.com/stateway-io/fly-swe/video)
+
 ## Why fly-swe
 
 - **A service, not a session.** Webhooks land in a durable SQLite queue with
