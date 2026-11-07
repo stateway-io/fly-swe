@@ -4,10 +4,11 @@ import os
 import re
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import (
     BaseModel,
+    BeforeValidator,
     ConfigDict,
     Field,
     computed_field,
@@ -28,6 +29,25 @@ from issue_agent.policy.label_router import (
     DEFAULT_TRIAGE_ONLY_CATEGORIES,
 )
 from issue_agent.providers.settings import SETTINGS_BY_TYPE, ProviderSettings
+
+FOREVER = "forever"
+
+
+def _parse_retention_period(value: Any) -> Any:
+    """``"forever"`` (any case) and YAML ``null`` → ``None`` (keep
+    indefinitely); anything else is left for the ``int >= 0`` check."""
+    if value is None:
+        return None
+    if isinstance(value, str) and value.strip().lower() == FOREVER:
+        return None
+    return value
+
+
+# Days to keep a category of rows (0 = drop at the next maintenance run),
+# or None — "forever" in config — to keep them indefinitely.
+RetentionPeriod = Annotated[
+    Annotated[int, Field(ge=0)] | None, BeforeValidator(_parse_retention_period)
+]
 
 logger = get_logger(__name__)
 
@@ -409,6 +429,12 @@ def flatten_yaml_config(raw: dict[str, Any]) -> dict[str, Any]:
         flat["AUDIT_RETENTION_DAYS"] = retention["audit_days"]
     if "cleanup_interval_minutes" in retention:
         flat["CLEANUP_INTERVAL_MINUTES"] = retention["cleanup_interval_minutes"]
+    task_retention = retention.get("tasks") or {}
+    for key in ("pr_merged", "pr_closed", "aborted", "failed", "other"):
+        if key in task_retention:
+            flat[f"RETENTION_TASKS_{key.upper()}"] = task_retention[key]
+    if "pr_check_max_per_cycle" in task_retention:
+        flat["RETENTION_PR_CHECK_MAX_PER_CYCLE"] = task_retention["pr_check_max_per_cycle"]
 
     toolchains = raw.get("toolchains") or {}
     if "enabled" in toolchains:
@@ -835,6 +861,29 @@ class Settings(BaseSettings):
     db_retention_days: int = Field(default=90, validation_alias="DB_RETENTION_DAYS")
     audit_retention_days: int = Field(default=90, validation_alias="AUDIT_RETENTION_DAYS")
     cleanup_interval_minutes: int = Field(default=60, validation_alias="CLEANUP_INTERVAL_MINUTES")
+    # Per-category task-row retention (retention.tasks.*), each a
+    # RetentionPeriod. An issue with a PR follows only the PR rules, with the
+    # clock starting when its PR was merged/closed; while any of its PRs is
+    # open, nothing of it is pruned. The age rules cover issues with no PR.
+    retention_tasks_pr_merged: RetentionPeriod = Field(
+        default=0, validation_alias="RETENTION_TASKS_PR_MERGED"
+    )
+    retention_tasks_pr_closed: RetentionPeriod = Field(
+        default=0, validation_alias="RETENTION_TASKS_PR_CLOSED"
+    )
+    retention_tasks_aborted: RetentionPeriod = Field(
+        default=90, validation_alias="RETENTION_TASKS_ABORTED"
+    )
+    retention_tasks_failed: RetentionPeriod = Field(
+        default=90, validation_alias="RETENTION_TASKS_FAILED"
+    )
+    retention_tasks_other: RetentionPeriod = Field(
+        default=90, validation_alias="RETENTION_TASKS_OTHER"
+    )
+    # Hard cap on forge PR-state lookups per maintenance run.
+    retention_pr_check_max_per_cycle: int = Field(
+        default=50, ge=0, validation_alias="RETENTION_PR_CHECK_MAX_PER_CYCLE"
+    )
 
     # --- Toolchains (plugins install runtimes on demand into /data/tools) ---
     toolchains_enabled: bool = Field(default=True, validation_alias="TOOLCHAINS_ENABLED")

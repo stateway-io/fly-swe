@@ -700,7 +700,7 @@ def main() -> None:
     if recovered:
         log.info("orphan_recovery_done", recovered=recovered)
 
-    run_maintenance(store, settings)
+    run_maintenance(store, settings, registry)
     reconcile_issue_work(store, settings, registry)
 
     _last_maintenance: float = time.monotonic()
@@ -714,7 +714,7 @@ def main() -> None:
         try:
             now = time.monotonic()
             if now - _last_maintenance > settings.cleanup_interval_minutes * 60:
-                run_maintenance(store, settings)
+                run_maintenance(store, settings, registry)
                 _last_maintenance = now
 
             if now - _last_reconcile > settings.resume_reconcile_interval_minutes * 60:

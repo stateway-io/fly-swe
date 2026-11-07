@@ -34,9 +34,27 @@ _TERMINAL_STATUSES = {
 _CREATION_TRIGGER_KINDS = (TriggerKind.ISSUE_OPENED.value, TriggerKind.LABEL_ADDED.value)
 
 
+def format_ts(dt: datetime) -> str:
+    """The one timestamp format every column uses (UTC, millisecond, ``Z``),
+    so rows compare correctly as strings."""
+    dt = dt.astimezone(UTC)
+    return dt.strftime("%Y-%m-%dT%H:%M:%S.") + f"{dt.microsecond:06d}"[:3] + "Z"
+
+
 def _utcnow() -> str:
-    now = datetime.now(UTC)
-    return now.strftime("%Y-%m-%dT%H:%M:%S.") + f"{now.microsecond:06d}"[:3] + "Z"
+    return format_ts(datetime.now(UTC))
+
+
+# Statuses data retention may delete — never pending/running, and never
+# failed_recoverable, which run_retry_recovery may still re-queue.
+_PRUNABLE_STATUSES = (
+    TaskStatus.SUCCEEDED.value,
+    TaskStatus.FAILED_TERMINAL.value,
+    TaskStatus.ABORTED_BUDGET.value,
+    TaskStatus.ABORTED_POLICY.value,
+)
+# Bound on bound parameters per IN (...) list.
+_IN_CHUNK = 500
 
 
 def _generate_id() -> str:
@@ -737,41 +755,103 @@ class SQLiteStore:
         ).fetchall()
         return {r["id"] for r in rows}
 
-    def delete_old_records(self, task_ids: list[str], cutoff: str) -> dict[str, int]:
-        """Delete ``task_ids`` (and their events), plus deliveries and
-        budget rows older than ``cutoff`` — the latter even when no task
-        is due, so dedup rows don't depend on task churn."""
-        counts: dict[str, int] = {"task_events": 0, "tasks": 0}
+    def delete_tasks(self, task_ids: list[str]) -> dict[str, int]:
+        """Delete ``task_ids`` and their ``task_events`` in one transaction."""
+        counts = {"task_events": 0, "tasks": 0}
+        if not task_ids:
+            return counts
+        try:
+            for i in range(0, len(task_ids), _IN_CHUNK):
+                chunk = task_ids[i : i + _IN_CHUNK]
+                placeholders = ",".join("?" for _ in chunk)
+                counts["task_events"] += self.conn.execute(
+                    f"DELETE FROM task_events WHERE task_id IN ({placeholders})", chunk
+                ).rowcount
+                counts["tasks"] += self.conn.execute(
+                    f"DELETE FROM tasks WHERE id IN ({placeholders})", chunk
+                ).rowcount
+            self.conn.commit()
+        except Exception:
+            self.conn.rollback()
+            raise
+        return counts
 
-        if task_ids:
-            placeholders = ",".join("?" for _ in task_ids)
-
-            cur = self.conn.execute(
-                f"DELETE FROM task_events WHERE task_id IN ({placeholders})",
-                task_ids,
-            )
-            counts["task_events"] = cur.rowcount
-
-            cur = self.conn.execute(
-                f"DELETE FROM tasks WHERE id IN ({placeholders})",
-                task_ids,
-            )
-            counts["tasks"] = cur.rowcount
-
-        cur = self.conn.execute(
-            "DELETE FROM processed_deliveries WHERE received_at < ?",
-            (cutoff,),
-        )
-        counts["processed_deliveries"] = cur.rowcount
-
-        cur = self.conn.execute(
+    def prune_deliveries_and_budget(self, cutoff: str) -> dict[str, int]:
+        """Delete dedup and daily-budget rows older than ``cutoff``."""
+        deliveries = self.conn.execute(
+            "DELETE FROM processed_deliveries WHERE received_at < ?", (cutoff,)
+        ).rowcount
+        budget = self.conn.execute(
             "DELETE FROM daily_budget WHERE date < ?",
             (cutoff[:10],),  # YYYY-MM-DD part only
-        )
-        counts["daily_budget"] = cur.rowcount
-
+        ).rowcount
         self.conn.commit()
-        return counts
+        return {"processed_deliveries": deliveries, "daily_budget": budget}
+
+    def list_terminal_tasks(self) -> list[dict[str, Any]]:
+        """Every task retention may delete: finished for good (never
+        pending/running/failed_recoverable, which may still run)."""
+        rows = self.conn.execute(
+            f"""SELECT id, provider_instance, repo, issue_number, status, completed_at
+                  FROM tasks
+                 WHERE status IN ({",".join("?" for _ in _PRUNABLE_STATUSES)})
+                   AND completed_at IS NOT NULL""",
+            _PRUNABLE_STATUSES,
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def list_busy_issue_keys(self) -> set[tuple[str, str, int]]:
+        """``(provider_instance, repo, issue_number)`` of issues still in
+        play — a task that may (still) run, or open ``issue_work``."""
+        rows = self.conn.execute(
+            """SELECT provider_instance, repo, issue_number FROM tasks
+                WHERE status IN (?, ?, ?)
+               UNION
+               SELECT provider_instance, issue_repo, issue_number FROM issue_work
+                WHERE state = 'open'""",
+            (
+                TaskStatus.PENDING.value,
+                TaskStatus.RUNNING.value,
+                TaskStatus.FAILED_RECOVERABLE.value,
+            ),
+        ).fetchall()
+        return {(r[0], r[1], r[2]) for r in rows}
+
+    def list_issue_pr_states(self) -> list[tuple[tuple[str, str, int], str | None, str | None]]:
+        """One row per (issue, PR) a task or ``issue_work`` row links:
+        ``(issue key, state, closed_at)``, state/closed_at ``None`` when
+        the PR was never checked. A merged/closed PR with no forge
+        timestamp falls back to when it was seen so."""
+        rows = self.conn.execute(
+            """WITH refs AS (
+                 SELECT provider_instance, repo AS issue_repo, issue_number,
+                        COALESCE(NULLIF(target_repo, ''), repo) AS pr_repo, pr_number
+                   FROM tasks WHERE pr_number IS NOT NULL
+                 UNION
+                 SELECT provider_instance, issue_repo, issue_number,
+                        target_repo AS pr_repo, pr_number
+                   FROM issue_work WHERE pr_number IS NOT NULL
+               )
+               SELECT refs.provider_instance, refs.issue_repo, refs.issue_number,
+                      ps.state, COALESCE(ps.closed_at, ps.checked_at) AS closed_at
+                 FROM refs
+                 LEFT JOIN pr_state ps
+                   ON ps.provider_instance = refs.provider_instance
+                  AND ps.repo = refs.pr_repo AND ps.pr_number = refs.pr_number"""
+        ).fetchall()
+        return [((r[0], r[1], r[2]), r["state"], r["closed_at"]) for r in rows]
+
+    def delete_finished_issue_work(self, keys: list[tuple[str, str, int]]) -> int:
+        """Delete the ``issue_work`` rows of ``keys`` that aren't open."""
+        removed = 0
+        for provider_instance, issue_repo, issue_number in keys:
+            removed += self.conn.execute(
+                "DELETE FROM issue_work WHERE provider_instance = ? AND issue_repo = ? "
+                "AND issue_number = ? AND state != 'open'",
+                (provider_instance, issue_repo, issue_number),
+            ).rowcount
+        self.conn.commit()
+        return removed
 
     # ── task events ─────────────────────────────────────────────
 

@@ -1777,3 +1777,80 @@ class TestNestedEnvSpike:
         monkeypatch.setenv("PROVIDERS__GITHUB__WEBHOOK_SECRET", "s")
         with pytest.raises(ValidationError):
             self._spike({})()
+
+
+class TestTaskRetentionConfig:
+    """retention.tasks.*: days (>= 0, 0 = next maintenance) or "forever"."""
+
+    _BASE_KWARGS = dict(PROVIDERS=github_providers(), LLM_API_KEY="k")
+
+    def test_defaults(self):
+        s = _SettingsIsolated(**self._BASE_KWARGS)
+        assert s.retention_tasks_pr_merged == 0
+        assert s.retention_tasks_pr_closed == 0
+        assert s.retention_tasks_aborted == 90
+        assert s.retention_tasks_failed == 90
+        assert s.retention_tasks_other == 90
+        assert s.retention_pr_check_max_per_cycle == 50
+
+    @pytest.mark.parametrize("value", ["forever", "FOREVER", " Forever ", None])
+    def test_forever_means_keep_indefinitely(self, value):
+        s = _SettingsIsolated(**self._BASE_KWARGS, RETENTION_TASKS_ABORTED=value)
+        assert s.retention_tasks_aborted is None
+
+    @pytest.mark.parametrize(("value", "days"), [(0, 0), (30, 30), ("7", 7)])
+    def test_days(self, value, days):
+        s = _SettingsIsolated(**self._BASE_KWARGS, RETENTION_TASKS_PR_MERGED=value)
+        assert s.retention_tasks_pr_merged == days
+
+    @pytest.mark.parametrize("value", [-1, "never-ish", "", 1.5])
+    def test_rejects_invalid_values(self, value):
+        with pytest.raises(ValidationError):
+            _SettingsIsolated(**self._BASE_KWARGS, RETENTION_TASKS_FAILED=value)
+
+    def test_flattened_from_yaml(self):
+        from issue_agent.config import flatten_yaml_config
+
+        flat = flatten_yaml_config(
+            {
+                "retention": {
+                    "tasks": {
+                        "pr_merged": 3,
+                        "pr_closed": "forever",
+                        "aborted": None,
+                        "failed": 10,
+                        "other": 20,
+                        "pr_check_max_per_cycle": 5,
+                    }
+                }
+            }
+        )
+        assert flat["RETENTION_TASKS_PR_MERGED"] == 3
+        assert flat["RETENTION_TASKS_PR_CLOSED"] == "forever"
+        assert flat["RETENTION_TASKS_ABORTED"] is None
+        assert flat["RETENTION_TASKS_FAILED"] == 10
+        assert flat["RETENTION_TASKS_OTHER"] == 20
+        assert flat["RETENTION_PR_CHECK_MAX_PER_CYCLE"] == 5
+
+    def test_yaml_then_env_precedence(self, tmp_path, monkeypatch):
+        yaml_path = tmp_path / "config.yaml"
+        yaml_path.write_text(
+            "retention:\n  tasks:\n    pr_merged: 30\n    aborted: forever\n    other: null\n"
+        )
+        monkeypatch.setenv("CONFIG_FILE", str(yaml_path))
+        for var in (
+            "RETENTION_TASKS_PR_MERGED",
+            "RETENTION_TASKS_ABORTED",
+            "RETENTION_TASKS_OTHER",
+        ):
+            monkeypatch.delenv(var, raising=False)
+        s = _SettingsIsolated(**self._BASE_KWARGS)
+        assert s.retention_tasks_pr_merged == 30
+        assert s.retention_tasks_aborted is None
+        assert s.retention_tasks_other is None
+
+        monkeypatch.setenv("RETENTION_TASKS_PR_MERGED", "forever")
+        monkeypatch.setenv("RETENTION_TASKS_ABORTED", "14")
+        s2 = _SettingsIsolated(**self._BASE_KWARGS)
+        assert s2.retention_tasks_pr_merged is None
+        assert s2.retention_tasks_aborted == 14
