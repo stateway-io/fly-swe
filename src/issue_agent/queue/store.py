@@ -72,6 +72,27 @@ class SQLiteStore:
         self._migrate_v6()
         self._migrate_v7()
         self._migrate_v8()
+        self._migrate_v9()
+
+    def _migrate_v9(self) -> None:
+        """Add `pr_state` (the retention sweep's forge PR-state cache) to
+        databases that predate it. Pure additive ``CREATE TABLE IF NOT
+        EXISTS``, so an older image simply ignores the table. Idempotent —
+        a no-op on fresh DBs, where schema.sql already created it."""
+        self.conn.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS pr_state (
+              provider_instance TEXT    NOT NULL,
+              repo              TEXT    NOT NULL,
+              pr_number         INTEGER NOT NULL,
+              state             TEXT    NOT NULL,
+              closed_at         TEXT,
+              checked_at        TEXT    NOT NULL,
+              PRIMARY KEY (provider_instance, repo, pr_number)
+            );
+            """
+        )
+        self.conn.commit()
 
     def _migrate_v8(self) -> None:
         """Drop the GitHub-era `payload_json` and `installation_id` columns
@@ -899,3 +920,78 @@ class SQLiteStore:
         if total_iterations is not None:
             fields["total_iterations"] = total_iterations
         self.update_issue_work(provider_instance, issue_repo, issue_number, **fields)
+
+    # ── PR state cache (data retention) ─────────────────────────
+
+    # Every (instance, target repo, PR) a task or an issue_work row points
+    # to. A task row predating `target_repo` has '' there: its PR is on the
+    # issue repo.
+    _PR_REFS_SQL = """
+        SELECT provider_instance, COALESCE(NULLIF(target_repo, ''), repo) AS repo, pr_number
+          FROM tasks WHERE pr_number IS NOT NULL
+        UNION
+        SELECT provider_instance, target_repo AS repo, pr_number
+          FROM issue_work WHERE pr_number IS NOT NULL
+    """
+
+    def list_prs_to_check(self, limit: int) -> list[tuple[str, str, int]]:
+        """``(provider_instance, repo, pr_number)`` of PRs whose forge state
+        is unknown or last seen open — never-checked first, then least
+        recently checked. Merged/closed PRs are final and never listed."""
+        if limit <= 0:
+            return []
+        rows = self.conn.execute(
+            f"""WITH refs AS ({self._PR_REFS_SQL})
+                SELECT refs.provider_instance, refs.repo, refs.pr_number
+                  FROM refs
+                  LEFT JOIN pr_state ps
+                    ON ps.provider_instance = refs.provider_instance
+                   AND ps.repo = refs.repo AND ps.pr_number = refs.pr_number
+                 WHERE ps.state IS NULL OR ps.state = 'open'
+                 ORDER BY ps.checked_at IS NOT NULL, ps.checked_at, refs.pr_number
+                 LIMIT ?""",
+            (limit,),
+        ).fetchall()
+        return [(r["provider_instance"], r["repo"], r["pr_number"]) for r in rows]
+
+    def upsert_pr_state(
+        self,
+        provider_instance: str,
+        repo: str,
+        pr_number: int,
+        state: str,
+        closed_at: str | None,
+    ) -> None:
+        self.conn.execute(
+            """INSERT INTO pr_state
+                 (provider_instance, repo, pr_number, state, closed_at, checked_at)
+               VALUES (?, ?, ?, ?, ?, ?)
+               ON CONFLICT (provider_instance, repo, pr_number) DO UPDATE SET
+                 state = excluded.state,
+                 closed_at = excluded.closed_at,
+                 checked_at = excluded.checked_at""",
+            (provider_instance, repo, pr_number, state, closed_at, _utcnow()),
+        )
+        self.conn.commit()
+
+    def get_pr_state(
+        self, provider_instance: str, repo: str, pr_number: int
+    ) -> dict[str, Any] | None:
+        row = self.conn.execute(
+            "SELECT * FROM pr_state WHERE provider_instance = ? AND repo = ? AND pr_number = ?",
+            (provider_instance, repo, pr_number),
+        ).fetchone()
+        return dict(row) if row else None
+
+    def delete_orphan_pr_states(self) -> int:
+        """Drop cached PR states no task or issue_work row points to any more."""
+        cur = self.conn.execute(
+            # Not a CTE: sqlite3 reports rowcount -1 for a WITH ... DELETE.
+            f"""DELETE FROM pr_state WHERE NOT EXISTS (
+                  SELECT 1 FROM ({self._PR_REFS_SQL}) AS refs
+                   WHERE refs.provider_instance = pr_state.provider_instance
+                     AND refs.repo = pr_state.repo AND refs.pr_number = pr_state.pr_number
+                )"""
+        )
+        self.conn.commit()
+        return cur.rowcount

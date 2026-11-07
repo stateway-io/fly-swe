@@ -1283,3 +1283,116 @@ class TestFetchNextFairness:
         assert sorted(dispatched) == sorted(
             ["owner/repo-a", "owner/repo-a", "owner/repo-a", "owner/repo-b"]
         )
+
+
+class TestPRState:
+    """The forge PR-state cache the retention sweep fills (`pr_state`)."""
+
+    def _task_with_pr(self, store: SQLiteStore, pr: int, **overrides) -> str:
+        fields = dict(
+            delivery_id=f"d-{pr}-{overrides.get('issue_number', 42)}",
+            target_repo="owner/code",
+            issue_number=42,
+        )
+        fields.update(overrides)
+        tid = store.insert_task(_make_task(**fields))
+        store.update_status(tid, TaskStatus.SUCCEEDED, pr_number=pr)
+        return tid
+
+    def test_lists_prs_from_tasks_on_the_target_repo(self, store: SQLiteStore) -> None:
+        self._task_with_pr(store, 7)
+        assert store.list_prs_to_check(10) == [("github", "owner/code", 7)]
+
+    def test_task_without_target_repo_falls_back_to_the_issue_repo(
+        self, store: SQLiteStore
+    ) -> None:
+        self._task_with_pr(store, 7, target_repo="")
+        assert store.list_prs_to_check(10) == [("github", "stateway-io/stateway-issues", 7)]
+
+    def test_lists_prs_known_only_to_issue_work(self, store: SQLiteStore) -> None:
+        store.open_issue_work("github", "owner/issues", 3, "owner/code", "main", "agent/issue-3")
+        store.close_issue_work("github", "owner/issues", 3, "pr_opened", pr_number=11)
+        assert store.list_prs_to_check(10) == [("github", "owner/code", 11)]
+
+    def test_deduplicates_tasks_and_issue_work(self, store: SQLiteStore) -> None:
+        self._task_with_pr(store, 7)
+        self._task_with_pr(
+            store, 7, delivery_id="d-followup", trigger_kind=TriggerKind.COMMENT_COMMAND
+        )
+        store.open_issue_work(
+            "github", "stateway-io/stateway-issues", 42, "owner/code", "main", "agent/issue-42"
+        )
+        store.close_issue_work(
+            "github", "stateway-io/stateway-issues", 42, "pr_opened", pr_number=7
+        )
+        assert store.list_prs_to_check(10) == [("github", "owner/code", 7)]
+
+    def test_skips_prs_already_merged_or_closed(self, store: SQLiteStore) -> None:
+        self._task_with_pr(store, 1, issue_number=1)
+        self._task_with_pr(store, 2, issue_number=2)
+        self._task_with_pr(store, 3, issue_number=3)
+        store.upsert_pr_state("github", "owner/code", 1, "merged", "2026-10-01T00:00:00.000Z")
+        store.upsert_pr_state("github", "owner/code", 2, "closed", "2026-10-01T00:00:00.000Z")
+        store.upsert_pr_state("github", "owner/code", 3, "open", None)
+        assert store.list_prs_to_check(10) == [("github", "owner/code", 3)]
+
+    def test_never_checked_first_then_least_recently_checked(self, store: SQLiteStore) -> None:
+        for pr in (1, 2, 3):
+            self._task_with_pr(store, pr, issue_number=pr)
+        store.upsert_pr_state("github", "owner/code", 1, "open", None)
+        time.sleep(0.002)
+        store.upsert_pr_state("github", "owner/code", 2, "open", None)
+        assert store.list_prs_to_check(10) == [
+            ("github", "owner/code", 3),
+            ("github", "owner/code", 1),
+            ("github", "owner/code", 2),
+        ]
+        assert store.list_prs_to_check(1) == [("github", "owner/code", 3)]
+
+    def test_non_positive_limit_lists_nothing(self, store: SQLiteStore) -> None:
+        self._task_with_pr(store, 7)
+        assert store.list_prs_to_check(0) == []
+
+    def test_upsert_overwrites_and_reads_back(self, store: SQLiteStore) -> None:
+        store.upsert_pr_state("github", "owner/code", 7, "open", None)
+        store.upsert_pr_state("github", "owner/code", 7, "merged", "2026-10-01T12:00:00.000Z")
+        row = store.get_pr_state("github", "owner/code", 7)
+        assert row is not None
+        assert (row["state"], row["closed_at"]) == ("merged", "2026-10-01T12:00:00.000Z")
+        assert row["checked_at"]
+        assert store.get_pr_state("github", "owner/code", 8) is None
+
+    def test_prunes_only_rows_nothing_points_to(self, store: SQLiteStore) -> None:
+        self._task_with_pr(store, 1, issue_number=1)
+        store.open_issue_work("github", "owner/issues", 2, "owner/code", "main", "agent/issue-2")
+        store.close_issue_work("github", "owner/issues", 2, "pr_opened", pr_number=2)
+        for pr in (1, 2, 3):
+            store.upsert_pr_state("github", "owner/code", pr, "merged", None)
+
+        assert store.delete_orphan_pr_states() == 1
+        assert store.get_pr_state("github", "owner/code", 3) is None
+        assert store.get_pr_state("github", "owner/code", 1) is not None
+        assert store.get_pr_state("github", "owner/code", 2) is not None
+
+
+class TestMigrateV9:
+    """_migrate_v9 adds `pr_state` — purely additive, idempotent."""
+
+    def test_adds_pr_state_to_a_db_without_it(self, tmp_path) -> None:
+        db_path = str(tmp_path / "pre-v9.db")
+        s = SQLiteStore(db_path)
+        s.init()
+        tid = s.insert_task(_make_task())
+        s.conn.execute("DROP TABLE pr_state")
+        s.conn.commit()
+        s.close()
+
+        s2 = SQLiteStore(db_path)
+        s2.init()
+        tables = {
+            r["name"] for r in s2.conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        }
+        assert "pr_state" in tables
+        assert s2.get_task(tid) is not None
+        s2.init()  # idempotent
+        s2.close()
