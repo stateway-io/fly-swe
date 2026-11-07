@@ -1562,6 +1562,11 @@ class TestShippedExampleConfig:
         assert s.toolchains_install_timeout_seconds == 300
         assert s.toolchains_lock_timeout_seconds == 600
         assert s.prompt_category_map
+        # The retention.tasks: block reaches Settings too.
+        assert s.retention_tasks_pr_merged == 0
+        assert s.retention_tasks_pr_closed == 0
+        assert s.retention_tasks_aborted == 90
+        assert s.retention_pr_check_max_per_cycle == 50
 
 
 class TestProviderInstances:

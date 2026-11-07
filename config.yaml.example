@@ -432,11 +432,34 @@ retention:
   # Days to keep the per-task trajectory in /data/events/<task-id>/.
   # Default: 30.
   events_days: 30
-  # Days to keep tasks/events/deliveries rows in the SQLite database.
-  # Default: 90.
+  # Days to keep processed_deliveries (webhook dedup) and daily_budget rows.
+  # Task rows follow `tasks:` below. Default: 90.
   db_days: 90
   # Days to keep audit.<date>.log files in /data (compressed on expiry).
   # Default: 90.
   audit_days: 90
   # How often the cleanup job runs, in minutes. Default: 60.
   cleanup_interval_minutes: 60
+  # Task rows (with their events, trajectory dirs and, for the PR rules,
+  # the issue_work row), per category. Each value is a number of days —
+  # 0 drops them at the next cleanup run — or "forever" to keep them.
+  # An issue with a PR follows only the PR rules, counted from when the PR
+  # was merged/closed; while any of its PRs is open, nothing of it is
+  # pruned. The age rules count from the task's completion and cover issues
+  # with no PR. Pending/running/failed_recoverable tasks, and every task of
+  # an issue that has one or has open work, are never pruned.
+  tasks:
+    # The issue's PR was merged. Default: 0.
+    pr_merged: 0
+    # The issue's PR was closed without merging. Default: 0.
+    pr_closed: 0
+    # aborted_budget / aborted_policy. Default: 90.
+    aborted: 90
+    # failed_terminal. Default: 90.
+    failed: 90
+    # Succeeded with no PR: triage, diagnosis, no changes, published branch.
+    # Default: 90.
+    other: 90
+    # Forge PR-state lookups per cleanup run (skipped entirely when both
+    # PR rules are "forever"). Default: 50.
+    pr_check_max_per_cycle: 50
