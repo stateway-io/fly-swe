@@ -850,3 +850,201 @@ class TestExecutorOnAnotherForge:
             "https://forge.example/stateway-io/stateway-agent-fixtures/-/merge_requests/100"
             in comments[-1]
         )
+
+
+class TestProtectedPathsEnforced:
+    """``repos[].project.protected_paths`` is enforced by the harness, not
+    just requested in the prompt: protected edits are reverted before every
+    commit, on the success path and on the block (WIP) path alike."""
+
+    @staticmethod
+    def _runner(*, edit_protected: bool = True, edit_other: bool = True, **result_kw):
+        class _Runner:
+            def run(
+                self,
+                workspace_path: str,
+                task: Task,
+                settings: Settings,
+                route=None,
+                resume_summary=None,
+                on_progress=None,
+                toolchain_env=None,
+                branch_status=None,
+                comment_history=None,
+                terms=None,
+            ) -> AgentResult:
+                ws = Path(workspace_path)
+                if edit_protected:
+                    (ws / "README.md").write_text("# hijacked\n")
+                    (ws / "migrations").mkdir(exist_ok=True)
+                    (ws / "migrations" / "0001.sql").write_text("drop table users;\n")
+                if edit_other:
+                    (ws / "src").mkdir(exist_ok=True)
+                    (ws / "src" / "fix.md").write_text("fixed\n")
+                if result_kw.get("commit"):
+                    subprocess.run(["git", "add", "-A"], cwd=ws, check=True)
+                    subprocess.run(
+                        ["git", "commit", "-qm", "agent commit"],
+                        cwd=ws,
+                        check=True,
+                        capture_output=True,
+                    )
+                return AgentResult(
+                    success=result_kw.get("success", True),
+                    error=result_kw.get("error"),
+                    cost_usd=0.1,
+                    iterations=2,
+                    submission="Fixed it.",
+                )
+
+        return _Runner()
+
+    @staticmethod
+    def _run(store: SQLiteStore, tmp_path: Path, git_workspace: Path, runner, protected=None):
+        settings = _make_settings(
+            DATA_DIR=str(tmp_path / "data"),
+            REPO_ROUTES=[
+                {
+                    "issues": "stateway-io/stateway-issues",
+                    "target": "stateway-io/stateway-agent-fixtures",
+                    "project": {
+                        "protected_paths": ["README.md", "./migrations/"]
+                        if protected is None
+                        else protected
+                    },
+                }
+            ],
+        )
+        plugin = FakeProviderWithPulls("fake", secret="s")
+        task = _make_task()
+        store.insert_task(task)
+        fetched = store.fetch_next()
+        with (
+            patch("issue_agent.runner.executor.Workspace") as mock_ws_cls,
+            patch("issue_agent.runner.executor._resolve_agent_runner", return_value=runner),
+        ):
+            mock_ws_cls.return_value.clone.return_value = git_workspace
+            run_task(store, fetched, settings, plugin)
+        updated = store.get_task(task.id)
+        assert updated is not None
+        return updated, plugin.forge
+
+    @staticmethod
+    def _committed_files(repo: Path) -> set[str]:
+        out = subprocess.run(
+            ["git", "diff", "--name-only", "origin/main...HEAD"],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+        return set(out.split())
+
+    @staticmethod
+    def _remote_branches(repo: Path) -> str:
+        return subprocess.run(
+            ["git", "ls-remote", "--heads", "origin"],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+
+    def test_protected_edits_reverted_rest_committed(
+        self, store: SQLiteStore, tmp_path: Path, git_workspace: Path
+    ) -> None:
+        updated, forge = self._run(store, tmp_path, git_workspace, self._runner())
+
+        assert updated.status is TaskStatus.SUCCEEDED
+        assert self._committed_files(git_workspace) == {"src/fix.md"}
+        assert (git_workspace / "README.md").read_text() == "# Stateway\n\nWelcome."
+        assert not (git_workspace / "migrations").exists()
+        body = str(forge.pr_details[("stateway-io/stateway-agent-fixtures", 100)]["body"])
+        assert "`README.md`, `migrations/0001.sql`" in body
+        assert "`README.md`" not in body.split("## Files changed")[1].split("##")[0]
+        fix_comment = forge.posted("stateway-io/stateway-issues", 42)[-1]
+        assert "reverted those changes" in fix_comment
+        assert "`migrations/0001.sql`" in fix_comment
+
+    def test_self_committed_protected_edit_is_reverted(
+        self, store: SQLiteStore, tmp_path: Path, git_workspace: Path
+    ) -> None:
+        updated, _ = self._run(store, tmp_path, git_workspace, self._runner(commit=True))
+
+        assert updated.status is TaskStatus.SUCCEEDED
+        assert self._committed_files(git_workspace) == {"src/fix.md"}
+
+    def test_only_protected_edits_abort(
+        self, store: SQLiteStore, tmp_path: Path, git_workspace: Path
+    ) -> None:
+        updated, forge = self._run(store, tmp_path, git_workspace, self._runner(edit_other=False))
+
+        assert updated.status is TaskStatus.ABORTED_POLICY
+        assert updated.error == "protected_paths"
+        assert "agent/" not in self._remote_branches(git_workspace)
+        work = store.get_issue_work(updated.provider_instance, updated.repo, 42)
+        assert work is not None
+        assert work.closed_reason == "protected_paths"
+        abort = forge.posted("stateway-io/stateway-issues", 42)[-1]
+        assert "Every change the agent made was to a protected path" in abort
+        assert "Reverted: README.md, migrations/0001.sql" in abort
+
+    def test_block_wip_excludes_protected(
+        self, store: SQLiteStore, tmp_path: Path, git_workspace: Path
+    ) -> None:
+        runner = self._runner(success=False, error="iteration_limit_exceeded")
+        updated, forge = self._run(store, tmp_path, git_workspace, runner)
+
+        assert updated.status is TaskStatus.ABORTED_BUDGET
+        assert "agent/" in self._remote_branches(git_workspace)
+        assert self._committed_files(git_workspace) == {"src/fix.md"}
+        block = forge.posted("stateway-io/stateway-issues", 42)[-1]
+        assert "`README.md`, `migrations/0001.sql`" in block
+
+    def test_unconfigured_commits_everything(
+        self, store: SQLiteStore, tmp_path: Path, git_workspace: Path
+    ) -> None:
+        updated, forge = self._run(store, tmp_path, git_workspace, self._runner(), protected=[])
+
+        assert updated.status is TaskStatus.SUCCEEDED
+        assert self._committed_files(git_workspace) == {
+            "README.md",
+            "migrations/0001.sql",
+            "src/fix.md",
+        }
+        body = str(forge.pr_details[("stateway-io/stateway-agent-fixtures", 100)]["body"])
+        assert "protected" not in body
+
+
+class TestProtectedPathsEnforceFailure:
+    """If the revert itself fails, nothing is pushed — fail closed."""
+
+    def test_success_path_fails_terminal(
+        self, store: SQLiteStore, tmp_path: Path, git_workspace: Path
+    ) -> None:
+        with patch(
+            "issue_agent.runner.protected_paths.enforce", side_effect=RuntimeError("git boom")
+        ):
+            updated, _ = TestProtectedPathsEnforced._run(
+                store, tmp_path, git_workspace, TestProtectedPathsEnforced._runner()
+            )
+
+        assert updated.status is TaskStatus.FAILED_TERMINAL
+        assert updated.error == "git boom"
+        assert "agent/" not in TestProtectedPathsEnforced._remote_branches(git_workspace)
+
+    def test_block_path_pushes_nothing(
+        self, store: SQLiteStore, tmp_path: Path, git_workspace: Path
+    ) -> None:
+        runner = TestProtectedPathsEnforced._runner(success=False, error="task_timeout")
+        with patch(
+            "issue_agent.runner.protected_paths.enforce", side_effect=RuntimeError("git boom")
+        ):
+            updated, forge = TestProtectedPathsEnforced._run(store, tmp_path, git_workspace, runner)
+
+        assert updated.status is TaskStatus.ABORTED_BUDGET
+        assert "agent/" not in TestProtectedPathsEnforced._remote_branches(git_workspace)
+        assert (
+            "Could not preserve the partial work"
+            in forge.posted("stateway-io/stateway-issues", 42)[-1]
+        )
