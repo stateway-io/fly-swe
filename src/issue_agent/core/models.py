@@ -78,6 +78,16 @@ class PRRef(_Frozen):
     head_ref: str
 
 
+class PRState(_Frozen):
+    """Where a pull/merge request stands on the forge — what data
+    retention reads to know a work item's history is done."""
+
+    state: Literal["open", "merged", "closed"]
+    # When it was merged (``merged``) or closed unmerged (``closed``), in
+    # UTC; None while open. The retention clock starts here.
+    closed_at: datetime | None = None
+
+
 class TriggerEvent(_Frozen):
     kind: TriggerKind
     # issue_comment-style events also fire on PRs/MRs.

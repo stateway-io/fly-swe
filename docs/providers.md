@@ -138,9 +138,13 @@ override it if your webhook reports `unknown` associations).
 
 Only for a forge with a PR/MR API. `find_open_pr(branch)`,
 `create_pr(*, head, base, title, body, draft, labels)` (apply `draft` as
-your `draft_mode` allows), `comment_on_pr(pr, body)`, and
+your `draft_mode` allows), `comment_on_pr(pr, body)`,
 `pr_has_conflicts(pr, head_sha)` — return `None` when the forge can't tell
-yet; the core only acts on a definite `True`.
+yet; the core only acts on a definite `True` — and `get_pr_state(number)` →
+`PRState(state="open"|"merged"|"closed", closed_at=<UTC datetime | None>)`.
+Report `merged` (with the merge time) ahead of `closed`; `closed_at` is
+`None` while open. Raise on an API error — the data-retention sweep skips
+that PR and retries next cycle (`docs/operations.md` § Clean Up Old Data).
 
 Without this port the core still works end to end: it pushes the work
 branch, comments on the issue with `transport().compare_url(...)` so a human

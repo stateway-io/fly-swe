@@ -26,6 +26,7 @@ if TYPE_CHECKING:
         Comment,
         Ignored,
         PRRef,
+        PRState,
         TriggerEvent,
     )
 
@@ -206,6 +207,12 @@ class PullRequestClient(ABC):
         """Whether the forge reports ``pr`` as conflicting with its base once
         it has caught up with ``head_sha`` (the commit just pushed). None
         when it can't tell — the caller only acts on a definite True."""
+
+    @abstractmethod
+    def get_pr_state(self, number: int) -> PRState:
+        """Whether PR ``number`` is open, merged or closed unmerged, and
+        when it stopped being open (UTC). Raises on a network/API error or
+        an unknown PR — the retention sweep skips that row and retries."""
 
 
 class GitTransport(ABC):
