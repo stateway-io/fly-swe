@@ -204,6 +204,22 @@ The agent's sandbox has **no push credential and no `gh`**, so
 it can never actually push or open a PR; the only failure mode is a local
 commit.
 
+**Protected paths are enforced by the harness.** `repos[].project.protected_paths`
+reaches the agent as a prompt instruction, and the harness also guarantees
+it (`runner/protected_paths.py`): before the commit, and before a blocked
+run's WIP commit, it stages the tree, lists every path that differs from the
+tip the agent started from (renames split into both sides, so moving a
+protected file away counts), and restores the protected ones — a protected
+file the agent created is removed. The rest is committed and pushed as usual;
+the reverted paths are logged (`protected_paths_reverted`), listed in the PR
+body under "Reviewer notes" and in the issue comment, and recorded in the
+`task_processed` audit entry (`reverted_protected_paths`). When nothing else
+is left, the run aborts as `protected_paths` (`aborted_policy`) instead of
+`no_changes`. The diff is taken against the tip *after* any base merge the
+harness recorded, so what the base brings into a protected path is kept —
+including the agent's resolution of a conflict on one, which is part of the
+merge commit. If the revert itself fails, nothing is pushed.
+
 A `no_changes` outcome is a verdict, not a failure, and the posted comment
 says so. When the agent aborts because the requested change is *already* in
 the repository, `prompts/system.md` requires its report to cite the commit

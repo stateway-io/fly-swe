@@ -599,3 +599,90 @@ class TestGitHubEnterpriseHost:
         link = f"[{TARGET_REPO}#{PR_NUMBER}]({self.HOST}/{TARGET_REPO}/pull/{PR_NUMBER})"
         assert any(link in c for c in out.issue_comments())
         assert not any("https://github.com" in c for c in out.issue_comments())
+
+
+class _BlockedRunner(_Runner):
+    """Writes its edit, then stops on a limit — the WIP path."""
+
+    def run(self, workspace_path: str, *args, **kwargs) -> AgentResult:
+        super().run(workspace_path, *args, **kwargs)
+        return AgentResult(
+            success=False, error="iteration_limit_exceeded", cost_usd=0.2, iterations=3
+        )
+
+
+@pytest.fixture
+def protected_env(tmp_path: Path) -> FollowUpEnv:
+    store = SQLiteStore(":memory:")
+    store.init()
+    settings = SettingsNoEnv(
+        PROVIDERS=github_providers(app_id="1", app_private_key="k", webhook_secret="s"),
+        LLM_API_KEY="k",
+        DATA_DIR=str(tmp_path / "data"),
+        REPO_ROUTES=[
+            {
+                "issues": ISSUES_REPO,
+                "target": TARGET_REPO,
+                "project": {"protected_paths": ["migrations/", "docs.md"]},
+            }
+        ],
+    )
+    return FollowUpEnv(tmp_path, store, settings)
+
+
+class TestProtectedPathsAcrossBaseMerge:
+    """The protected-path revert undoes only the agent's own edits: what the
+    base merge brings into a protected path stays on the branch."""
+
+    def test_clean_merge_keeps_base_content(self, protected_env: FollowUpEnv) -> None:
+        protected_env.seed_open_pr()
+        protected_env.publish("main", {"migrations/0002.sql": "from main\n"})
+        runner = _Runner({"src/extra.md": "edit\n", "migrations/0003.sql": "agent\n"})
+
+        out = protected_env.run(runner)
+
+        assert protected_env.task_status(out).status is TaskStatus.SUCCEEDED
+        assert protected_env.remote_file(BRANCH, "migrations/0002.sql") == "from main"
+        assert protected_env.remote_has(BRANCH, "src/extra.md")
+        assert not protected_env.remote_has(BRANCH, "migrations/0003.sql")
+        (pr_comment,) = out.pr_comments()
+        assert "`migrations/0003.sql`" in pr_comment
+
+    def test_resolved_conflict_on_protected_path_is_kept(self, protected_env: FollowUpEnv) -> None:
+        protected_env.seed_open_pr()
+        protected_env.publish(
+            "main", {"docs.md": BASE_ADVANCED_DOCS, "migrations/0002.sql": "from main\n"}
+        )
+        runner = _Runner(
+            {"docs.md": RESOLVED_DOCS, "src/extra.md": "edit\n", "migrations/0003.sql": "x\n"}
+        )
+
+        out = protected_env.run(runner)
+
+        assert protected_env.task_status(out).status is TaskStatus.SUCCEEDED
+        # The conflict resolution is part of the merge commit, not reverted.
+        assert protected_env.remote_file(BRANCH, "docs.md") == RESOLVED_DOCS.strip()
+        assert protected_env.remote_file(BRANCH, "migrations/0002.sql") == "from main"
+        assert protected_env.remote_has(BRANCH, "src/extra.md")
+        assert not protected_env.remote_has(BRANCH, "migrations/0003.sql")
+
+    def test_block_after_resolved_merge_keeps_base_content(
+        self, protected_env: FollowUpEnv
+    ) -> None:
+        seeded = protected_env.seed_open_pr()
+        protected_env.publish(
+            "main", {"docs.md": BASE_ADVANCED_DOCS, "migrations/0002.sql": "from main\n"}
+        )
+        runner = _BlockedRunner(
+            {"docs.md": RESOLVED_DOCS, "src/extra.md": "edit\n", "migrations/0003.sql": "x\n"}
+        )
+
+        out = protected_env.run(runner)
+
+        assert protected_env.task_status(out).status is TaskStatus.ABORTED_BUDGET
+        assert protected_env.remote_sha(BRANCH) != seeded
+        assert protected_env.remote_file(BRANCH, "migrations/0002.sql") == "from main"
+        assert protected_env.remote_file(BRANCH, "docs.md") == RESOLVED_DOCS.strip()
+        assert protected_env.remote_has(BRANCH, "src/extra.md")
+        assert not protected_env.remote_has(BRANCH, "migrations/0003.sql")
+        assert any("`migrations/0003.sql`" in c for c in out.issue_comments())

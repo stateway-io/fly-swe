@@ -94,7 +94,15 @@ repos:
       # [.ts, .tsx]. Default: [] = the agent figures it out.
       relevant_extensions: []
       # Paths the agent must not modify, e.g. [migrations/, src/engine/].
-      # Default: [] = no extra restriction.
+      # Enforced, not just requested: the prompt tells the agent, and before
+      # every commit (including a blocked run's WIP push) the harness reverts
+      # any change the agent made under these paths and commits the rest; a
+      # run that changed only protected paths aborts as `protected_paths`.
+      # Content a base-branch merge brings in is never reverted.
+      # Matching: a directory (`migrations/` or `migrations`) covers everything
+      # under it, a file path matches itself, and a pattern with * ? [ is a
+      # glob over the whole repo-relative path (`*` crosses `/`, so `*.sql`
+      # matches at any depth). Default: [] = no extra restriction.
       protected_paths: []
       # Runtime provisioning for the stack. "auto" detects it from project
       # files (e.g. package.json -> nodejs); a concrete name forces that

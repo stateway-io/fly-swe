@@ -5124,3 +5124,57 @@ class TestReopenPublishedBranch:
         assert work.attempts == 0
         events = [e["type"] for e in _task_events(store, task.id)]
         assert "issue_work_reopened_from_branch" in events
+
+
+class TestRevertedProtectedNotes:
+    """Every human-facing report of a run says which protected paths the
+    harness reverted (runner/protected_paths.py)."""
+
+    _NOTE = "`migrations/0001.sql`"
+
+    def test_branch_published_comment(self) -> None:
+        from issue_agent.runner.executor import _build_branch_published_comment
+
+        kwargs = dict(
+            task=_make_task(),
+            branch="agent/x",
+            compare_url="https://forge.example/c",
+            result=AgentResult(success=True, cost_usd=0.5, iterations=4),
+            description="Fixed.",
+            changed_files=[("src/a.py", "modified")],
+            testing_notes="",
+            agent_name="Bot",
+            pr_term="Merge Request",
+        )
+        assert "protected" not in _build_branch_published_comment(**kwargs)
+        comment = _build_branch_published_comment(
+            **kwargs, reverted_protected=["migrations/0001.sql"]
+        )
+        assert self._NOTE in comment
+
+    def test_pr_update_comment(self) -> None:
+        comment = _build_pr_update_comment(
+            _make_task(),
+            AgentResult(success=True, cost_usd=0.05, iterations=2),
+            "Updated.",
+            [("src/a.py", "modified")],
+            "",
+            "Agent X",
+            reverted_protected=["migrations/0001.sql"],
+        )
+        assert self._NOTE in comment
+
+    def test_block_comment(self) -> None:
+        from issue_agent.runner.executor import WipOutcome, _build_block_comment
+
+        comment = _build_block_comment(
+            _make_task(),
+            AgentResult(success=False, error="task_timeout"),
+            "Agent X",
+            WipOutcome(
+                reason="pushed", branch="agent/x", reverted_protected=["migrations/0001.sql"]
+            ),
+            3,
+        )
+        assert self._NOTE in comment
+        assert comment.rstrip().endswith(f"_#{_make_task().issue_number}_")

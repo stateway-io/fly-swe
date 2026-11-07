@@ -21,6 +21,7 @@ from issue_agent.observability.prometheus_metrics import (
 )
 from issue_agent.policy.guards import check_daily_budget
 from issue_agent.queue.models import IssueWork, Task, TaskStatus, TriggerKind
+from issue_agent.runner import protected_paths
 from issue_agent.runner.deps import install_project_dependencies
 from issue_agent.runner.environment import _run as _run_sandboxed
 from issue_agent.runner.environment import _sandboxed_env
@@ -1099,11 +1100,14 @@ def _build_fix_comment(
     branch: str | None = None,
     updated_existing: bool = False,
     still_conflicting: bool = False,
+    reverted_protected: list[str] | None = None,
 ) -> str:
     body = f"Cost: US$ {result.cost_usd:.2f} | Iterations: {result.iterations}"
     note = _accumulated_note(work, result)
     if note:
         body += f"\n\n{note}"
+    if reverted_protected:
+        body += f"\n\n{protected_paths.reverted_note(reverted_protected)}"
     if still_conflicting:
         body += f"\n\n{_still_conflicting_note(task.base_branch)}"
     if updated_existing:
@@ -1172,6 +1176,7 @@ def _build_branch_published_comment(
     updated_existing: bool = False,
     base_update: BaseUpdate | None = None,
     still_conflicting: bool = False,
+    reverted_protected: list[str] | None = None,
 ) -> str:
     """The issue comment for a run delivered on a forge with no PR API
     (PRD §3.7). The branch and its compare link stand in for the PR, so the
@@ -1197,6 +1202,8 @@ def _build_branch_published_comment(
         lines.extend(_base_update_lines(base_update, base))
     if still_conflicting:
         lines.append(_still_conflicting_note(base, "the branch"))
+    if reverted_protected:
+        lines.append(protected_paths.reverted_note(reverted_protected))
     lines.append(
         f"No {pr_term} was opened: review the changes in "
         f"[`{base}...{branch}`]({compare_url}) and open one from the branch."
@@ -1225,6 +1232,7 @@ def _build_pr_update_comment(
     agent_name: str,
     base_update: BaseUpdate | None = None,
     still_conflicting: bool = False,
+    reverted_protected: list[str] | None = None,
 ) -> str:
     """Posted on an already-open PR that a follow-up run pushed to. The PR
     body is left as the original run wrote it; this comment is the record of
@@ -1237,6 +1245,8 @@ def _build_pr_update_comment(
     lines.extend(_base_update_lines(base_update, base))
     if still_conflicting:
         lines.append(_still_conflicting_note(base))
+    if reverted_protected:
+        lines.append(protected_paths.reverted_note(reverted_protected))
     files = "\n".join(f"- `{path}` — {kind}" for path, kind in changed_files) or "_None._"
     return (
         "\n\n".join(lines)
@@ -1253,6 +1263,7 @@ _DETAIL_LABELS = {
     "llm_error": "Provider error",
     "provider_budget_exceeded": "Provider message",
     "agent_crashed": "Error",
+    "protected_paths": "Reverted",
 }
 
 
@@ -1270,6 +1281,10 @@ def _build_abort_comment(
         # right below, so this line frames the verdict instead of reading
         # like an error.
         "no_changes": "The agent concluded that no code change was needed.",
+        "protected_paths": (
+            "Every change the agent made was to a protected path. The harness "
+            "reverted them, so nothing was committed; changes there need a human."
+        ),
         "format_error": (
             "The model replied outside the expected format several times "
             "in a row and execution was stopped."
@@ -1324,6 +1339,8 @@ class WipOutcome:
 
     reason: str = "disabled"  # disabled | no_changes | pushed | push_failed | max_attempts
     branch: str = ""
+    # Protected paths the harness reverted before the WIP commit.
+    reverted_protected: list[str] = field(default_factory=list)
 
     @property
     def pushed(self) -> bool:
@@ -1374,6 +1391,8 @@ def _build_block_comment(
         )
     else:
         extra = ""
+    if wip.reverted_protected:
+        extra += f"\n\n{protected_paths.reverted_note(wip.reverted_protected)}"
     return base.replace("\n\n---\nTask:", f"{extra}\n\n---\nTask:", 1)
 
 
@@ -1944,6 +1963,8 @@ def _preserve_wip_on_block(
     out: _Outbound,
     task_log,
     start_sha: str,
+    protected: list[str] | None = None,
+    protect_source: str | None = None,
 ) -> WipOutcome:
     """Commit and push the partial work to the frozen branch before cleanup,
     persist the block summary, and decide whether the work stays open, closes
@@ -1965,6 +1986,19 @@ def _preserve_wip_on_block(
             task.provider_instance, task.repo, task.issue_number, **base_updates
         )
         return WipOutcome(reason="disabled")
+
+    # Partial work is pushed too, so it gets the same protected-path revert
+    # as a finished run. If the revert itself fails, nothing is pushed.
+    try:
+        reverted = protected_paths.enforce(
+            ws_path, protected or [], protect_source or start_sha, _run_git, task_log
+        )
+    except Exception:
+        task_log.exception("protected_paths_enforce_failed")
+        store.update_issue_work(
+            task.provider_instance, task.repo, task.issue_number, work_branch="", **base_updates
+        )
+        return WipOutcome(reason="push_failed")
 
     try:
         _run_git(ws_path, "add", "-A")
@@ -1990,7 +2024,7 @@ def _preserve_wip_on_block(
                 **base_updates,
             )
             _close_issue_work(store, task, "no_changes")
-            return WipOutcome(reason="no_changes")
+            return WipOutcome(reason="no_changes", reverted_protected=reverted)
 
     try:
         if has_wip:
@@ -2014,7 +2048,7 @@ def _preserve_wip_on_block(
         store.update_issue_work(
             task.provider_instance, task.repo, task.issue_number, work_branch="", **base_updates
         )
-        return WipOutcome(reason="push_failed")
+        return WipOutcome(reason="push_failed", reverted_protected=reverted)
 
     store.update_issue_work(
         task.provider_instance,
@@ -2027,9 +2061,9 @@ def _preserve_wip_on_block(
 
     if attempt >= settings.resume_max_attempts:
         _close_issue_work(store, task, "max_attempts")
-        return WipOutcome(reason="max_attempts", branch=branch)
+        return WipOutcome(reason="max_attempts", branch=branch, reverted_protected=reverted)
 
-    return WipOutcome(reason="pushed", branch=branch)
+    return WipOutcome(reason="pushed", branch=branch, reverted_protected=reverted)
 
 
 def _decide_test_retry(
@@ -2360,6 +2394,8 @@ def run_task(store: SQLiteStore, task: Task, settings: Settings, plugin: Provide
     first_loop_iteration = True
     carried_over_commits = 0
     pushed_sha = ""
+    # Protected paths the harness reverted, across every pass of the loop.
+    reverted_protected: list[str] = []
 
     branch_status = (
         build_branch_status(
@@ -2464,6 +2500,10 @@ def run_task(store: SQLiteStore, task: Task, settings: Settings, plugin: Provide
                         unresolved = ["<merge commit failed>"]
                     if unresolved:
                         _abandon_base_merge(ws_path, start_sha)
+                    else:
+                        # The merge commit holds the base's content: the
+                        # protected-path revert must not undo it.
+                        salvage_sha = _head_sha(ws_path)
                 wip = _preserve_wip_on_block(
                     store,
                     task,
@@ -2475,6 +2515,8 @@ def run_task(store: SQLiteStore, task: Task, settings: Settings, plugin: Provide
                     out,
                     task_log,
                     start_sha,
+                    protected=route.project.protected_paths,
+                    protect_source=salvage_sha,
                 )
                 ws.cleanup()
                 if result.error not in _BLOCK_ERRORS:
@@ -2644,6 +2686,46 @@ def run_task(store: SQLiteStore, task: Task, settings: Settings, plugin: Provide
             # normal flow below take over.
             status_output = _salvage_agent_commits(ws_path, branch, salvage_sha, task_log)
 
+        # The prompt asks the agent to stay out of the protected paths; this
+        # is what guarantees it. Diffing against `salvage_sha` (the tip before
+        # the agent's edits, or the recorded base merge) reverts only the
+        # agent's own changes, never content the base brought in.
+        reverted_now: list[str] = []
+        if status_output.strip() and route.project.protected_paths:
+            try:
+                reverted_now = protected_paths.enforce(
+                    ws_path, route.project.protected_paths, salvage_sha, _run_git, task_log
+                )
+                if reverted_now:
+                    status_output = _run_git(ws_path, "status", "--porcelain")
+            except Exception as exc:
+                task_log.exception("protected_paths_enforce_failed")
+                _fail(
+                    store,
+                    task,
+                    settings,
+                    TaskStatus.FAILED_TERMINAL,
+                    {
+                        "from": "running",
+                        "to": "failed_terminal",
+                        "step": "protected_paths",
+                        "error": str(exc),
+                    },
+                    error=str(exc),
+                    duration=time.monotonic() - _start,
+                    work=work,
+                )
+                _close_issue_work(
+                    store,
+                    task,
+                    "terminal_failure",
+                    total_cost_usd=work.total_cost_usd + accumulated_cost,
+                    total_iterations=work.total_iterations + accumulated_iterations,
+                )
+                ws.cleanup()
+                return
+            reverted_protected = sorted({*reverted_protected, *reverted_now})
+
         # A resumed work branch can already carry the previous run's commits:
         # the agent then correctly writes nothing new, and the salvage above
         # legitimately finds nothing because `start_sha` IS that branch's
@@ -2679,10 +2761,14 @@ def run_task(store: SQLiteStore, task: Task, settings: Settings, plugin: Provide
         # commit: it is what the follow-up asked for.
         if not status_output.strip() and not carried_over_now and not merged_base_now:
             if first_loop_iteration:
-                task_log.info("no_changes")
+                # Everything the agent changed was protected and got reverted:
+                # not "nothing needed changing", so report it as such.
+                abort_reason = "protected_paths" if reverted_now else "no_changes"
+                task_log.info(abort_reason)
                 abt = AgentResult(
                     success=False,
-                    error="no_changes",
+                    error=abort_reason,
+                    error_detail=", ".join(reverted_now),
                     cost_usd=accumulated_cost,
                     iterations=accumulated_iterations,
                     submission=result.submission,
@@ -2692,8 +2778,8 @@ def run_task(store: SQLiteStore, task: Task, settings: Settings, plugin: Provide
                     task,
                     settings,
                     TaskStatus.ABORTED_POLICY,
-                    {"from": "running", "to": "aborted_policy", "reason": "no_changes"},
-                    error="no_changes",
+                    {"from": "running", "to": "aborted_policy", "reason": abort_reason},
+                    error=abort_reason,
                     cost_usd=accumulated_cost,
                     iterations=accumulated_iterations,
                     duration=time.monotonic() - _start,
@@ -2710,7 +2796,7 @@ def run_task(store: SQLiteStore, task: Task, settings: Settings, plugin: Provide
                 _close_issue_work(
                     store,
                     task,
-                    "no_changes",
+                    abort_reason,
                     total_cost_usd=work.total_cost_usd + accumulated_cost,
                     total_iterations=work.total_iterations + accumulated_iterations,
                 )
@@ -2900,6 +2986,7 @@ def run_task(store: SQLiteStore, task: Task, settings: Settings, plugin: Provide
                 cost_usd=result.cost_usd,
                 iterations=result.iterations,
                 testing_notes=testing_notes,
+                reviewer_notes=protected_paths.reverted_note(reverted_protected) or None,
                 agent_name=settings.agent_name,
             )
             pr = out.open_pr(
@@ -2964,6 +3051,7 @@ def run_task(store: SQLiteStore, task: Task, settings: Settings, plugin: Provide
                 updated_existing=updated_existing,
                 base_update=base_update,
                 still_conflicting=still_conflicting,
+                reverted_protected=reverted_protected,
             )
             out.comment(comment)
         except Exception:
@@ -2986,6 +3074,7 @@ def run_task(store: SQLiteStore, task: Task, settings: Settings, plugin: Provide
                         settings.agent_name,
                         base_update,
                         still_conflicting,
+                        reverted_protected,
                     ),
                 )
             except Exception:
@@ -3003,6 +3092,7 @@ def run_task(store: SQLiteStore, task: Task, settings: Settings, plugin: Provide
                 branch=branch,
                 updated_existing=updated_existing,
                 still_conflicting=still_conflicting,
+                reverted_protected=reverted_protected,
             )
             out.comment(comment)
         except Exception:
@@ -3057,6 +3147,7 @@ def run_task(store: SQLiteStore, task: Task, settings: Settings, plugin: Provide
             "pr_number": pr_number,
             "attempts": work.attempts,
             "work_branch": work.work_branch,
+            "reverted_protected_paths": reverted_protected,
         },
     )
     observe_task_result(

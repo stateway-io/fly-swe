@@ -399,7 +399,7 @@ config-driven trigger gate that exists today is the repo allowlist
      closed.
    - *fly-swe's own bookkeeping*: the `closed_reason` column on an
      `issue_work` row is a separate, internal concept — "why did the
-     agent's local record of this issue's work stop being open" — with 6
+     agent's local record of this issue's work stop being open" — with 7
      distinct values, only one of which maps to an actual GitHub closure:
 
      | `closed_reason` | Meaning | Set at |
@@ -408,13 +408,14 @@ config-driven trigger gate that exists today is the repo allowlist
      | `pr_opened` | Happy path: the agent succeeded and opened a PR. Also persists `last_summary` (the PR description) — see the note above; the only `closed_reason` a later re-trigger reopens *in place* rather than starting fresh | `runner/executor.py` |
      | `branch_published` | Happy path on a forge with no PR API (PRD §3.7): the branch was pushed and the issue got a compare link instead of a PR; `pr_number` stays empty. Persists `last_summary` and is reopened *in place* on a re-trigger, exactly like `pr_opened` | `runner/executor.py` (`_close_issue_work(..., out.delivery_reason)`) |
      | `no_changes` | The agent ran but produced a clean diff (nothing to change), or blocked with no WIP worth preserving. Also persists `last_summary` since the note above | `runner/executor.py,1231` |
+     | `protected_paths` | Every change the agent made was under `repos[].project.protected_paths`; the harness reverted them all, so nothing was committed (see [operations.md § The Agent Execution Contract](./operations.md#the-agent-execution-contract)). A re-trigger starts fresh, like `no_changes` | `runner/executor.py` |
      | `max_attempts` | The agent hit a recoverable block (timeout/budget) repeatedly and exhausted its resume-retry ceiling (`resume.max_attempts`, default 3) | `runner/executor.py` |
      | `terminal_failure` | An unrecoverable error (e.g. a git-level failure), or a failed run with `resume.enabled: false` (nothing preserved). **Not** used for LLM/agent failures when resume is on: those push the WIP and leave the row open (see [operations.md § Failure handling](./operations.md)) | `runner/executor.py` (`_close_issue_work(..., "terminal_failure")`) |
 
      The stale-closed guard (`executor.py`) is the *only* place
      that re-checks `closed_reason`, and it only reacts to `issue_closed`.
      So `issues.reopened` clearing the row (`routes.py`) only matters
-     for that one value; for the other five, the row is simply left as-is —
+     for that one value; for the other six, the row is simply left as-is —
      reopening the GitHub issue changes nothing by itself. This doesn't
      permanently block future work, though: a **new** comment or label
      still creates a fresh task normally regardless of a stale
