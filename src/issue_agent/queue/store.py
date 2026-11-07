@@ -717,23 +717,25 @@ class SQLiteStore:
         return {r["id"] for r in rows}
 
     def delete_old_records(self, task_ids: list[str], cutoff: str) -> dict[str, int]:
-        counts: dict[str, int] = {}
-        if not task_ids:
-            return counts
+        """Delete ``task_ids`` (and their events), plus deliveries and
+        budget rows older than ``cutoff`` — the latter even when no task
+        is due, so dedup rows don't depend on task churn."""
+        counts: dict[str, int] = {"task_events": 0, "tasks": 0}
 
-        placeholders = ",".join("?" for _ in task_ids)
+        if task_ids:
+            placeholders = ",".join("?" for _ in task_ids)
 
-        cur = self.conn.execute(
-            f"DELETE FROM task_events WHERE task_id IN ({placeholders})",
-            task_ids,
-        )
-        counts["task_events"] = cur.rowcount
+            cur = self.conn.execute(
+                f"DELETE FROM task_events WHERE task_id IN ({placeholders})",
+                task_ids,
+            )
+            counts["task_events"] = cur.rowcount
 
-        cur = self.conn.execute(
-            f"DELETE FROM tasks WHERE id IN ({placeholders})",
-            task_ids,
-        )
-        counts["tasks"] = cur.rowcount
+            cur = self.conn.execute(
+                f"DELETE FROM tasks WHERE id IN ({placeholders})",
+                task_ids,
+            )
+            counts["tasks"] = cur.rowcount
 
         cur = self.conn.execute(
             "DELETE FROM processed_deliveries WHERE received_at < ?",

@@ -162,20 +162,13 @@ def cleanup_orphan_workspaces(data_dir: str, active_ids: set[str]) -> int:
 
 
 def cleanup_database_records(store: SQLiteStore, events_days: int, db_days: int) -> dict[str, int]:
-    events_cutoff = _cutoff_ts(events_days)
-    completed_ids = store.find_completed_task_ids_older_than(events_cutoff)
-
-    db_counts: dict[str, int] = {}
-    if not completed_ids:
-        db_counts.update(
-            task_events=0,
-            tasks=0,
-            processed_deliveries=0,
-            daily_budget=0,
-        )
-    else:
-        db_cutoff = _cutoff_ts(db_days)
-        db_counts = store.delete_old_records(completed_ids, db_cutoff)
+    """Delete DB rows past ``db_days``. ``events_days`` governs only the
+    trajectory dirs on disk (``cleanup_events``), never the rows: a task
+    row outlives its trajectory until ``db_days``."""
+    del events_days  # kept for the call signature; rows follow db_days only
+    db_cutoff = _cutoff_ts(db_days)
+    completed_ids = store.find_completed_task_ids_older_than(db_cutoff)
+    db_counts = store.delete_old_records(completed_ids, db_cutoff)
 
     return {
         "task_events": int(db_counts.get("task_events", 0)),

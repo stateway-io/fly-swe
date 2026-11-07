@@ -147,9 +147,21 @@ class TestDeleteOldRecords:
         assert counts["tasks"] == 1
         assert store.get_task(tid) is None
 
-    def test_skips_empty_list(self, store: SQLiteStore) -> None:
+    def test_empty_list_still_prunes_old_deliveries(self, store: SQLiteStore) -> None:
+        store.mark_delivery_processed("github", "old-del", "issues", "opened")
+        store.mark_delivery_processed("github", "new-del", "issues", "opened")
+        store.conn.execute(
+            "UPDATE processed_deliveries SET received_at=? WHERE delivery_id='old-del'",
+            (_old_timestamp(100),),
+        )
+        store.conn.commit()
+
         counts = store.delete_old_records([], _old_timestamp(30))
-        assert counts == {}
+        assert counts["tasks"] == 0
+        assert counts["task_events"] == 0
+        assert counts["processed_deliveries"] == 1
+        assert not store.is_delivery_processed("github", "old-del")
+        assert store.is_delivery_processed("github", "new-del")
 
 
 # ── cleanup functions ────────────────────────────────────────
@@ -249,6 +261,19 @@ class TestCleanupDatabaseRecords:
 
         counts = cleanup_database_records(store, events_days=1, db_days=1)
         assert counts["tasks"] == 0
+
+    def test_task_rows_follow_db_days_not_events_days(self, store: SQLiteStore) -> None:
+        # Past events_days (trajectory gone) but within db_days: the row stays.
+        tid = store.insert_task(_make_task(issue_number=4))
+        store.conn.execute(
+            "UPDATE tasks SET status=?, completed_at=? WHERE id=?",
+            (TaskStatus.SUCCEEDED.value, _old_timestamp(45), tid),
+        )
+        store.conn.commit()
+
+        counts = cleanup_database_records(store, events_days=30, db_days=90)
+        assert counts["tasks"] == 0
+        assert store.get_task(tid) is not None
 
     def test_no_old_tasks_returns_zeros(self, store: SQLiteStore) -> None:
         counts = cleanup_database_records(store, events_days=1, db_days=1)
