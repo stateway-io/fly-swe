@@ -941,6 +941,8 @@ class TestReconcileSweepInMain:
         registry = mock_reconcile.call_args.args[2]
         assert isinstance(registry, ProviderRegistry)
         assert registry.get("github").instance_id == "github"
+        # Maintenance gets the same registry, for the PR-state sweep.
+        mock_maint.assert_called_once_with(mock_store, mock_get_settings.return_value, registry)
 
 
 class TestBudgetAlertDedup:

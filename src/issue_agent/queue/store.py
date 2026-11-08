@@ -34,9 +34,27 @@ _TERMINAL_STATUSES = {
 _CREATION_TRIGGER_KINDS = (TriggerKind.ISSUE_OPENED.value, TriggerKind.LABEL_ADDED.value)
 
 
+def format_ts(dt: datetime) -> str:
+    """The one timestamp format every column uses (UTC, millisecond, ``Z``),
+    so rows compare correctly as strings."""
+    dt = dt.astimezone(UTC)
+    return dt.strftime("%Y-%m-%dT%H:%M:%S.") + f"{dt.microsecond:06d}"[:3] + "Z"
+
+
 def _utcnow() -> str:
-    now = datetime.now(UTC)
-    return now.strftime("%Y-%m-%dT%H:%M:%S.") + f"{now.microsecond:06d}"[:3] + "Z"
+    return format_ts(datetime.now(UTC))
+
+
+# Statuses data retention may delete — never pending/running, and never
+# failed_recoverable, which run_retry_recovery may still re-queue.
+_PRUNABLE_STATUSES = (
+    TaskStatus.SUCCEEDED.value,
+    TaskStatus.FAILED_TERMINAL.value,
+    TaskStatus.ABORTED_BUDGET.value,
+    TaskStatus.ABORTED_POLICY.value,
+)
+# Bound on bound parameters per IN (...) list.
+_IN_CHUNK = 500
 
 
 def _generate_id() -> str:
@@ -72,6 +90,27 @@ class SQLiteStore:
         self._migrate_v6()
         self._migrate_v7()
         self._migrate_v8()
+        self._migrate_v9()
+
+    def _migrate_v9(self) -> None:
+        """Add `pr_state` (the retention sweep's forge PR-state cache) to
+        databases that predate it. Pure additive ``CREATE TABLE IF NOT
+        EXISTS``, so an older image simply ignores the table. Idempotent —
+        a no-op on fresh DBs, where schema.sql already created it."""
+        self.conn.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS pr_state (
+              provider_instance TEXT    NOT NULL,
+              repo              TEXT    NOT NULL,
+              pr_number         INTEGER NOT NULL,
+              state             TEXT    NOT NULL,
+              closed_at         TEXT,
+              checked_at        TEXT    NOT NULL,
+              PRIMARY KEY (provider_instance, repo, pr_number)
+            );
+            """
+        )
+        self.conn.commit()
 
     def _migrate_v8(self) -> None:
         """Drop the GitHub-era `payload_json` and `installation_id` columns
@@ -716,39 +755,103 @@ class SQLiteStore:
         ).fetchall()
         return {r["id"] for r in rows}
 
-    def delete_old_records(self, task_ids: list[str], cutoff: str) -> dict[str, int]:
-        counts: dict[str, int] = {}
+    def delete_tasks(self, task_ids: list[str]) -> dict[str, int]:
+        """Delete ``task_ids`` and their ``task_events`` in one transaction."""
+        counts = {"task_events": 0, "tasks": 0}
         if not task_ids:
             return counts
+        try:
+            for i in range(0, len(task_ids), _IN_CHUNK):
+                chunk = task_ids[i : i + _IN_CHUNK]
+                placeholders = ",".join("?" for _ in chunk)
+                counts["task_events"] += self.conn.execute(
+                    f"DELETE FROM task_events WHERE task_id IN ({placeholders})", chunk
+                ).rowcount
+                counts["tasks"] += self.conn.execute(
+                    f"DELETE FROM tasks WHERE id IN ({placeholders})", chunk
+                ).rowcount
+            self.conn.commit()
+        except Exception:
+            self.conn.rollback()
+            raise
+        return counts
 
-        placeholders = ",".join("?" for _ in task_ids)
-
-        cur = self.conn.execute(
-            f"DELETE FROM task_events WHERE task_id IN ({placeholders})",
-            task_ids,
-        )
-        counts["task_events"] = cur.rowcount
-
-        cur = self.conn.execute(
-            f"DELETE FROM tasks WHERE id IN ({placeholders})",
-            task_ids,
-        )
-        counts["tasks"] = cur.rowcount
-
-        cur = self.conn.execute(
-            "DELETE FROM processed_deliveries WHERE received_at < ?",
-            (cutoff,),
-        )
-        counts["processed_deliveries"] = cur.rowcount
-
-        cur = self.conn.execute(
+    def prune_deliveries_and_budget(self, cutoff: str) -> dict[str, int]:
+        """Delete dedup and daily-budget rows older than ``cutoff``."""
+        deliveries = self.conn.execute(
+            "DELETE FROM processed_deliveries WHERE received_at < ?", (cutoff,)
+        ).rowcount
+        budget = self.conn.execute(
             "DELETE FROM daily_budget WHERE date < ?",
             (cutoff[:10],),  # YYYY-MM-DD part only
-        )
-        counts["daily_budget"] = cur.rowcount
-
+        ).rowcount
         self.conn.commit()
-        return counts
+        return {"processed_deliveries": deliveries, "daily_budget": budget}
+
+    def list_terminal_tasks(self) -> list[dict[str, Any]]:
+        """Every task retention may delete: finished for good (never
+        pending/running/failed_recoverable, which may still run)."""
+        rows = self.conn.execute(
+            f"""SELECT id, provider_instance, repo, issue_number, status, completed_at
+                  FROM tasks
+                 WHERE status IN ({",".join("?" for _ in _PRUNABLE_STATUSES)})
+                   AND completed_at IS NOT NULL""",
+            _PRUNABLE_STATUSES,
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def list_busy_issue_keys(self) -> set[tuple[str, str, int]]:
+        """``(provider_instance, repo, issue_number)`` of issues still in
+        play — a task that may (still) run, or open ``issue_work``."""
+        rows = self.conn.execute(
+            """SELECT provider_instance, repo, issue_number FROM tasks
+                WHERE status IN (?, ?, ?)
+               UNION
+               SELECT provider_instance, issue_repo, issue_number FROM issue_work
+                WHERE state = 'open'""",
+            (
+                TaskStatus.PENDING.value,
+                TaskStatus.RUNNING.value,
+                TaskStatus.FAILED_RECOVERABLE.value,
+            ),
+        ).fetchall()
+        return {(r[0], r[1], r[2]) for r in rows}
+
+    def list_issue_pr_states(self) -> list[tuple[tuple[str, str, int], str | None, str | None]]:
+        """One row per (issue, PR) a task or ``issue_work`` row links:
+        ``(issue key, state, closed_at)``, state/closed_at ``None`` when
+        the PR was never checked. A merged/closed PR with no forge
+        timestamp falls back to when it was seen so."""
+        rows = self.conn.execute(
+            """WITH refs AS (
+                 SELECT provider_instance, repo AS issue_repo, issue_number,
+                        COALESCE(NULLIF(target_repo, ''), repo) AS pr_repo, pr_number
+                   FROM tasks WHERE pr_number IS NOT NULL
+                 UNION
+                 SELECT provider_instance, issue_repo, issue_number,
+                        target_repo AS pr_repo, pr_number
+                   FROM issue_work WHERE pr_number IS NOT NULL
+               )
+               SELECT refs.provider_instance, refs.issue_repo, refs.issue_number,
+                      ps.state, COALESCE(ps.closed_at, ps.checked_at) AS closed_at
+                 FROM refs
+                 LEFT JOIN pr_state ps
+                   ON ps.provider_instance = refs.provider_instance
+                  AND ps.repo = refs.pr_repo AND ps.pr_number = refs.pr_number"""
+        ).fetchall()
+        return [((r[0], r[1], r[2]), r["state"], r["closed_at"]) for r in rows]
+
+    def delete_finished_issue_work(self, keys: list[tuple[str, str, int]]) -> int:
+        """Delete the ``issue_work`` rows of ``keys`` that aren't open."""
+        removed = 0
+        for provider_instance, issue_repo, issue_number in keys:
+            removed += self.conn.execute(
+                "DELETE FROM issue_work WHERE provider_instance = ? AND issue_repo = ? "
+                "AND issue_number = ? AND state != 'open'",
+                (provider_instance, issue_repo, issue_number),
+            ).rowcount
+        self.conn.commit()
+        return removed
 
     # ── task events ─────────────────────────────────────────────
 
@@ -897,3 +1000,78 @@ class SQLiteStore:
         if total_iterations is not None:
             fields["total_iterations"] = total_iterations
         self.update_issue_work(provider_instance, issue_repo, issue_number, **fields)
+
+    # ── PR state cache (data retention) ─────────────────────────
+
+    # Every (instance, target repo, PR) a task or an issue_work row points
+    # to. A task row predating `target_repo` has '' there: its PR is on the
+    # issue repo.
+    _PR_REFS_SQL = """
+        SELECT provider_instance, COALESCE(NULLIF(target_repo, ''), repo) AS repo, pr_number
+          FROM tasks WHERE pr_number IS NOT NULL
+        UNION
+        SELECT provider_instance, target_repo AS repo, pr_number
+          FROM issue_work WHERE pr_number IS NOT NULL
+    """
+
+    def list_prs_to_check(self, limit: int) -> list[tuple[str, str, int]]:
+        """``(provider_instance, repo, pr_number)`` of PRs whose forge state
+        is unknown or last seen open — never-checked first, then least
+        recently checked. Merged/closed PRs are final and never listed."""
+        if limit <= 0:
+            return []
+        rows = self.conn.execute(
+            f"""WITH refs AS ({self._PR_REFS_SQL})
+                SELECT refs.provider_instance, refs.repo, refs.pr_number
+                  FROM refs
+                  LEFT JOIN pr_state ps
+                    ON ps.provider_instance = refs.provider_instance
+                   AND ps.repo = refs.repo AND ps.pr_number = refs.pr_number
+                 WHERE ps.state IS NULL OR ps.state = 'open'
+                 ORDER BY ps.checked_at IS NOT NULL, ps.checked_at, refs.pr_number
+                 LIMIT ?""",
+            (limit,),
+        ).fetchall()
+        return [(r["provider_instance"], r["repo"], r["pr_number"]) for r in rows]
+
+    def upsert_pr_state(
+        self,
+        provider_instance: str,
+        repo: str,
+        pr_number: int,
+        state: str,
+        closed_at: str | None,
+    ) -> None:
+        self.conn.execute(
+            """INSERT INTO pr_state
+                 (provider_instance, repo, pr_number, state, closed_at, checked_at)
+               VALUES (?, ?, ?, ?, ?, ?)
+               ON CONFLICT (provider_instance, repo, pr_number) DO UPDATE SET
+                 state = excluded.state,
+                 closed_at = excluded.closed_at,
+                 checked_at = excluded.checked_at""",
+            (provider_instance, repo, pr_number, state, closed_at, _utcnow()),
+        )
+        self.conn.commit()
+
+    def get_pr_state(
+        self, provider_instance: str, repo: str, pr_number: int
+    ) -> dict[str, Any] | None:
+        row = self.conn.execute(
+            "SELECT * FROM pr_state WHERE provider_instance = ? AND repo = ? AND pr_number = ?",
+            (provider_instance, repo, pr_number),
+        ).fetchone()
+        return dict(row) if row else None
+
+    def delete_orphan_pr_states(self) -> int:
+        """Drop cached PR states no task or issue_work row points to any more."""
+        cur = self.conn.execute(
+            # Not a CTE: sqlite3 reports rowcount -1 for a WITH ... DELETE.
+            f"""DELETE FROM pr_state WHERE NOT EXISTS (
+                  SELECT 1 FROM ({self._PR_REFS_SQL}) AS refs
+                   WHERE refs.provider_instance = pr_state.provider_instance
+                     AND refs.repo = pr_state.repo AND refs.pr_number = pr_state.pr_number
+                )"""
+        )
+        self.conn.commit()
+        return cur.rowcount

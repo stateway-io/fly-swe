@@ -4,13 +4,14 @@ existing-PR lookup and the mergeability polling."""
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
 from github.PullRequest import PullRequest
 
 from issue_agent.core import pr_text
-from issue_agent.core.models import PRRef
+from issue_agent.core.models import PRRef, PRState
 from issue_agent.providers.github.auth import GitHubAppAuth
 from issue_agent.providers.github.client import GitHubClient
 from issue_agent.providers.github.pr import GitHubPullRequestClient, PRHeadMismatchError
@@ -273,3 +274,64 @@ class TestPRHasConflicts:
     def test_api_error_is_unknown(self, pulls: GitHubPullRequestClient, client: MagicMock) -> None:
         client.get_pull_request.side_effect = RuntimeError("boom")
         assert pulls.pr_has_conflicts(self._PR, "abc") is None
+
+
+class TestGetPRState:
+    """What the retention sweep reads: merged beats closed, and the clock
+    starts at the merge (or the close, for an unmerged PR)."""
+
+    @staticmethod
+    def _state(state: str, *, merged: bool, merged_at=None, closed_at=None) -> MagicMock:
+        pr = MagicMock()
+        pr.state = state
+        pr.merged = merged
+        pr.merged_at = merged_at
+        pr.closed_at = closed_at
+        return pr
+
+    def test_open_pr(self, pulls: GitHubPullRequestClient, client: MagicMock) -> None:
+        client.get_pull_request.return_value = self._state("open", merged=False)
+        assert pulls.get_pr_state(5) == PRState(state="open", closed_at=None)
+        client.get_pull_request.assert_called_once_with(REPO, 5)
+
+    def test_merged_pr_uses_merged_at(
+        self, pulls: GitHubPullRequestClient, client: MagicMock
+    ) -> None:
+        merged_at = datetime(2026, 10, 1, 12, 0, tzinfo=UTC)
+        client.get_pull_request.return_value = self._state(
+            "closed", merged=True, merged_at=merged_at, closed_at=merged_at + timedelta(seconds=3)
+        )
+        assert pulls.get_pr_state(5) == PRState(state="merged", closed_at=merged_at)
+
+    def test_closed_unmerged_pr_uses_closed_at(
+        self, pulls: GitHubPullRequestClient, client: MagicMock
+    ) -> None:
+        closed_at = datetime(2026, 10, 2, 8, 30, tzinfo=UTC)
+        client.get_pull_request.return_value = self._state(
+            "closed", merged=False, closed_at=closed_at
+        )
+        assert pulls.get_pr_state(5) == PRState(state="closed", closed_at=closed_at)
+
+    def test_naive_timestamp_is_read_as_utc(
+        self, pulls: GitHubPullRequestClient, client: MagicMock
+    ) -> None:
+        client.get_pull_request.return_value = self._state(
+            "closed", merged=False, closed_at=datetime(2026, 10, 2, 8, 30)
+        )
+        assert pulls.get_pr_state(5).closed_at == datetime(2026, 10, 2, 8, 30, tzinfo=UTC)
+
+    def test_offset_timestamp_is_normalized_to_utc(
+        self, pulls: GitHubPullRequestClient, client: MagicMock
+    ) -> None:
+        brt = timezone(timedelta(hours=-3))
+        client.get_pull_request.return_value = self._state(
+            "closed", merged=False, closed_at=datetime(2026, 10, 2, 5, 30, tzinfo=brt)
+        )
+        closed_at = pulls.get_pr_state(5).closed_at
+        assert closed_at == datetime(2026, 10, 2, 8, 30, tzinfo=UTC)
+        assert closed_at is not None and closed_at.tzinfo is UTC
+
+    def test_api_error_propagates(self, pulls: GitHubPullRequestClient, client: MagicMock) -> None:
+        client.get_pull_request.side_effect = RuntimeError("boom")
+        with pytest.raises(RuntimeError):
+            pulls.get_pr_state(5)

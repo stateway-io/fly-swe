@@ -1319,13 +1319,43 @@ The worker runs `run_maintenance()` on startup and then every
 | What | Governed by | Default |
 |---|---|---|
 | `/data/events/<task-id>/` trajectory dirs (for completed tasks) | `retention.events_days` | 30 |
-| `tasks` / `task_events` / `processed_deliveries` / `daily_budget` rows | `retention.db_days` | 90 |
+| `tasks` / `task_events` rows of an issue whose PR was **merged** | `retention.tasks.pr_merged` | 0 |
+| … whose PR was **closed** unmerged | `retention.tasks.pr_closed` | 0 |
+| … `aborted_budget` / `aborted_policy` tasks (issue with no PR) | `retention.tasks.aborted` | 90 |
+| … `failed_terminal` tasks (issue with no PR) | `retention.tasks.failed` | 90 |
+| … `succeeded` tasks with no PR (triage, diagnosis, no changes, published branch) | `retention.tasks.other` | 90 |
+| `processed_deliveries` / `daily_budget` rows | `retention.db_days` | 90 |
 | `/data/audit.<date>.log` files (gzipped on expiry) | `retention.audit_days` | 90 |
 | `/data/workspaces/<task-id>/` dirs not tied to a running task | (always) | — |
 
-**Not pruned:** `issue_work` rows (per-issue work state — kept while the
-issue is open, independent of task retention) and the `agent/issue-<n>-*`
-**WIP branches** the agent force-pushes to the target repo when a run blocks
+Each `retention.tasks.*` value is a number of days — `0` prunes at the next
+run — or `"forever"` (also env, e.g. `RETENTION_TASKS_ABORTED=forever`) to
+keep those rows indefinitely. How the task rules apply:
+
+- **PR rules, per issue.** Each run first refreshes the `pr_state` table: up
+  to `retention.tasks.pr_check_max_per_cycle` (50) forge lookups of PRs never
+  checked or last seen open (merged/closed is final and never re-checked; no
+  lookups at all when both PR rules are `"forever"`). An issue whose PRs are
+  all merged/closed is `pr_merged` if any was merged, else `pr_closed`, and
+  its clock starts at the latest merge/close. When the period has passed,
+  the issue's whole history goes — every finished task, its events and
+  trajectory, and its closed `issue_work` row, so a later trigger starts
+  fresh work instead of reopening the merged branch. While **any** of its
+  PRs is open or unchecked, nothing of the issue is pruned, whatever its
+  age. A PR on an instance no longer configured, or one without a PR API,
+  stays unchecked (`pr_state_check_failed` in the logs), so its issue is kept.
+- **Age rules** cover issues with no PR, by status, from `completed_at`.
+- **Never pruned:** `pending`, `running` and `failed_recoverable` tasks (the
+  last may still be retried), and every task of an issue that has one or
+  whose `issue_work` is open.
+
+The run logs `maintenance_complete` and, when anything was removed, writes a
+`maintenance_cleanup` audit entry with per-category counts
+(`db_tasks_by_category`), `prs_checked` and the policy in effect.
+
+**Not pruned:** `issue_work` rows outside the PR rules (per-issue work
+state — kept while the issue is open, independent of task retention) and the
+`agent/issue-<n>-*` **WIP branches** the agent force-pushes to the target repo when a run blocks
 on a timeout/budget stop (`resume.push_wip_on_block`). A WIP branch has no PR
 until a later attempt succeeds; one left behind after `resume.max_attempts`
 (the abandonment comment names it) is safe to delete by hand once a human has

@@ -62,3 +62,21 @@ def test_merge_requests_round_trip():
     pulls.comment_on_pr(pr, "updated")
     assert plugin.forge.posted(REPO, 100) == ["updated"]
     assert pulls.pr_has_conflicts(pr, "sha") is None
+
+
+def test_merge_request_state_defaults_to_open_and_follows_the_forge():
+    from datetime import UTC, datetime
+
+    from issue_agent.core.models import PRState
+
+    plugin = FakeProviderWithPulls("fake", secret="s")
+    pulls = plugin.pulls(REPO)
+    pr = pulls.create_pr(
+        head="agent/issue-8", base="main", title="t", body="b", draft=False, labels=[]
+    )
+
+    assert pulls.get_pr_state(pr.number) == PRState(state="open", closed_at=None)
+
+    merged = PRState(state="merged", closed_at=datetime(2026, 10, 1, tzinfo=UTC))
+    plugin.forge.pr_states[(REPO, pr.number)] = merged
+    assert pulls.get_pr_state(pr.number) == merged

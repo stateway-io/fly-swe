@@ -30,6 +30,7 @@ from issue_agent.core.models import (
     Ignored,
     IssueRef,
     PRRef,
+    PRState,
     TriggerEvent,
     TriggerKind,
 )
@@ -158,6 +159,8 @@ class FakeForge:
     pr_details: dict[tuple[str, int], dict[str, object]] = field(default_factory=dict)
     # PR number -> what `pr_has_conflicts` reports.
     conflicts: dict[int, bool | None] = field(default_factory=dict)
+    # (repo, PR number) -> what `get_pr_state` reports; absent means open.
+    pr_states: dict[tuple[str, int], PRState] = field(default_factory=dict)
     # Every token handed to git, in order — each call mints a fresh one.
     tokens: list[str] = field(default_factory=list)
 
@@ -243,6 +246,9 @@ class FakePullRequestClient(PullRequestClient):
 
     def pr_has_conflicts(self, pr: PRRef, head_sha: str) -> bool | None:
         return self._forge.conflicts.get(pr.number)
+
+    def get_pr_state(self, number: int) -> PRState:
+        return self._forge.pr_states.get((self._repo, number), PRState(state="open"))
 
 
 class FakeTransport(GitTransport):

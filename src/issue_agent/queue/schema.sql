@@ -81,3 +81,17 @@ CREATE TABLE issue_work (
 );
 
 CREATE INDEX idx_issue_work_open ON issue_work(state, updated_at) WHERE state = 'open';
+
+-- Forge state of every PR a task or issue_work row points to — the
+-- data-retention sweep's cache (merged/closed rows are never re-checked).
+-- `closed_at` is when it was merged (state=merged) or closed unmerged.
+-- Introduced by _migrate_v9, a pure additive CREATE TABLE.
+CREATE TABLE pr_state (
+  provider_instance TEXT    NOT NULL,
+  repo              TEXT    NOT NULL,          -- the target repo the PR lives on
+  pr_number         INTEGER NOT NULL,
+  state             TEXT    NOT NULL,          -- open | merged | closed
+  closed_at         TEXT,
+  checked_at        TEXT    NOT NULL,
+  PRIMARY KEY (provider_instance, repo, pr_number)
+);

@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import time
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-from issue_agent.core.models import PRRef
+from issue_agent.core.models import PRRef, PRState
 from issue_agent.providers.base import PullRequestClient
 from issue_agent.providers.github.client import GitHubClient
 
@@ -57,6 +58,13 @@ def _poll_conflicts(
         if attempt < attempts - 1:
             time.sleep(delay_seconds)
     return None
+
+
+def _as_utc(ts: datetime | None) -> datetime | None:
+    """PyGithub's timestamps are UTC; older versions hand them back naive."""
+    if ts is None:
+        return None
+    return ts.replace(tzinfo=UTC) if ts.tzinfo is None else ts.astimezone(UTC)
 
 
 def _pr_ref(pr: PullRequest) -> PRRef:
@@ -129,3 +137,11 @@ class GitHubPullRequestClient(PullRequestClient):
             self._conflict_attempts,
             self._conflict_delay_seconds,
         )
+
+    def get_pr_state(self, number: int) -> PRState:
+        pr = self._client().get_pull_request(self._repo_name, number)
+        if pr.merged:
+            return PRState(state="merged", closed_at=_as_utc(pr.merged_at))
+        if pr.state == "closed":
+            return PRState(state="closed", closed_at=_as_utc(pr.closed_at))
+        return PRState(state="open", closed_at=None)
