@@ -11,7 +11,12 @@ from minisweagent.models.litellm_model import LitellmModel, LitellmModelConfig
 from issue_agent.logging import get_logger
 from issue_agent.runner.environment import SandboxedLocalEnvironment
 from issue_agent.runner.litellm_cost import CostAwareLitellmModel
-from issue_agent.runner.prompts import INSTANCE_TEMPLATE, load_system_prompt, prompt_vars
+from issue_agent.runner.prompts import (
+    INSTANCE_TEMPLATE,
+    full_suite_note,
+    load_system_prompt,
+    prompt_vars,
+)
 from issue_agent.runner.templates import FORMAT_ERROR_TEMPLATE, build_observation_template
 
 if TYPE_CHECKING:
@@ -229,6 +234,9 @@ def build_agent(
         "lint_command": route.project.lint_command,
         "protected_paths": route.project.protected_paths,
         "relevant_extensions": route.project.relevant_extensions,
+        # Where the full suite runs: the forge's CI when the CI monitor
+        # watches this repo, otherwise nowhere but here.
+        "full_suite": full_suite_note(settings.ci_monitor_enabled_for(route), terms),
         # INSTANCE_TEMPLATE's <comments> block. Seeded empty here so
         # StrictUndefined is satisfied for every caller; MiniSWERunner
         # overwrites it with the filtered discussion thread before agent.run().

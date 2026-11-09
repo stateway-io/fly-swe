@@ -81,6 +81,25 @@ def prompt_vars(terms: ProviderTerms) -> dict[str, Any]:
     }
 
 
+def full_suite_note(ci_monitored: bool, terms: ProviderTerms) -> str:
+    """The system prompt's "Full test suite" line. With the CI monitor on,
+    the forge's CI runs the whole suite after the push and any failure comes
+    back to the agent, so the sandbox only needs the fast, targeted checks."""
+    if ci_monitored:
+        return (
+            f"runs in the {terms.ci} after your changes are pushed, and any failure "
+            "there comes back to you with its log. Here, run only the fast, targeted "
+            "checks that cover your change (the affected unit tests, lint on the "
+            "files you touched) — skip slow, integration and end-to-end suites, and "
+            f"list them as `not_run: <command> — left to the {terms.ci}` in "
+            "`.agent-checks`."
+        )
+    return (
+        "nothing runs it after you — verify your change here as far as the "
+        "RESOURCE LIMITS below allow."
+    )
+
+
 def build_branch_status(
     status: str,
     base_branch: str,

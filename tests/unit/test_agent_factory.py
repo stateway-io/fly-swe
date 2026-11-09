@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
 from pydantic_settings import SettingsConfigDict
 
 from issue_agent.config import ProjectProfile, RepoLlmOverride, RepoRoute, Settings
@@ -483,6 +484,24 @@ class TestModelKwargsAndTracking:
         assert agent.extra_template_vars["instructions_files"] == (
             "`AGENTS.md`, `CLAUDE.md`, or `.github/copilot-instructions.md`"
         )
+
+    @pytest.mark.parametrize("monitored", [False, True])
+    def test_full_suite_follows_the_ci_monitor(self, monitored: bool) -> None:
+        with (
+            patch("issue_agent.runner.agent_factory.CostAwareLitellmModel"),
+            patch("issue_agent.runner.agent_factory.SandboxedLocalEnvironment"),
+            patch("issue_agent.runner.agent_factory.load_system_prompt", return_value="p"),
+        ):
+            agent = build_agent(
+                _make_task(),
+                Path("/ws"),
+                _make_settings(CI_MONITOR_ENABLED=monitored),
+                _make_route(),
+                terms=TERMS,
+            )
+
+        note = agent.extra_template_vars["full_suite"]
+        assert ("after your changes are pushed" in note) is monitored
 
     def test_returns_progress_agent_when_on_progress_and_threshold_set(self) -> None:
         settings = _make_settings(COMMENTS_PROGRESS_EVERY_ITERATIONS="20")
