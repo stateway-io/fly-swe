@@ -17,6 +17,7 @@ from issue_agent.runner.prompts import (
     build_comments_block,
     build_user_message,
     format_instructions_files,
+    full_suite_note,
     prompt_vars,
 )
 from issue_agent.runner.prompts import (
@@ -495,6 +496,27 @@ class TestLoadSystemPrompt:
         assert "backtick" in result.lower()
 
 
+class TestFullSuiteNote:
+    def test_system_prompt_has_the_placeholder(self) -> None:
+        assert "- Full test suite: {{ full_suite }}" in load_system_prompt(None)
+
+    def test_monitored_leaves_the_full_suite_to_ci(self) -> None:
+        note = full_suite_note(True, TERMS)
+        assert f"runs in the {TERMS.ci} after your changes are pushed" in note
+        assert "comes back to you with its log" in note
+        assert "fast, targeted" in note
+        assert f"not_run: <command> — left to the {TERMS.ci}" in note
+
+    def test_unmonitored_keeps_verification_local(self) -> None:
+        note = full_suite_note(False, TERMS)
+        assert "nothing runs it after you" in note
+        assert TERMS.ci not in note
+
+    def test_uses_the_forges_own_name_for_ci(self) -> None:
+        terms = FakeProvider.capabilities.terms.model_copy(update={"ci": "pipelines"})
+        assert "runs in the pipelines" in full_suite_note(True, terms)
+
+
 class TestLoadDiagnoseSystemPrompt:
     def test_has_content(self) -> None:
         result = load_diagnose_system_prompt()
@@ -885,6 +907,8 @@ class TestProviderVocabulary:
             lint_command="",
             protected_paths=[],
             relevant_extensions=[],
+            # The monitored note: the longer one, checked for forge words too.
+            full_suite=full_suite_note(True, terms),
             task="",
             comments="",
             resume_summary="",

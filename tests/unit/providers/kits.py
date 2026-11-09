@@ -22,6 +22,7 @@ from issue_agent.providers.github.normalize import BotIdentity
 from issue_agent.providers.github.plugin import GitHubProviderPlugin
 from tests.fakes.fake_provider import (
     FakeProvider,
+    FakeProviderWithCI,
     FakeProviderWithPulls,
     fake_body,
     fake_headers,
@@ -119,10 +120,16 @@ _FAKE_SAMPLES = {
 class FakeKit:
     reports_association: bool = True
     with_pulls: bool = False
+    with_ci: bool = False
     type: str = "fake"
 
     def make(self, instance_id: str, secret: str) -> ProviderPlugin:
-        cls = FakeProviderWithPulls if self.with_pulls else FakeProvider
+        if self.with_ci:
+            cls: type[FakeProvider] = FakeProviderWithCI
+        elif self.with_pulls:
+            cls = FakeProviderWithPulls
+        else:
+            cls = FakeProvider
         return cls(instance_id, secret=secret, reports_association=self.reports_association)
 
     def delivery(
@@ -138,4 +145,5 @@ KITS: dict[str, ProviderKit] = {
     "fake": FakeKit(),
     "fake-no-association": FakeKit(reports_association=False),
     "fake-with-prs": FakeKit(with_pulls=True),
+    "fake-with-ci": FakeKit(with_pulls=True, with_ci=True),
 }

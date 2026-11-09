@@ -48,6 +48,13 @@ issue_work_attempts = Histogram(
     buckets=[1, 2, 3, 4, 5, 10],
 )
 
+ci_monitor_outcomes_total = Counter(
+    "issue_agent_ci_monitor_outcomes_total",
+    "CI monitor verdicts on watched commits, by outcome (passed, "
+    "fix_enqueued, exhausted, no_ci, timed_out, cancelled)",
+    ["outcome", "provider_instance", "repo"],
+)
+
 # Buckets are configurable (config.yaml `metrics:`); these Histograms are
 # created lazily by init_metrics() instead of at import time, since
 # prometheus_client bakes the bucket boundaries in at construction.
@@ -100,6 +107,12 @@ def observe_resume(repo: str, *, provider_instance: str) -> None:
 
 def observe_issue_work_closed(repo: str, attempts: int, *, provider_instance: str) -> None:
     issue_work_attempts.labels(provider_instance=provider_instance, repo=repo).observe(attempts)
+
+
+def observe_ci_outcome(outcome: str, repo: str, *, provider_instance: str) -> None:
+    ci_monitor_outcomes_total.labels(
+        outcome=outcome, provider_instance=provider_instance, repo=repo
+    ).inc()
 
 
 def set_queue_depth(n: int) -> None:

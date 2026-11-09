@@ -36,6 +36,7 @@ PROJECT PROFILE:
 - Lint command: {{ lint_command }}
 - Protected paths (never touch without explicit human approval): {{ protected_paths }}
 - Relevant file extensions for this project: {{ relevant_extensions }}
+- Full test suite: {{ full_suite }}
 
 If any field above is empty, discover it yourself before acting:
 1. Look for {{ instructions_files }}

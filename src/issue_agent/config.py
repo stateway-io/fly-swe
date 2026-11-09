@@ -181,6 +181,10 @@ class RepoRoute(BaseModel):
     # Settings.llm_profile(). None = this repo uses the global LLM config
     # unchanged.
     llm: RepoLlmOverride | None = None
+    # Per-repo override of `ci_monitor.enabled`: None follows the global
+    # flag, true/false forces it for this repo — see
+    # Settings.ci_monitor_enabled_for().
+    ci_monitor: bool | None = None
 
     @property
     def target_repo(self) -> str:
@@ -436,6 +440,18 @@ def flatten_yaml_config(raw: dict[str, Any]) -> dict[str, Any]:
     if "pr_check_max_per_cycle" in task_retention:
         flat["RETENTION_PR_CHECK_MAX_PER_CYCLE"] = task_retention["pr_check_max_per_cycle"]
 
+    ci_monitor = raw.get("ci_monitor") or {}
+    for key in (
+        "enabled",
+        "poll_interval_seconds",
+        "no_ci_grace_minutes",
+        "timeout_minutes",
+        "max_per_cycle",
+        "log_max_chars",
+    ):
+        if key in ci_monitor:
+            flat[f"CI_MONITOR_{key.upper()}"] = ci_monitor[key]
+
     toolchains = raw.get("toolchains") or {}
     if "enabled" in toolchains:
         flat["TOOLCHAINS_ENABLED"] = toolchains["enabled"]
@@ -640,6 +656,13 @@ class Settings(BaseSettings):
             if route.provider == provider_instance and route.issues == issue_repo:
                 return route
         return None
+
+    def ci_monitor_enabled_for(self, route: RepoRoute | None) -> bool:
+        """Whether the CI monitor watches PRs for ``route``'s repo: its own
+        `ci_monitor` when set, the global `ci_monitor.enabled` otherwise."""
+        if route is not None and route.ci_monitor is not None:
+            return route.ci_monitor
+        return self.ci_monitor_enabled
 
     def llm_profile(self, route: RepoRoute | None = None) -> LlmProfile:
         """Resolve the LLM config for a task: the global `llm:` block with any
@@ -851,6 +874,36 @@ class Settings(BaseSettings):
     )
     resume_reconcile_max_per_cycle: int = Field(
         default=50, validation_alias="RESUME_RECONCILE_MAX_PER_CYCLE"
+    )
+
+    # --- CI monitor ---
+    # Off by default. When on, after the agent opens or updates a PR the
+    # worker polls the forge's CI on the pushed commit: a pass is reported
+    # on the PR and the issue; a failure hands the failed checks' logs to a
+    # new fix attempt on the same branch, bounded by resume_max_attempts and
+    # the daily budget; no CI at all is reported on the PR. A repo can force
+    # it either way with `repos[].ci_monitor`.
+    ci_monitor_enabled: bool = Field(default=False, validation_alias="CI_MONITOR_ENABLED")
+    # How often the worker checks the commits it watches.
+    ci_monitor_poll_interval_seconds: int = Field(
+        default=120, ge=10, validation_alias="CI_MONITOR_POLL_INTERVAL_SECONDS"
+    )
+    # How long a commit may show no check at all before the repo is taken
+    # to have no CI (CI can take a while to register its first check).
+    ci_monitor_no_ci_grace_minutes: int = Field(
+        default=10, ge=1, validation_alias="CI_MONITOR_NO_CI_GRACE_MINUTES"
+    )
+    # How long CI may run before the monitor gives up on that commit.
+    ci_monitor_timeout_minutes: int = Field(
+        default=90, ge=1, validation_alias="CI_MONITOR_TIMEOUT_MINUTES"
+    )
+    # Hard cap on watched commits checked per sweep (forge API calls).
+    ci_monitor_max_per_cycle: int = Field(
+        default=20, ge=1, validation_alias="CI_MONITOR_MAX_PER_CYCLE"
+    )
+    # Per-check cap on the log excerpt handed to the fix attempt.
+    ci_monitor_log_max_chars: int = Field(
+        default=6000, ge=200, validation_alias="CI_MONITOR_LOG_MAX_CHARS"
     )
 
     # --- Alerts ---

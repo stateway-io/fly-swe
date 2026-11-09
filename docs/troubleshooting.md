@@ -553,6 +553,40 @@ flyctl ssh console --app <app-name> --command \
 
 ---
 
+## CI Monitor Says "No CI Detected" or Never Reports
+
+**Symptoms:**
+- `ci_monitor.enabled` is on, but a PR got "No CI checks were detected"
+  although the repo has CI, or no CI comment at all.
+
+**Probable causes:**
+- The GitHub App lacks **Checks**, **Commit statuses** or **Actions** read
+  access: the API reports nothing (or 403s, which the sweep logs as
+  `ci_monitor_row_failed` and retries forever).
+- The workflows don't run on the agent's PRs: draft PRs or bot-authored
+  pushes filtered out (`if: github.event.pull_request.draft == false`,
+  `pull_request` paths/branches filters), or the workflow is awaiting
+  approval to run.
+- CI registered its first check later than `ci_monitor.no_ci_grace_minutes`.
+- `repos[].ci_monitor: false` on that repo, or the forge has no CI port.
+
+**Diagnosis:**
+```bash
+flyctl ssh console --app <app-name> --command \
+  "sqlite3 /data/issue_agent.db \"SELECT issue_repo, issue_number, pr_number, head_sha, state, created_at, last_polled_at FROM ci_watch ORDER BY created_at DESC LIMIT 20;\""
+flyctl logs --app <app-name> | grep ci_monitor
+```
+
+**Resolution:**
+- Grant the missing permissions in the App settings and accept them on each
+  installation (GitHub asks the installation owner to approve new
+  permissions).
+- Raise `ci_monitor.no_ci_grace_minutes` for a repo whose CI is slow to start.
+- To re-check one commit, set its row back to watching:
+  `UPDATE ci_watch SET state='watching', created_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE issue_repo='<owner/name>' AND issue_number=<n>;`
+
+---
+
 ## Disk Space Low on Volume
 
 **Symptoms:**

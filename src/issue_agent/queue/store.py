@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from issue_agent.queue.models import (
+    CIWatch,
     DailyBudget,
     IssueWork,
     Task,
@@ -91,6 +92,34 @@ class SQLiteStore:
         self._migrate_v7()
         self._migrate_v8()
         self._migrate_v9()
+        self._migrate_v10()
+
+    def _migrate_v10(self) -> None:
+        """Add `ci_watch` (the CI monitor's per-issue watch) to databases
+        that predate it. Pure additive ``CREATE TABLE IF NOT EXISTS``, so an
+        older image simply ignores the table. Idempotent — a no-op on fresh
+        DBs, where schema.sql already created it."""
+        self.conn.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS ci_watch (
+              provider_instance TEXT    NOT NULL,
+              issue_repo        TEXT    NOT NULL,
+              issue_number      INTEGER NOT NULL,
+              target_repo       TEXT    NOT NULL,
+              pr_number         INTEGER NOT NULL,
+              head_sha          TEXT    NOT NULL,
+              state             TEXT    NOT NULL,
+              last_task_id      TEXT,
+              fix_task_id       TEXT,
+              created_at        TEXT    NOT NULL,
+              last_polled_at    TEXT,
+              PRIMARY KEY (provider_instance, issue_repo, issue_number)
+            );
+            CREATE INDEX IF NOT EXISTS idx_ci_watch_watching
+              ON ci_watch(state, last_polled_at) WHERE state = 'watching';
+            """
+        )
+        self.conn.commit()
 
     def _migrate_v9(self) -> None:
         """Add `pr_state` (the retention sweep's forge PR-state cache) to
@@ -677,6 +706,23 @@ class SQLiteStore:
         ).fetchone()
         return row["cnt"] if row else 0
 
+    def has_active_task_for_issue(
+        self, provider_instance: str, repo: str, issue_number: int
+    ) -> bool:
+        """True when any task for this issue is pending or running."""
+        row = self.conn.execute(
+            "SELECT 1 FROM tasks WHERE provider_instance = ? AND repo = ? "
+            "AND issue_number = ? AND status IN (?, ?) LIMIT 1",
+            (
+                provider_instance,
+                repo,
+                issue_number,
+                TaskStatus.PENDING.value,
+                TaskStatus.RUNNING.value,
+            ),
+        ).fetchone()
+        return row is not None
+
     def has_active_creation_task_for_issue(
         self, provider_instance: str, repo: str, issue_number: int
     ) -> bool:
@@ -808,7 +854,10 @@ class SQLiteStore:
                 WHERE status IN (?, ?, ?)
                UNION
                SELECT provider_instance, issue_repo, issue_number FROM issue_work
-                WHERE state = 'open'""",
+                WHERE state = 'open'
+               UNION
+               SELECT provider_instance, issue_repo, issue_number FROM ci_watch
+                WHERE state = 'watching'""",
             (
                 TaskStatus.PENDING.value,
                 TaskStatus.RUNNING.value,
@@ -842,7 +891,8 @@ class SQLiteStore:
         return [((r[0], r[1], r[2]), r["state"], r["closed_at"]) for r in rows]
 
     def delete_finished_issue_work(self, keys: list[tuple[str, str, int]]) -> int:
-        """Delete the ``issue_work`` rows of ``keys`` that aren't open."""
+        """Delete the ``issue_work`` rows of ``keys`` that aren't open, and
+        their settled CI watches."""
         removed = 0
         for provider_instance, issue_repo, issue_number in keys:
             removed += self.conn.execute(
@@ -850,6 +900,11 @@ class SQLiteStore:
                 "AND issue_number = ? AND state != 'open'",
                 (provider_instance, issue_repo, issue_number),
             ).rowcount
+            self.conn.execute(
+                "DELETE FROM ci_watch WHERE provider_instance = ? AND issue_repo = ? "
+                "AND issue_number = ? AND state != 'watching'",
+                (provider_instance, issue_repo, issue_number),
+            )
         self.conn.commit()
         return removed
 
@@ -1000,6 +1055,99 @@ class SQLiteStore:
         if total_iterations is not None:
             fields["total_iterations"] = total_iterations
         self.update_issue_work(provider_instance, issue_repo, issue_number, **fields)
+
+    # ── CI watch (CI monitor) ───────────────────────────────────
+
+    def upsert_ci_watch(
+        self,
+        provider_instance: str,
+        issue_repo: str,
+        issue_number: int,
+        *,
+        target_repo: str,
+        pr_number: int,
+        head_sha: str,
+        last_task_id: str | None,
+    ) -> CIWatch:
+        """Start watching ``head_sha`` — replaces whatever the issue's watch
+        was on, since only the latest push to the PR matters."""
+        now = _utcnow()
+        self.conn.execute(
+            """INSERT INTO ci_watch
+                 (provider_instance, issue_repo, issue_number, target_repo, pr_number,
+                  head_sha, state, last_task_id, fix_task_id, created_at, last_polled_at)
+               VALUES (?, ?, ?, ?, ?, ?, 'watching', ?, NULL, ?, NULL)
+               ON CONFLICT (provider_instance, issue_repo, issue_number) DO UPDATE SET
+                 target_repo = excluded.target_repo,
+                 pr_number = excluded.pr_number,
+                 head_sha = excluded.head_sha,
+                 state = 'watching',
+                 last_task_id = excluded.last_task_id,
+                 fix_task_id = NULL,
+                 created_at = excluded.created_at,
+                 last_polled_at = NULL""",
+            (
+                provider_instance,
+                issue_repo,
+                issue_number,
+                target_repo,
+                pr_number,
+                head_sha,
+                last_task_id,
+                now,
+            ),
+        )
+        self.conn.commit()
+        watch = self.get_ci_watch(provider_instance, issue_repo, issue_number)
+        assert watch is not None  # just upserted
+        return watch
+
+    def get_ci_watch(
+        self, provider_instance: str, issue_repo: str, issue_number: int
+    ) -> CIWatch | None:
+        row = self.conn.execute(
+            "SELECT * FROM ci_watch "
+            "WHERE provider_instance = ? AND issue_repo = ? AND issue_number = ?",
+            (provider_instance, issue_repo, issue_number),
+        ).fetchone()
+        return CIWatch(**dict(row)) if row else None
+
+    def list_watching_ci(self, limit: int) -> list[CIWatch]:
+        """Watches still polling, least recently polled first (never-polled
+        first of all) — the CI monitor's input. Served by
+        ``idx_ci_watch_watching``."""
+        if limit <= 0:
+            return []
+        rows = self.conn.execute(
+            """SELECT * FROM ci_watch WHERE state = 'watching'
+                ORDER BY last_polled_at IS NOT NULL, last_polled_at, created_at
+                LIMIT ?""",
+            (limit,),
+        ).fetchall()
+        return [CIWatch(**dict(r)) for r in rows]
+
+    def update_ci_watch(
+        self,
+        provider_instance: str,
+        issue_repo: str,
+        issue_number: int,
+        *,
+        head_sha: str,
+        **fields: Any,
+    ) -> bool:
+        """Update the watch only if it is still on ``head_sha`` — a newer
+        push replaced it otherwise. Returns whether a row changed."""
+        if not fields:
+            return False
+        set_clause = ", ".join(f"{k} = ?" for k in fields)
+        values = [*fields.values(), provider_instance, issue_repo, issue_number, head_sha]
+        cur = self.conn.execute(
+            f"UPDATE ci_watch SET {set_clause} "
+            "WHERE provider_instance = ? AND issue_repo = ? AND issue_number = ? AND head_sha = ?",
+            values,
+        )
+        self.conn.commit()
+        return cur.rowcount > 0
 
     # ── PR state cache (data retention) ─────────────────────────
 

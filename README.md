@@ -145,7 +145,9 @@ This is the fast path; every step links to the full procedure in
 1. **Create a GitHub App**
    ([guide](./docs/operations.md#obtaining-and-configuring-the-github-app-private-key))
    with `Contents`, `Pull requests`, and `Issues` set to Read & Write, and
-   subscribed to the `Issues` and `Issue comment` events. Point its webhook
+   subscribed to the `Issues` and `Issue comment` events. For the optional
+   CI monitor (`ci_monitor.enabled`), also grant `Checks`, `Commit statuses`
+   and `Actions` Read. Point its webhook
    at `https://<your-app>.fly.dev/webhooks/github` — the path ends in the
    provider instance id (`providers.github` below). Download its private
    key.

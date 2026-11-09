@@ -37,6 +37,13 @@ class ProviderRegistry:
                     f"{plugin.capabilities.supports_pr_api} but "
                     f"{'implements' if has_pulls else 'does not implement'} pulls()"
                 )
+            has_ci = type(plugin).ci is not ProviderPlugin.ci
+            if has_ci != plugin.capabilities.supports_ci:
+                raise ValueError(
+                    f"provider {instance_id!r} declares supports_ci="
+                    f"{plugin.capabilities.supports_ci} but "
+                    f"{'implements' if has_ci else 'does not implement'} ci()"
+                )
         self._plugins = dict(plugins)
 
     @classmethod

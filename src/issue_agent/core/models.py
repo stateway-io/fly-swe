@@ -24,6 +24,9 @@ class TriggerKind(StrEnum):
     # so no `tasks` row ever carries these values.
     ISSUE_CLOSED = "issue_closed"
     ISSUE_REOPENED = "issue_reopened"
+    # Harness-internal: the CI monitor saw the forge's CI fail on a PR the
+    # agent opened and enqueued a fix attempt. Never parsed from a webhook.
+    CI_FAILED = "ci_failed"
 
 
 # "unknown": the forge's webhook doesn't say. The comment filter then can't
@@ -86,6 +89,46 @@ class PRState(_Frozen):
     # When it was merged (``merged``) or closed unmerged (``closed``), in
     # UTC; None while open. The retention clock starts here.
     closed_at: datetime | None = None
+
+
+# The verdict on one commit's CI, folded across every check/status the forge
+# reports: "pending" while anything still runs; once everything finished,
+# "failure" if anything failed and "success" otherwise; "none" when the forge
+# reports nothing at all (the repo has no CI, or it hasn't started yet).
+CIState = Literal["pending", "success", "failure", "none"]
+
+
+class CICheck(_Frozen):
+    """One check/status the forge reports on a commit."""
+
+    name: str
+    # pending | success | failure | neutral | skipped — the forge's own
+    # conclusion, folded into those five.
+    conclusion: Literal["pending", "success", "failure", "neutral", "skipped"]
+    # The forge's web page for it; "" when it has none.
+    url: str = ""
+    # Opaque to the core: what the provider needs to fetch its log.
+    ref_id: str = ""
+    # A one-line description, when the forge gives one.
+    summary: str = ""
+
+
+class CIStatus(_Frozen):
+    state: CIState
+    checks: list[CICheck] = []
+
+    @property
+    def failed(self) -> list[CICheck]:
+        return [c for c in self.checks if c.conclusion == "failure"]
+
+
+class CIFailureLog(_Frozen):
+    """What a failed check left behind — untrusted text produced by the
+    target repo's own code, handed to the model only as data."""
+
+    check_name: str
+    url: str = ""
+    excerpt: str = ""
 
 
 class TriggerEvent(_Frozen):

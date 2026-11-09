@@ -1681,8 +1681,46 @@ _PRIOR_STOP_REASONS: dict[str, str] = {
     "agent_crashed": "the agent crashed unexpectedly",
     "format_error": "the model kept replying outside the expected format",
     "test_failed": "the post-push test verification failed",
+    "ci_failed": "the forge's CI failed on the pushed commit",
     "merge_conflict_unresolved": "conflicts merging the base branch were left unresolved",
 }
+
+
+def _start_ci_watch(
+    store: SQLiteStore,
+    task: Task,
+    settings: Settings,
+    route: RepoRoute,
+    plugin: ProviderPlugin,
+    pr: PRRef | None,
+    pushed_sha: str,
+    task_log,
+) -> None:
+    """Hand the commit just pushed to the CI monitor
+    (``observability/ci_monitor.py``) — only with a PR to report on, a
+    forge whose CI the plugin can read, and the monitor enabled for this
+    repo. Replaces any earlier watch on the issue: only the latest push
+    matters."""
+    if pr is None or not pushed_sha:
+        return
+    if not settings.ci_monitor_enabled_for(route) or not plugin.capabilities.supports_ci:
+        return
+    try:
+        store.upsert_ci_watch(
+            task.provider_instance,
+            task.repo,
+            task.issue_number,
+            target_repo=task.target_repo,
+            pr_number=pr.number,
+            head_sha=pushed_sha,
+            last_task_id=task.id,
+        )
+        store.append_task_event(
+            task.id, "ci_watch_started", {"pr_number": pr.number, "head_sha": pushed_sha}
+        )
+    except Exception:
+        # The PR is delivered either way; a lost watch only loses the report.
+        task_log.warning("ci_watch_start_failed", pr=pr.number)
 
 
 def _build_initial_comment(
@@ -1701,7 +1739,12 @@ def _build_initial_comment(
     branch published without a PR (PRD §3.7); neither is a fresh start.
     """
     attempt = work.attempts + 1
-    if pr_number:
+    if pr_number and task.trigger_kind is TriggerKind.CI_FAILED:
+        lead = (
+            f"🤖 **{agent_name}** resumed working on this issue to fix the failing CI "
+            f"on PR #{pr_number}."
+        )
+    elif pr_number:
         lead = f"🤖 **{agent_name}** resumed working on this issue to update PR #{pr_number}."
     elif published_branch:
         lead = f"🤖 **{agent_name}** resumed working on this issue to update its published branch."
@@ -3131,6 +3174,7 @@ def run_task(store: SQLiteStore, task: Task, settings: Settings, plugin: Provide
     if result.cost_usd > 0:
         today = datetime.now(UTC).strftime("%Y-%m-%d")
         store.add_daily_budget(today, task.target_repo, result.cost_usd)
+    _start_ci_watch(store, task, settings, route, plugin, pr, pushed_sha, task_log)
     write_audit_entry(
         settings.data_dir,
         {

@@ -2,7 +2,8 @@
 
 Inbound: ``WebhookAdapter`` turns a delivery into a canonical event.
 Outbound: ``ForgeClient`` (issues and comments), the optional
-``PullRequestClient`` (absent on a forge without a PR API, §3.7) and
+``PullRequestClient`` (absent on a forge without a PR API, §3.7), the
+optional ``CIClient`` (the forge's CI verdict on a commit) and
 ``GitTransport`` (clone/push auth and the forge's URL and reference syntax).
 The clients are bound to one repo and resolve that repo's credentials
 themselves, so the core never handles a token or an installation id.
@@ -23,6 +24,8 @@ if TYPE_CHECKING:
     from issue_agent.core.models import (
         Association,
         Author,
+        CIFailureLog,
+        CIStatus,
         Comment,
         Ignored,
         PRRef,
@@ -55,6 +58,8 @@ class ProviderTerms(_Frozen):
     ref_prefix_issue: str
     ref_prefix_pr: str
     repo_instructions_files: list[str] = []
+    # What the forge calls the automated checks on a commit.
+    ci: str = "CI"
 
 
 class ProviderCapabilities(_Frozen):
@@ -64,6 +69,8 @@ class ProviderCapabilities(_Frozen):
     # False (Gogs): push + a comment with a compare link instead of a PR.
     supports_pr_api: bool
     supports_labels: bool
+    # True when the plugin implements ``ci()`` — the CI monitor's port.
+    supports_ci: bool = False
     # None: the forge may not auto-close, so the PR text must not promise it.
     auto_close_keyword: str | None
     # Bodies above this are truncated by the core.
@@ -215,6 +222,22 @@ class PullRequestClient(ABC):
         an unknown PR — the retention sweep skips that row and retries."""
 
 
+class CIClient(ABC):
+    """The forge's CI verdict on one target repo's commits. Only a forge
+    whose API exposes it has one (``capabilities.supports_ci``)."""
+
+    @abstractmethod
+    def status(self, head_sha: str) -> CIStatus:
+        """Every check/status on ``head_sha``, folded into one verdict.
+        Raises on a network/API error — the monitor retries next cycle."""
+
+    @abstractmethod
+    def failure_logs(self, status: CIStatus, max_chars: int) -> list[CIFailureLog]:
+        """What each failed check in ``status`` left behind, each excerpt at
+        most ``max_chars`` (the end of the log, where the failure is). Best
+        effort: a check whose log can't be read gets an empty excerpt."""
+
+
 class GitTransport(ABC):
     """How git reaches the forge, and how its web UI is addressed."""
 
@@ -280,6 +303,11 @@ class ProviderPlugin(ABC):
     def pulls(self, repo: str) -> PullRequestClient | None:
         """Override exactly when ``capabilities.supports_pr_api`` — the
         registry rejects a plugin where the two disagree."""
+        return None
+
+    def ci(self, repo: str) -> CIClient | None:
+        """Override exactly when ``capabilities.supports_ci`` — the registry
+        rejects a plugin where the two disagree."""
         return None
 
     @abstractmethod
