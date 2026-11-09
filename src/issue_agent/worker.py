@@ -706,9 +706,11 @@ def main() -> None:
 
     _last_maintenance: float = time.monotonic()
     _last_reconcile: float = time.monotonic()
-    # 0 = the first loop pass sweeps right away, picking up watches a
-    # restart interrupted.
-    _last_ci_monitor: float = 0.0
+    # -inf, not 0: the first loop pass sweeps right away (picking up watches
+    # a restart interrupted) whatever the monotonic clock's origin — on Linux
+    # it counts from boot, so on a fresh machine `now - 0` can be below the
+    # poll interval.
+    _last_ci_monitor: float = float("-inf")
 
     # No proactive budget check happens here: before fetch_next() there is
     # no task in hand yet, so the budget's scope (task.target_repo) isn't

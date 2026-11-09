@@ -990,6 +990,50 @@ class TestCIMonitorSweepInMain:
         mock_ci.assert_called_once_with(mock_store, mock_get_settings.return_value, ANY)
         assert isinstance(mock_ci.call_args.args[2], ProviderRegistry)
 
+    @patch("issue_agent.worker.time.monotonic", return_value=5.0)
+    @patch("issue_agent.worker.time.sleep")
+    @patch("issue_agent.worker.run_ci_monitor")
+    @patch("issue_agent.worker.reconcile_issue_work")
+    @patch("issue_agent.worker.run_maintenance")
+    @patch("issue_agent.worker.write_audit_entry")
+    @patch("issue_agent.worker.SQLiteStore")
+    @patch("issue_agent.worker.get_settings")
+    @patch("issue_agent.worker.setup_logging")
+    @patch("issue_agent.worker.prune_old_audit_files", return_value=[])
+    @patch("issue_agent.worker.run_orphan_recovery", return_value=0)
+    def test_sweeps_on_the_first_pass_right_after_boot(
+        self,
+        mock_orphan: MagicMock,
+        mock_prune: MagicMock,
+        mock_setup: MagicMock,
+        mock_get_settings: MagicMock,
+        mock_store_cls: MagicMock,
+        mock_audit: MagicMock,
+        mock_maint: MagicMock,
+        mock_reconcile: MagicMock,
+        mock_ci: MagicMock,
+        mock_sleep: MagicMock,
+        mock_monotonic: MagicMock,
+    ) -> None:
+        # Regression: the monotonic clock counts from boot on Linux, so on a
+        # freshly started machine it reads less than the poll interval.
+        import issue_agent.worker as w
+
+        mock_store = MagicMock(spec=SQLiteStore)
+        mock_store_cls.return_value = mock_store
+        mock_get_settings.return_value = _make_settings()
+        mock_store.fetch_next.return_value = None
+
+        def _stop_worker(*args: object) -> None:
+            w._RUNNING = False
+
+        mock_sleep.side_effect = _stop_worker
+
+        w._RUNNING = True
+        w.main()
+
+        mock_ci.assert_called_once()
+
 
 class TestBudgetAlertDedup:
     """run_task's budget-exceeded alert is deduped per
