@@ -9,7 +9,7 @@ from issue_agent.config import Settings
 from issue_agent.providers.base import WebhookRejectedError
 from issue_agent.providers.github.plugin import GitHubProviderPlugin
 from issue_agent.providers.registry import BUILTIN_PROVIDER_TYPES, ProviderRegistry
-from tests.fakes.fake_provider import FakeProvider, FakeProviderWithPulls
+from tests.fakes.fake_provider import FakeProvider, FakeProviderWithCI, FakeProviderWithPulls
 from tests.helpers.github import sign_payload
 from tests.helpers.settings import github_providers
 
@@ -108,4 +108,26 @@ class TestPullRequestCapabilityCoherence:
             capabilities = FakeProviderWithPulls.capabilities
 
         with pytest.raises(ValueError, match="supports_pr_api=True but does not"):
+            ProviderRegistry({"x": Inconsistent("x", secret="s")})
+
+
+class TestCICapabilityCoherence:
+    """`supports_ci` and overriding `ci()` must agree, so the CI monitor
+    can trust `ci(repo) is None` to mean "no CI port"."""
+
+    def test_fake_with_ci_is_accepted(self):
+        ProviderRegistry({"ci": FakeProviderWithCI("ci", secret="s")})
+
+    def test_ci_without_the_capability_is_rejected(self):
+        class Inconsistent(FakeProviderWithCI):
+            capabilities = FakeProviderWithPulls.capabilities
+
+        with pytest.raises(ValueError, match="supports_ci=False but implements"):
+            ProviderRegistry({"x": Inconsistent("x", secret="s")})
+
+    def test_capability_without_ci_is_rejected(self):
+        class Inconsistent(FakeProviderWithPulls):
+            capabilities = FakeProviderWithCI.capabilities
+
+        with pytest.raises(ValueError, match="supports_ci=True but does not"):
             ProviderRegistry({"x": Inconsistent("x", secret="s")})

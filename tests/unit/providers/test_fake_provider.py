@@ -3,7 +3,12 @@
 from __future__ import annotations
 
 from issue_agent.core.models import PRRef
-from tests.fakes.fake_provider import FakeForge, FakeProvider, FakeProviderWithPulls
+from tests.fakes.fake_provider import (
+    FakeForge,
+    FakeProvider,
+    FakeProviderWithCI,
+    FakeProviderWithPulls,
+)
 
 REPO = "org/repo"
 
@@ -80,3 +85,33 @@ def test_merge_request_state_defaults_to_open_and_follows_the_forge():
     merged = PRState(state="merged", closed_at=datetime(2026, 10, 1, tzinfo=UTC))
     plugin.forge.pr_states[(REPO, pr.number)] = merged
     assert pulls.get_pr_state(pr.number) == merged
+
+
+def test_ci_status_defaults_to_none_and_follows_the_forge():
+    from issue_agent.core.models import CICheck, CIStatus
+
+    plugin = FakeProviderWithCI("fake", secret="s")
+    ci = plugin.ci(REPO)
+
+    assert ci.status("abc") == CIStatus(state="none")
+
+    failed = CIStatus(
+        state="failure",
+        checks=[
+            CICheck(name="unit", conclusion="success"),
+            CICheck(name="e2e", conclusion="failure", url="https://ci/e2e"),
+        ],
+    )
+    plugin.forge.ci_statuses[(REPO, "abc")] = failed
+    plugin.forge.ci_logs[(REPO, "e2e")] = "x" * 50 + "AssertionError"
+    assert ci.status("abc") == failed
+
+    logs = ci.failure_logs(failed, max_chars=20)
+    assert [log.check_name for log in logs] == ["e2e"]
+    assert logs[0].url == "https://ci/e2e"
+    assert logs[0].excerpt.endswith("AssertionError")
+    assert len(logs[0].excerpt) == 20
+
+
+def test_without_ci_the_plugin_has_no_ci_port():
+    assert FakeProviderWithPulls("fake", secret="s").ci(REPO) is None

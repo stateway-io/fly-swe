@@ -10,7 +10,7 @@ never says how an author relates to the repo, so every ``Author`` comes out
 Outbound, every client reads and writes one ``FakeForge``, so a test seeds
 issues and inspects what the core posted. ``FakeProvider`` has no PR API —
 the core must publish the branch instead (§3.7); ``FakeProviderWithPulls``
-has one.
+has one, and ``FakeProviderWithCI`` adds CI checks.
 """
 
 from __future__ import annotations
@@ -26,6 +26,8 @@ from pydantic import ValidationError
 
 from issue_agent.core.models import (
     Author,
+    CIFailureLog,
+    CIStatus,
     Comment,
     Ignored,
     IssueRef,
@@ -35,6 +37,7 @@ from issue_agent.core.models import (
     TriggerKind,
 )
 from issue_agent.providers.base import (
+    CIClient,
     ForgeClient,
     GitTransport,
     ParsedDelivery,
@@ -161,6 +164,10 @@ class FakeForge:
     conflicts: dict[int, bool | None] = field(default_factory=dict)
     # (repo, PR number) -> what `get_pr_state` reports; absent means open.
     pr_states: dict[tuple[str, int], PRState] = field(default_factory=dict)
+    # (repo, sha) -> what `CIClient.status` reports; absent means "none".
+    ci_statuses: dict[tuple[str, str], CIStatus] = field(default_factory=dict)
+    # (repo, check name) -> the log `failure_logs` excerpts.
+    ci_logs: dict[tuple[str, str], str] = field(default_factory=dict)
     # Every token handed to git, in order — each call mints a fresh one.
     tokens: list[str] = field(default_factory=list)
 
@@ -249,6 +256,25 @@ class FakePullRequestClient(PullRequestClient):
 
     def get_pr_state(self, number: int) -> PRState:
         return self._forge.pr_states.get((self._repo, number), PRState(state="open"))
+
+
+class FakeCIClient(CIClient):
+    def __init__(self, forge: FakeForge, repo: str) -> None:
+        self._forge = forge
+        self._repo = repo
+
+    def status(self, head_sha: str) -> CIStatus:
+        return self._forge.ci_statuses.get((self._repo, head_sha), CIStatus(state="none"))
+
+    def failure_logs(self, status: CIStatus, max_chars: int) -> list[CIFailureLog]:
+        return [
+            CIFailureLog(
+                check_name=c.name,
+                url=c.url,
+                excerpt=self._forge.ci_logs.get((self._repo, c.name), "")[-max_chars:],
+            )
+            for c in status.failed
+        ]
 
 
 class FakeTransport(GitTransport):
@@ -346,6 +372,15 @@ class FakeProviderWithPulls(FakeProvider):
 
     def pulls(self, repo: str) -> FakePullRequestClient:
         return FakePullRequestClient(self.forge, repo)
+
+
+class FakeProviderWithCI(FakeProviderWithPulls):
+    """The fake forge with a PR API and CI checks."""
+
+    capabilities = FakeProviderWithPulls.capabilities.model_copy(update={"supports_ci": True})
+
+    def ci(self, repo: str) -> FakeCIClient:
+        return FakeCIClient(self.forge, repo)
 
 
 def fake_body(kind: str = "issue_opened", **fields: Any) -> dict[str, Any]:

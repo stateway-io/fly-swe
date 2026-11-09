@@ -267,6 +267,22 @@ class TestPullRequestPort:
         assert plugin.client(TARGET) is not None
 
 
+class TestCIPort:
+    def test_ci_matches_the_capability(self, plugin: ProviderPlugin):
+        has_ci = plugin.ci(TARGET) is not None
+
+        assert has_ci is plugin.capabilities.supports_ci
+
+    def test_ci_needs_a_pr_api(self, plugin: ProviderPlugin):
+        # The monitor watches a PR's head commit; CI without PRs has
+        # nothing to report on.
+        if plugin.capabilities.supports_ci:
+            assert plugin.capabilities.supports_pr_api
+
+    def test_terms_name_the_ci(self, plugin: ProviderPlugin):
+        assert plugin.capabilities.terms.ci
+
+
 class TestHealth:
     def test_reports_without_raising(self, plugin: ProviderPlugin):
         health = plugin.health_check()
