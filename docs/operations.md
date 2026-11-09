@@ -97,6 +97,21 @@ itself: its sandbox gets an env allowlist with no GitHub token and
 bound clone time and volume space on a large repo, accepting that the
 provenance lookup then finds nothing older than that boundary.
 
+**`ci_monitor`** (off by default; `repos[].ci_monitor: true|false` forces it
+per repo) lets the agent leave the full test suite to the forge's CI. The
+sandbox is too small for slow integration or end-to-end suites, so with the
+monitor on the system prompt tells the agent to run only the fast, targeted
+checks; after the push the worker polls the CI on the pushed commit and
+reports the verdict (see [§ The Agent Execution Contract](#the-agent-execution-contract),
+"CI monitor"). Its knobs: `poll_interval_seconds` (120), `no_ci_grace_minutes`
+(10 — how long a commit may show no check before the repo counts as having
+no CI), `timeout_minutes` (90), `max_per_cycle` (20 watched commits per
+sweep) and `log_max_chars` (6000 — the tail of each failed check's log handed
+to the fix attempt). Fix attempts spend the same caps as a test retry, so
+there is no separate limit to configure. The GitHub App also needs
+**Checks**, **Commit statuses** and **Actions** read access (see
+[§ GitHub App Configuration Reference](#github-app-configuration-reference)).
+
 Secrets are set via environment variable / `fly secrets` (see `.env.example` at
 the repo root):
 
@@ -177,7 +192,8 @@ migration rebuilds the table with a full copy in one transaction (v1–v3 on
 `tasks`/`daily_budget`; v7 on `processed_deliveries` and `issue_work`, which
 gained `provider_instance` in the key; v8 on `tasks`, which dropped the legacy
 `payload_json` and `installation_id` columns, since a NOT NULL column can't be
-dropped in place). Treat a release that contains one as
+dropped in place). v9 (`pr_state`) and v10 (`ci_watch`) are pure additive
+`CREATE TABLE`s. Treat a release that contains a rebuild as
 one-way: snapshot the volume first, and roll back by restoring the snapshot
 rather than by redeploying the old image.
 
@@ -325,6 +341,42 @@ work item closes as `branch_published` (no `pr_number`), and a follow-up
 comment reopens it on the same branch, like `pr_opened`. Conflicts with the base are checked only
 in the workspace (`git merge-tree`, after fetching the base again). Draft
 settings don't apply, since there is no PR.
+
+**CI monitor (opt-in, `ci_monitor.enabled` / `repos[].ci_monitor`).** On a
+forge whose plugin exposes CI (`capabilities.supports_ci`), a run that pushed
+to a PR records a watch on the pushed commit (`ci_watch`, one row per issue,
+replaced by every later push). The task ends there: nothing waits on CI
+inside a task. Every `ci_monitor.poll_interval_seconds` the worker loop runs
+`run_ci_monitor` (`observability/ci_monitor.py`), which reads each watched
+commit's CI verdict (`CIClient.status`: GitHub check runs plus commit
+statuses, folded so anything still running is `pending`) and acts once it
+settles:
+
+| CI verdict | What the harness does | `ci_watch.state` |
+|---|---|---|
+| passed | Comments on the PR (the checks) and on the issue ("ready for review") | `passed` |
+| failed, attempts and budget left | Enqueues a `ci_failed` task carrying the tail of each failed check's log (up to 5 checks, `log_max_chars` each) as its resume summary, bumps `issue_work.attempts`, comments on the PR | `fix_enqueued` |
+| failed, `resume.max_attempts` reached or daily budget spent | Comments the failed checks on the PR and the issue, and stops | `exhausted` |
+| no check at all after `no_ci_grace_minutes` | Comments on the PR that no CI was detected and only the agent's own checks verified it | `no_ci` |
+| still running after `timeout_minutes` | Comments on the PR and the issue, and stops waiting | `timed_out` |
+| PR merged/closed, issue closed, work restarted, monitor turned off | Nothing | `cancelled` |
+
+The `ci_failed` task reopens the delivered work item exactly like a
+maintainer's follow-up comment on a `pr_opened` issue: it checks out the
+work branch, merges the base, runs the agent with the CI failure as its
+`<previous_work>`, pushes onto the same PR and comments the update there. It
+reuses the trigger of the run that pushed the failing commit (same actor, no
+comment), so the author guards apply unchanged, and its own push is watched
+afresh. Its attempt counts against `resume.max_attempts` like a test retry
+(the count is taken when the task is enqueued), and the daily budget is
+checked both before enqueuing and again when the task is dequeued. The logs
+come from the target repo's own code, so the prompt frames them as untrusted
+data, inside a fence they cannot close. A failure while a task for the
+issue is queued or running waits for the next sweep. Every forge call in the
+sweep is best-effort: an error leaves the watch for the next sweep. A
+`cancelled` check run also counts as failed, so on a repo whose workflows
+cancel superseded runs, a push made by a human after the agent's can show up
+as a failure on the agent's commit.
 
 **Failure handling: the harness never discards a working tree.** The agent
 loop can end in ways other than `Submitted` and the two limits. Every
@@ -490,10 +542,12 @@ for a project whose type-check or test run does not fit is a bigger Machine.
 | App name | From `agent.name` in `config.yaml` (shipped default: `issue-agent`); `AGENT_NAME` env overrides it. The bare code default if neither is set is `Issue Agent`. |
 | Webhook URL | `<base-url>/webhooks/<instance id>` — `<base-url>/webhooks/github` for the `github` instance |
 | Webhook secret | Set via `PROVIDERS__<ID>__WEBHOOK_SECRET` env |
-| Repository permissions | Contents: Read & Write; Pull requests: Read & Write; Issues: Read & Write; Metadata: Read; Workflows: Read |
+| Repository permissions | Contents: Read & Write; Pull requests: Read & Write; Issues: Read & Write; Metadata: Read; Workflows: Read. With `ci_monitor` on, also Checks: Read; Commit statuses: Read; Actions: Read (job logs) |
 | Subscribe to events | Issues, Issue comment |
 
-The agent handles `issues` and `issue_comment` events end to end.
+The agent handles `issues` and `issue_comment` events end to end. The CI
+monitor polls the API instead of subscribing to `check_suite`/`workflow_run`,
+so it needs the read permissions above but no extra event.
 Subscribing to more events than listed is harmless (they are dropped by the
 event allowlist), but there is no need to.
 
@@ -565,7 +619,7 @@ The GitHub App authenticates using a private key (PEM file) generated from the a
    - **Homepage URL** — your repo URL or app URL
    - **Webhook URL** — `https://<app-name>.fly.dev/webhooks/github`
    - **Webhook secret** — generate with `openssl rand -hex 32`
-   - **Repository permissions** — Contents: Read & Write, Pull requests: Read & Write, Issues: Read & Write, Metadata: Read, Workflows: Read
+   - **Repository permissions** — Contents: Read & Write, Pull requests: Read & Write, Issues: Read & Write, Metadata: Read, Workflows: Read; for `ci_monitor`, also Checks: Read, Commit statuses: Read, Actions: Read
    - **Subscribe to events** — Issues, Issue comment
 4. Click **Create GitHub App**
 
@@ -917,6 +971,7 @@ issue_agent_queue_depth
 issue_agent_budget_used_today_usd{provider_instance="<id>", repo="owner/name"}
 issue_agent_issue_work_resumes_total{provider_instance="<id>", repo="owner/name"}
 issue_agent_issue_work_attempts{provider_instance="<id>", repo="owner/name"}   (histogram)
+issue_agent_ci_monitor_outcomes_total{outcome="passed|fix_enqueued|exhausted|no_ci|timed_out|cancelled", provider_instance="<id>", repo="owner/name"}
 ```
 
 `provider_instance` is the `providers.<id>` the task came from: the same

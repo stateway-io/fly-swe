@@ -101,6 +101,7 @@ One configured instance of your forge type.
 | `bot_identity()` | The service's own account, as an `Author` with `is_self=True`. |
 | `client(repo)` | A `ForgeClient` bound to `repo`. |
 | `pulls(repo)` | A `PullRequestClient`, or the inherited `None`. Override it **exactly** when `capabilities.supports_pr_api` is true — the registry refuses a plugin where the two disagree. |
+| `ci(repo)` | A `CIClient`, or the inherited `None`. Override it **exactly** when `capabilities.supports_ci` is true (same registry check). Only meaningful with a PR API. |
 | `transport()` | Your `GitTransport`. |
 | `health_check()` | A `ProviderHealth(ok, checks)` from config alone. **Must not raise and must not call the network**; it backs `/readyz`. A check named `config` holds `"ok"` or `"missing: a, b"` with the real config keys or env vars (e.g. `PROVIDERS__GITLAB__WEBHOOK_SECRET`) and joins `/readyz`'s `settings` list; any other check shows up as `<instance_id>_<name>`. Informational `"warning: ..."` checks must not flip `ok`. |
 
@@ -151,6 +152,23 @@ branch, comments on the issue with `transport().compare_url(...)` so a human
 can open the PR by hand, checks conflicts locally with `git merge-tree`, and
 reopens the same branch on follow-up comments (PRD §3.7).
 
+### `CIClient` (optional)
+
+The forge's CI verdict on a commit, for the CI monitor
+(`docs/operations.md` § The Agent Execution Contract). `status(head_sha)` →
+`CIStatus(state, checks)`: fold every check and status the forge reports on
+the commit into `pending` (anything still running), `failure` (all finished,
+something failed — map timeouts, cancellations and "action required" here),
+`success`, or `none` (nothing reported at all). Each `CICheck` carries the
+`name`, a `conclusion` (`pending`/`success`/`failure`/`neutral`/`skipped`),
+its web `url`, an opaque `ref_id` your plugin uses to find its log again, and
+an optional one-line `summary`. `failure_logs(status, max_chars)` returns a
+`CIFailureLog` per failed check with the **end** of its log, at most
+`max_chars` (that's where the failure is); a log you can't read gets an empty
+excerpt rather than an exception. `status` raises on an API error; the
+monitor retries next sweep. `fold_ci_state` in `providers/github/ci.py`
+shows the folding rules.
+
 ### `GitTransport`
 
 | Method | Contract |
@@ -172,6 +190,7 @@ reopens the same branch on follow-up comments (PRD §3.7).
 | `draft_prefix` | Title prefix when `title_prefix` (`"Draft: "`, `"WIP: "`) | — |
 | `supports_pr_api` | Whether `pulls()` is implemented | `True` |
 | `supports_labels` | Whether labels can be read and applied | `True` |
+| `supports_ci` | Whether `ci()` is implemented (defaults to `False`) | `True` |
 | `auto_close_keyword` | Keyword that closes the issue on merge, or `None` (the PR text then doesn't promise it) | `"Closes"` |
 | `max_body_length` | Bodies above this are truncated by the core | `58_000` |
 | `terms` | The forge's vocabulary (below) | |
@@ -186,6 +205,7 @@ rendered with:
 | `ref_prefix_issue` | `#` | `#` |
 | `ref_prefix_pr` | `#` | `!` |
 | `repo_instructions_files` | `[".github/copilot-instructions.md"]` | `[]` |
+| `ci` | `CI checks` | `pipelines` (defaults to `CI`) |
 
 The prompts use `{{ terms.issue }}`, `{{ terms.pr }}` and
 `{{ instructions_files }}` instead of forge words, and
@@ -270,7 +290,8 @@ valid/wrong/tampered/empty-secret signatures, stable and missing delivery
 keys, each sample event parsed correctly and round-tripping through the
 queue's JSON, malformed bodies rejected, credential-free clone URLs, scoped
 `git_auth_env`, well-formed URLs and references, `pulls()` matching
-`supports_pr_api`, and a `health_check()` that doesn't raise.
+`supports_pr_api`, `ci()` matching `supports_ci` (and only with a PR API),
+and a `health_check()` that doesn't raise.
 
 To enroll your plugin, add a **kit** to
 [`tests/unit/providers/kits.py`](../tests/unit/providers/kits.py) and
@@ -301,8 +322,9 @@ renewal. Tests that hit a real forge go in `tests/e2e/` and are opt-in.
 
 ### What you don't need to test
 
-The core is already tested against `FakeProvider` in both variants — with
-and without a PR API, with and without association. If your plugin passes
+The core is already tested against `FakeProvider` in every variant — with
+and without a PR API, with and without association, with CI
+(`FakeProviderWithCI`). If your plugin passes
 the conformance suite, the queue, worker and executor work with it.
 
 ## Security checklist
@@ -317,6 +339,9 @@ the conformance suite, the queue, worker and executor work with it.
       the core.
 - [ ] The payload is treated as untrusted data: no `eval`, no templating of
       issue text, and size limits respected (`max_body_length`).
+- [ ] CI logs are returned as plain text, truncated to `max_chars`; the core
+      frames them as untrusted data for the model. A log download URL your
+      forge pre-signs is fetched without forwarding the forge credential.
 - [ ] `health_check()` makes no network call.
 
 ## Forge notes and prior research
