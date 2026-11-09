@@ -88,7 +88,7 @@ class IssueWork(BaseModel):
     last_task_id: str | None = None
     last_error: str | None = None
     last_summary: str | None = None
-    last_summary_kind: str = ""  # '' | mechanical | llm | submission
+    last_summary_kind: str = ""  # '' | mechanical | llm | submission | ci
     pr_number: int | None = None
     # Cost/iterations summed across every attempt this work item has run,
     # so a resumed run's own (often tiny) per-attempt cost isn't mistaken

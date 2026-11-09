@@ -38,10 +38,11 @@ from issue_agent.runner.executor import (
     _resolve_pr_description,
     _resolve_test_command,
     _run_test_command,
+    _start_ci_watch,
     run_task,
 )
 from issue_agent.runner.llm_errors import ProviderError
-from tests.fakes.fake_provider import FakeProvider, FakeProviderWithPulls
+from tests.fakes.fake_provider import FakeProvider, FakeProviderWithCI, FakeProviderWithPulls
 from tests.helpers.factories import (
     make_author,
     make_comment,
@@ -785,6 +786,11 @@ class TestFollowUpComments:
         )
         assert "[o/r#288](https://ghe.example.com/o/r/pull/288)" in comment
         assert "https://github.com" not in comment
+
+    def test_initial_comment_names_a_ci_fix(self) -> None:
+        task = _make_task(trigger_kind=TriggerKind.CI_FAILED)
+        comment = _build_initial_comment(task, self._work(task), "Agent X", pr_number=288)
+        assert "to fix the failing CI on PR #288" in comment
 
     def test_initial_comment_names_the_pr_being_updated(self) -> None:
         task = _make_task()
@@ -5178,3 +5184,51 @@ class TestRevertedProtectedNotes:
         )
         assert self._NOTE in comment
         assert comment.rstrip().endswith(f"_#{_make_task().issue_number}_")
+
+
+class TestStartCIWatch:
+    """The executor hands the pushed commit to the CI monitor only when there
+    is a PR, the forge exposes CI, and the monitor is on for the repo."""
+
+    _PR = PRRef(number=101, url="https://forge/pr/101", head_ref="agent/issue-42")
+
+    def _run(self, store, *, plugin=None, pr=_PR, sha="abc123", **settings_overrides):
+        settings = _make_settings(**{"CI_MONITOR_ENABLED": True, **settings_overrides})
+        task = _make_task()
+        task.id = store.insert_task(task)
+        _start_ci_watch(
+            store,
+            task,
+            settings,
+            settings.repo_routes[0],
+            plugin or FakeProviderWithCI("github", secret="s"),
+            pr,
+            sha,
+            MagicMock(),
+        )
+        return task, store.get_ci_watch("github", task.repo, task.issue_number)
+
+    def test_watches_the_pushed_commit(self, store) -> None:
+        task, watch = self._run(store)
+        assert watch is not None
+        assert (watch.pr_number, watch.head_sha, watch.last_task_id) == (101, "abc123", task.id)
+        assert watch.target_repo == "stateway-io/stateway-agent-fixtures"
+        events = [e.event_type for e in store.get_task_events(task.id)]
+        assert "ci_watch_started" in events
+
+    def test_not_without_a_pr(self, store) -> None:
+        assert self._run(store, pr=None)[1] is None
+
+    def test_not_without_a_pushed_commit(self, store) -> None:
+        assert self._run(store, sha="")[1] is None
+
+    def test_not_when_the_monitor_is_off(self, store) -> None:
+        assert self._run(store, CI_MONITOR_ENABLED=False)[1] is None
+
+    def test_not_on_a_forge_without_ci(self, store) -> None:
+        assert self._run(store, plugin=FakeProviderWithPulls("github", secret="s"))[1] is None
+
+    def test_a_store_error_is_swallowed(self, store) -> None:
+        with patch.object(SQLiteStore, "upsert_ci_watch", side_effect=RuntimeError("db")):
+            _, watch = self._run(store)
+        assert watch is None

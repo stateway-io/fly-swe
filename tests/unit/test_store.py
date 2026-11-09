@@ -1497,3 +1497,18 @@ class TestMigrateV10:
         assert s2.get_task(tid) is not None
         s2.init()  # idempotent
         s2.close()
+
+
+class TestHasActiveTaskForIssue:
+    def test_any_pending_or_running_task_counts(self, store: SQLiteStore) -> None:
+        assert store.has_active_task_for_issue("github", "stateway-io/stateway-issues", 42) is False
+        tid = store.insert_task(_make_task(trigger_kind=TriggerKind.COMMENT_COMMAND))
+        assert store.has_active_task_for_issue("github", "stateway-io/stateway-issues", 42)
+        store.update_status(tid, TaskStatus.RUNNING)
+        assert store.has_active_task_for_issue("github", "stateway-io/stateway-issues", 42)
+        store.update_status(tid, TaskStatus.SUCCEEDED)
+        assert store.has_active_task_for_issue("github", "stateway-io/stateway-issues", 42) is False
+
+    def test_other_issues_do_not_count(self, store: SQLiteStore) -> None:
+        store.insert_task(_make_task(issue_number=7))
+        assert store.has_active_task_for_issue("github", "stateway-io/stateway-issues", 42) is False

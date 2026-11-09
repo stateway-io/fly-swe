@@ -15,6 +15,7 @@ from issue_agent.observability.audit import (
     prune_old_audit_files,
     write_audit_entry,
 )
+from issue_agent.observability.ci_monitor import run_ci_monitor
 from issue_agent.observability.cleanup import reconcile_issue_work, run_maintenance
 from issue_agent.observability.prometheus_metrics import (
     init_metrics,
@@ -705,6 +706,9 @@ def main() -> None:
 
     _last_maintenance: float = time.monotonic()
     _last_reconcile: float = time.monotonic()
+    # 0 = the first loop pass sweeps right away, picking up watches a
+    # restart interrupted.
+    _last_ci_monitor: float = 0.0
 
     # No proactive budget check happens here: before fetch_next() there is
     # no task in hand yet, so the budget's scope (task.target_repo) isn't
@@ -720,6 +724,10 @@ def main() -> None:
             if now - _last_reconcile > settings.resume_reconcile_interval_minutes * 60:
                 reconcile_issue_work(store, settings, registry)
                 _last_reconcile = now
+
+            if now - _last_ci_monitor > settings.ci_monitor_poll_interval_seconds:
+                run_ci_monitor(store, settings, registry)
+                _last_ci_monitor = now
 
             run_retry_recovery(store, settings, registry)
 

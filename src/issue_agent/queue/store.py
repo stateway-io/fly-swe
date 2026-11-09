@@ -706,6 +706,23 @@ class SQLiteStore:
         ).fetchone()
         return row["cnt"] if row else 0
 
+    def has_active_task_for_issue(
+        self, provider_instance: str, repo: str, issue_number: int
+    ) -> bool:
+        """True when any task for this issue is pending or running."""
+        row = self.conn.execute(
+            "SELECT 1 FROM tasks WHERE provider_instance = ? AND repo = ? "
+            "AND issue_number = ? AND status IN (?, ?) LIMIT 1",
+            (
+                provider_instance,
+                repo,
+                issue_number,
+                TaskStatus.PENDING.value,
+                TaskStatus.RUNNING.value,
+            ),
+        ).fetchone()
+        return row is not None
+
     def has_active_creation_task_for_issue(
         self, provider_instance: str, repo: str, issue_number: int
     ) -> bool:

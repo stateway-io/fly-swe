@@ -363,3 +363,34 @@ class TestCheckDailyBudget:
         ok_b, msg_b = check_daily_budget(store, settings, scope="owner/repo-b")
         assert ok_b
         assert msg_b == ""
+
+
+class TestCIFixTask:
+    """A CI fix task (``ci_failed``) carries the pushing run's trigger minus
+    its comment, so every guard reads it like any other task."""
+
+    def _task(self, actor: str = "maintainer") -> Task:
+        trigger = make_trigger_event(
+            TriggerKind.CI_FAILED,
+            actor=make_author(login=actor),
+            target_kind="pr",
+            delivery_key="ci:100:abc",
+        )
+        return make_task(trigger, trigger_kind=TriggerKind.CI_FAILED)
+
+    def test_payload_is_valid(self):
+        assert validate_task_payload(self._task()) == (True, "")
+
+    def test_allowed_actor_passes_the_author_guard(self):
+        settings = _make_settings(ALLOWED_AUTHORS="maintainer")
+        assert check_author_allowed(self._task(), settings) == (True, "")
+
+    def test_disallowed_actor_is_still_stopped(self):
+        settings = _make_settings(ALLOWED_AUTHORS="someone-else")
+        ok, _ = check_author_allowed(self._task(), settings)
+        assert ok is False
+
+    def test_no_comment_means_no_comment_author_check(self):
+        lookup = MagicMock()
+        assert check_comment_author_allowed(self._task(), _make_settings(), lookup) == (True, "")
+        lookup.assert_not_called()

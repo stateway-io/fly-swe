@@ -71,7 +71,7 @@ CREATE TABLE issue_work (
   last_task_id      TEXT,
   last_error        TEXT,
   last_summary      TEXT,
-  last_summary_kind TEXT    NOT NULL DEFAULT '',  -- '' | mechanical | llm | submission
+  last_summary_kind TEXT    NOT NULL DEFAULT '',  -- '' | mechanical | llm | submission | ci
   pr_number         INTEGER,
   total_cost_usd    REAL    NOT NULL DEFAULT 0,
   total_iterations  INTEGER NOT NULL DEFAULT 0,
