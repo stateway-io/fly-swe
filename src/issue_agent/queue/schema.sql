@@ -95,3 +95,25 @@ CREATE TABLE pr_state (
   checked_at        TEXT    NOT NULL,
   PRIMARY KEY (provider_instance, repo, pr_number)
 );
+
+-- The CI monitor's watch on the head commit the agent last pushed to an
+-- issue's PR — one row per issue, replaced on every push. `state` is
+-- watching while the monitor polls the forge's CI; every other value is
+-- final for that commit. Introduced by _migrate_v10, a pure additive
+-- CREATE TABLE.
+CREATE TABLE ci_watch (
+  provider_instance TEXT    NOT NULL,
+  issue_repo        TEXT    NOT NULL,
+  issue_number      INTEGER NOT NULL,
+  target_repo       TEXT    NOT NULL,
+  pr_number         INTEGER NOT NULL,
+  head_sha          TEXT    NOT NULL,
+  state             TEXT    NOT NULL,  -- watching | passed | fix_enqueued | exhausted | no_ci | timed_out | cancelled
+  last_task_id      TEXT,              -- the task that pushed head_sha
+  fix_task_id       TEXT,              -- the CI fix task it enqueued, if any
+  created_at        TEXT    NOT NULL,
+  last_polled_at    TEXT,
+  PRIMARY KEY (provider_instance, issue_repo, issue_number)
+);
+
+CREATE INDEX idx_ci_watch_watching ON ci_watch(state, last_polled_at) WHERE state = 'watching';

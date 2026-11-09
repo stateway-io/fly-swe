@@ -7,6 +7,7 @@ from pydantic import BaseModel, ValidationError
 from issue_agent.core.models import TriggerEvent, TriggerKind
 
 __all__ = [
+    "CIWatch",
     "DailyBudget",
     "DeliveryRecord",
     "IssueWork",
@@ -96,6 +97,25 @@ class IssueWork(BaseModel):
     total_iterations: int = 0
     created_at: str = ""
     updated_at: str = ""
+
+
+class CIWatch(BaseModel):
+    """The CI monitor's watch on the head commit the agent last pushed to an
+    issue's PR. One row per issue, replaced on every push; ``state`` is
+    ``watching`` until the forge's CI on ``head_sha`` settles."""
+
+    provider_instance: str
+    issue_repo: str
+    issue_number: int
+    target_repo: str
+    pr_number: int
+    head_sha: str
+    # watching | passed | fix_enqueued | exhausted | no_ci | timed_out | cancelled
+    state: str = "watching"
+    last_task_id: str | None = None
+    fix_task_id: str | None = None
+    created_at: str = ""
+    last_polled_at: str | None = None
 
 
 class TaskEvent(BaseModel):

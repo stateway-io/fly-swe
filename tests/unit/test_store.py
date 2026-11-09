@@ -1396,3 +1396,104 @@ class TestMigrateV9:
         assert s2.get_task(tid) is not None
         s2.init()  # idempotent
         s2.close()
+
+
+class TestCIWatch:
+    _KEY = ("github", "owner/issues", 7)
+
+    def _watch(self, store: SQLiteStore, sha: str = "sha1", task: str = "t1"):
+        return store.upsert_ci_watch(
+            *self._KEY,
+            target_repo="owner/code",
+            pr_number=101,
+            head_sha=sha,
+            last_task_id=task,
+        )
+
+    def test_upsert_starts_watching(self, store: SQLiteStore) -> None:
+        watch = self._watch(store)
+
+        assert watch.state == "watching"
+        assert (watch.target_repo, watch.pr_number, watch.head_sha) == ("owner/code", 101, "sha1")
+        assert watch.last_task_id == "t1"
+        assert watch.created_at
+        assert watch.last_polled_at is None
+
+    def test_a_new_push_replaces_the_watch(self, store: SQLiteStore) -> None:
+        self._watch(store)
+        store.update_ci_watch(*self._KEY, head_sha="sha1", state="fix_enqueued", fix_task_id="f")
+
+        watch = self._watch(store, sha="sha2", task="t2")
+
+        assert (watch.head_sha, watch.state, watch.fix_task_id) == ("sha2", "watching", None)
+        assert watch.last_task_id == "t2"
+
+    def test_update_only_applies_to_the_same_commit(self, store: SQLiteStore) -> None:
+        self._watch(store, sha="sha2")
+
+        assert store.update_ci_watch(*self._KEY, head_sha="sha1", state="passed") is False
+        assert store.get_ci_watch(*self._KEY).state == "watching"
+        assert store.update_ci_watch(*self._KEY, head_sha="sha2", state="passed") is True
+        assert store.get_ci_watch(*self._KEY).state == "passed"
+
+    def test_update_without_fields_is_a_no_op(self, store: SQLiteStore) -> None:
+        self._watch(store)
+        assert store.update_ci_watch(*self._KEY, head_sha="sha1") is False
+
+    def test_lists_only_watching_never_polled_first(self, store: SQLiteStore) -> None:
+        for n in (1, 2, 3):
+            store.upsert_ci_watch(
+                "github",
+                "o/r",
+                n,
+                target_repo="o/r",
+                pr_number=n,
+                head_sha=f"s{n}",
+                last_task_id=None,
+            )
+        store.update_ci_watch("github", "o/r", 1, head_sha="s1", last_polled_at="2026-01-02")
+        store.update_ci_watch("github", "o/r", 2, head_sha="s2", state="passed")
+
+        listed = store.list_watching_ci(10)
+
+        assert [w.issue_number for w in listed] == [3, 1]
+        assert store.list_watching_ci(0) == []
+
+    def test_a_watching_issue_is_busy(self, store: SQLiteStore) -> None:
+        self._watch(store)
+        assert self._KEY in store.list_busy_issue_keys()
+
+        store.update_ci_watch(*self._KEY, head_sha="sha1", state="passed")
+        assert self._KEY not in store.list_busy_issue_keys()
+
+    def test_finished_work_cleanup_drops_settled_watches_only(self, store: SQLiteStore) -> None:
+        self._watch(store)
+        store.delete_finished_issue_work([self._KEY])
+        assert store.get_ci_watch(*self._KEY) is not None
+
+        store.update_ci_watch(*self._KEY, head_sha="sha1", state="passed")
+        store.delete_finished_issue_work([self._KEY])
+        assert store.get_ci_watch(*self._KEY) is None
+
+
+class TestMigrateV10:
+    """_migrate_v10 adds `ci_watch` — purely additive, idempotent."""
+
+    def test_adds_ci_watch_to_a_db_without_it(self, tmp_path) -> None:
+        db_path = str(tmp_path / "pre-v10.db")
+        s = SQLiteStore(db_path)
+        s.init()
+        tid = s.insert_task(_make_task())
+        s.conn.execute("DROP TABLE ci_watch")
+        s.conn.commit()
+        s.close()
+
+        s2 = SQLiteStore(db_path)
+        s2.init()
+        tables = {
+            r["name"] for r in s2.conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        }
+        assert "ci_watch" in tables
+        assert s2.get_task(tid) is not None
+        s2.init()  # idempotent
+        s2.close()

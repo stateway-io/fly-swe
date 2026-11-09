@@ -1567,6 +1567,14 @@ class TestShippedExampleConfig:
         assert s.retention_tasks_pr_closed == 0
         assert s.retention_tasks_aborted == 90
         assert s.retention_pr_check_max_per_cycle == 50
+        # The ci_monitor: block reaches Settings, and ships off.
+        assert s.ci_monitor_enabled is False
+        assert s.ci_monitor_poll_interval_seconds == 120
+        assert s.ci_monitor_no_ci_grace_minutes == 10
+        assert s.ci_monitor_timeout_minutes == 90
+        assert s.ci_monitor_max_per_cycle == 20
+        assert s.ci_monitor_log_max_chars == 6000
+        assert all(r.ci_monitor is None for r in s.repo_routes)
 
 
 class TestProviderInstances:
@@ -1859,3 +1867,81 @@ class TestTaskRetentionConfig:
         s2 = _SettingsIsolated(**self._BASE_KWARGS)
         assert s2.retention_tasks_pr_merged is None
         assert s2.retention_tasks_aborted == 14
+
+
+class TestCIMonitorConfig:
+    """ci_monitor.*: off by default, bounded knobs, per-repo override."""
+
+    _BASE_KWARGS = dict(PROVIDERS=github_providers(), LLM_API_KEY="k")
+
+    def test_defaults(self):
+        s = _SettingsIsolated(**self._BASE_KWARGS)
+        assert s.ci_monitor_enabled is False
+        assert s.ci_monitor_poll_interval_seconds == 120
+        assert s.ci_monitor_no_ci_grace_minutes == 10
+        assert s.ci_monitor_timeout_minutes == 90
+        assert s.ci_monitor_max_per_cycle == 20
+        assert s.ci_monitor_log_max_chars == 6000
+
+    @pytest.mark.parametrize(
+        ("alias", "value"),
+        [
+            ("CI_MONITOR_POLL_INTERVAL_SECONDS", 5),
+            ("CI_MONITOR_NO_CI_GRACE_MINUTES", 0),
+            ("CI_MONITOR_TIMEOUT_MINUTES", 0),
+            ("CI_MONITOR_MAX_PER_CYCLE", 0),
+            ("CI_MONITOR_LOG_MAX_CHARS", 100),
+        ],
+    )
+    def test_rejects_out_of_range_values(self, alias, value):
+        with pytest.raises(ValidationError):
+            _SettingsIsolated(**self._BASE_KWARGS, **{alias: value})
+
+    def test_flattened_from_yaml(self):
+        from issue_agent.config import flatten_yaml_config
+
+        flat = flatten_yaml_config(
+            {
+                "ci_monitor": {
+                    "enabled": True,
+                    "poll_interval_seconds": 60,
+                    "no_ci_grace_minutes": 5,
+                    "timeout_minutes": 30,
+                    "max_per_cycle": 3,
+                    "log_max_chars": 1000,
+                }
+            }
+        )
+        assert flat["CI_MONITOR_ENABLED"] is True
+        assert flat["CI_MONITOR_POLL_INTERVAL_SECONDS"] == 60
+        assert flat["CI_MONITOR_NO_CI_GRACE_MINUTES"] == 5
+        assert flat["CI_MONITOR_TIMEOUT_MINUTES"] == 30
+        assert flat["CI_MONITOR_MAX_PER_CYCLE"] == 3
+        assert flat["CI_MONITOR_LOG_MAX_CHARS"] == 1000
+
+    def test_absent_section_sets_nothing(self):
+        from issue_agent.config import flatten_yaml_config
+
+        assert not any(k.startswith("CI_MONITOR_") for k in flatten_yaml_config({}))
+
+    @pytest.mark.parametrize(
+        ("global_flag", "repo_flag", "expected"),
+        [
+            (False, None, False),
+            (True, None, True),
+            (False, True, True),
+            (True, False, False),
+        ],
+    )
+    def test_repo_override(self, global_flag, repo_flag, expected):
+        route = {"issues": "o/r", "provider": "github"}
+        if repo_flag is not None:
+            route["ci_monitor"] = repo_flag
+        s = _SettingsIsolated(
+            **self._BASE_KWARGS, CI_MONITOR_ENABLED=global_flag, REPO_ROUTES=[route]
+        )
+        assert s.ci_monitor_enabled_for(s.repo_routes[0]) is expected
+
+    def test_no_route_follows_the_global_flag(self):
+        s = _SettingsIsolated(**self._BASE_KWARGS, CI_MONITOR_ENABLED=True)
+        assert s.ci_monitor_enabled_for(None) is True

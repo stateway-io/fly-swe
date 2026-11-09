@@ -77,6 +77,9 @@ repos:
     draft: false
     # Labels added to the PR in addition to pr.label (below). Default: [].
     labels: []
+    # Per-repo override of ci_monitor.enabled (below): true/false forces the
+    # CI monitor on/off for this repo. Default: unset = follow the global flag.
+    # ci_monitor: true
     # Project profile of the target repo. The whole block is optional. For any
     # field left empty the agent figures it out on its own, in this order:
     # (1) an explicit value here always wins; (2) the target repo's
@@ -341,6 +344,32 @@ resume:
   reconcile_interval_minutes: 60
   # Maximum GitHub API lookups per sweep. Default: 50.
   reconcile_max_per_cycle: 50
+
+ci_monitor:
+  # After the agent opens or updates a PR, watch the forge's CI on the pushed
+  # commit. Lets the agent run only the tests that fit the machine (unit,
+  # targeted) and leave the full suite to the forge's CI:
+  #   CI passes  — the harness comments on the PR and the issue.
+  #   CI fails   — the failed checks' logs go to a new fix attempt on the same
+  #                branch and PR. Counts against resume.max_attempts and the
+  #                daily budget, like a test retry; when they run out, the
+  #                harness comments with the failure and stops.
+  #   no CI      — the harness comments on the PR that no CI was detected.
+  # Needs the GitHub App's Checks, Commit statuses and Actions read
+  # permissions. Override per repo with repos[].ci_monitor. Default: false.
+  enabled: false
+  # How often the worker checks the watched commits, in seconds. Default: 120.
+  poll_interval_seconds: 120
+  # Minutes a commit may show no check at all before the repo is taken to
+  # have no CI. Default: 10.
+  no_ci_grace_minutes: 10
+  # Minutes CI may run before the monitor gives up on the commit. Default: 90.
+  timeout_minutes: 90
+  # Maximum watched commits checked per sweep. Default: 20.
+  max_per_cycle: 20
+  # Characters of each failed check's log handed to the fix attempt (the end
+  # of the log). Default: 6000.
+  log_max_chars: 6000
 
 git:
   # History depth of the workspace clone. Default: 0.
