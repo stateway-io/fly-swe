@@ -12,6 +12,7 @@ from issue_agent.providers.base import (
     ProviderTerms,
 )
 from issue_agent.providers.github.auth import GitHubAppAuth
+from issue_agent.providers.github.ci import GitHubCIClient
 from issue_agent.providers.github.client import GitHubForgeClient
 from issue_agent.providers.github.normalize import bot_identity_from_settings
 from issue_agent.providers.github.pr import GitHubPullRequestClient
@@ -32,6 +33,7 @@ class GitHubProviderPlugin(ProviderPlugin):
         draft_mode="native",
         supports_pr_api=True,
         supports_labels=True,
+        supports_ci=True,
         auto_close_keyword="Closes",
         # GitHub rejects issue/PR bodies above 65,536 chars; leave headroom.
         max_body_length=58_000,
@@ -41,6 +43,7 @@ class GitHubProviderPlugin(ProviderPlugin):
             ref_prefix_issue="#",
             ref_prefix_pr="#",
             repo_instructions_files=[".github/copilot-instructions.md"],
+            ci="CI checks",
         ),
     )
 
@@ -100,6 +103,9 @@ class GitHubProviderPlugin(ProviderPlugin):
         return GitHubPullRequestClient(
             self._get_auth(), repo, label_agent_generated=self._label_agent_generated
         )
+
+    def ci(self, repo: str) -> GitHubCIClient:
+        return GitHubCIClient(self._get_auth(), repo)
 
     def transport(self) -> GitHubTransport:
         return GitHubTransport(self._get_auth(), self._host)

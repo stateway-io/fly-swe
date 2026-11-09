@@ -92,9 +92,9 @@ class PRState(_Frozen):
 
 
 # The verdict on one commit's CI, folded across every check/status the forge
-# reports: "pending" while anything still runs, "failure" once something
-# finished unsuccessfully, "success" when everything passed, "none" when the
-# forge reports nothing at all (the repo has no CI, or it hasn't started).
+# reports: "pending" while anything still runs; once everything finished,
+# "failure" if anything failed and "success" otherwise; "none" when the forge
+# reports nothing at all (the repo has no CI, or it hasn't started yet).
 CIState = Literal["pending", "success", "failure", "none"]
 
 
@@ -109,6 +109,8 @@ class CICheck(_Frozen):
     url: str = ""
     # Opaque to the core: what the provider needs to fetch its log.
     ref_id: str = ""
+    # A one-line description, when the forge gives one.
+    summary: str = ""
 
 
 class CIStatus(_Frozen):
