@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 from unittest.mock import MagicMock
 
+from issue_agent.providers.gitea.webhook import GiteaWebhookAdapter
 from issue_agent.providers.github.auth import GitHubAppAuth
 from issue_agent.providers.github.normalize import BotIdentity
 from issue_agent.providers.github.plugin import GitHubProviderPlugin
@@ -95,6 +96,48 @@ class GitHubKit:
         headers = {"X-GitHub-Event": event, "X-Hub-Signature-256": f"sha256={digest}"}
         if delivery_key is not None:
             headers["X-GitHub-Delivery"] = delivery_key
+        return Delivery(headers, body)
+
+
+_GITEA_FIXTURES = Path(__file__).parent / "gitea" / "fixtures"
+_GITEA_SAMPLES = {
+    "issue_opened": "issues_opened",
+    "comment": "issue_comment_created",
+    "comment_on_pr": "issue_comment_on_pull_request",
+    "own_bot_comment": "issue_comment_own_bot",
+    "labels_changed_without_trigger": "issues_label_updated_without_trigger",
+    "unsupported": "push",
+}
+
+
+class GiteaKit:
+    """Deliveries replay real captures (``gitea/fixtures``), re-signed.
+
+    ``make`` and the ``KITS`` entry arrive with the plugin (PRD-Gitea GT3);
+    until then ``adapter`` builds just the webhook port, which
+    ``gitea/test_kit.py`` runs the contract's webhook checks against.
+    """
+
+    type = "gitea"
+    reports_association = False
+    bot_login = "issue-agent"
+
+    def adapter(self, instance_id: str, secret: str) -> GiteaWebhookAdapter:
+        return GiteaWebhookAdapter(instance_id=instance_id, secret=secret, bot_login=self.bot_login)
+
+    def delivery(
+        self, sample: str, *, secret: str, delivery_key: str | None = "delivery-1"
+    ) -> Delivery:
+        fixture = _GITEA_SAMPLES[sample]
+        body = (_GITEA_FIXTURES / f"{fixture}.json").read_bytes()
+        captured = json.loads((_GITEA_FIXTURES / "headers" / f"{fixture}.json").read_text())
+        headers = {
+            "X-Gitea-Event": captured["X-Gitea-Event"],
+            "X-Gitea-Event-Type": captured["X-Gitea-Event-Type"],
+            "X-Gitea-Signature": hmac.new(secret.encode(), body, hashlib.sha256).hexdigest(),
+        }
+        if delivery_key is not None:
+            headers["X-Gitea-Delivery"] = delivery_key
         return Delivery(headers, body)
 
 
