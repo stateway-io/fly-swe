@@ -14,6 +14,7 @@ follows its structure and checklist.
 |---|---|
 | 2026-11-04 | Original version. Gitea facts come from the Gitea API/webhook documentation and prior research (`PRD.md` §9, Appendix A); the ones marked **(verify)** have not been checked against a running instance and are measured in phase GT1 before the code depends on them. |
 | 2026-11-25 | GT1 measurements against **Gitea 28.4.0 and 1.27.3** (`tests/unit/providers/gitea/fixtures/capture.py`, results in `fixtures/measurements/`). Gitea dropped the `1.` prefix with 28.0 (Sep 2026). **Q1:** "Replay" sends a **new** `X-Gitea-Delivery` with a byte-identical body ⇒ content-based `delivery_key` (§4.2). **Q2:** a label change is `X-Gitea-Event: issues`, `X-Gitea-Event-Type: issue_label`, `action: label_updated`/`label_cleared`; **`label_cleared` still carries the pre-clear labels** in `issue.labels` ⇒ the adapter forces an empty set. A comment on a PR is `issue_comment` / `pull_request_comment` and is delivered **only** with the hook's separate *Pull Request Comment* toggle. **Q3:** minimal token scopes are `write:issue` + `write:repository` + `read:organization`; `read:user` only for `GET /user`. **Q4:** a `write` collaborator gets 403 on another user's permission; repo admin gets it. **Q5:** both versions report a transient `mergeable=false` on a clean PR and a stale `true` right after a conflicting push ⇒ one read is not a verdict (§4.4). Also confirmed: `GET .../comments` ignores `limit`/`page`; `POST .../issues/{n}/labels` and `CreatePullRequestOption.labels` accept IDs, and the former also accepts names on both versions; `X-Gitea-Signature` is bare hex and is empty on a hook without a secret. Decisions: TLS via `ca_bundle_path` only, no `verify_tls` (§4.7, Q9); one `feat/gitea-provider` branch and PR for the whole PRD; `GiteaKit.make` and its `KITS` entry land with `plugin.py` in GT3. |
+| 2026-11-25 | GT1 compatibility smoke check against **Codeberg** (Forgejo `17.0.0+gitea-1.22.0`), relayed through smee.io. The repo was `samueldc/fly-swe-gitea`, the hook type was `forgejo`, and the actions were the same as the local capture. Forgejo sends `X-Forgejo-*` **and** `X-Gitea-*` with the same values. The GT1 adapter, unchanged, normalized every delivery as it does for Gitea. That covers `label_updated`, a `label_cleared` that also carries the stale labels, `issue_comment`/`pull_request_comment` with `is_pull`, and `push` → `unsupported_event`. The API facts matched too: `GET /user` returns 403 without `read:user`, comments ignore `limit`/`page`, and labels can be set by name. smee re-serializes the body, so the signature of a relayed body does not verify. Re-indenting the JSON with two spaces restores Forgejo's original bytes and the signature verifies. That is a note for local development only; the adapter always checks the raw body. The Forgejo fixtures stay out of the tests (non-goal). |
 
 ---
 
@@ -54,8 +55,8 @@ is the first new provider to exercise the full `PullRequestClient` path
 ### Non-goals
 
 - **Forgejo.** It is a hard fork with a compatible v1 API and also sends the
-  `X-Gitea-*` headers, so this plugin will probably work against it — but we
-  don't promise or test it here. A `forgejo` type (likely a thin subclass
+  `X-Gitea-*` headers, so this plugin works against it (smoke-checked on Codeberg in GT1, see the
+  revision history) — but we don't promise or test it here. A `forgejo` type (likely a thin subclass
   reading `X-Forgejo-*`) is a follow-up (§10).
 - Triggering on Gitea PR events (`pull_request`, PR review comments): out of
   scope, as in the GitHub provider. Comments on PRs are normalized with
@@ -521,7 +522,8 @@ progress bar (`docs/providers.md` § Opening the PR).
 ## 9. Out of scope, recorded for later
 
 - `forgejo` type (`X-Forgejo-*` headers, `X-Forgejo-Delivery`, otherwise the
-  same plugin).
+  same plugin). The GT1 smoke check on Codeberg (Forgejo 17) found no payload
+  or header difference that the `gitea` adapter needs to handle.
 - `upsert_comment` via `PATCH /issues/comments/{id}` (Renovate-style
   `ensureComment`), once the port grows it.
 - `ensure_webhook` through `POST /repos/{o}/{r}/hooks`.
@@ -555,3 +557,7 @@ progress bar (`docs/providers.md` § Opening the PR).
    `ca_bundle_path` only (§4.7).
 10. Should the `gitea` type accept Forgejo explicitly (reading
     `X-Forgejo-*` as an alias), or wait for a separate `forgejo` type?
+    Input from GT1: Forgejo 17 still sends `X-Gitea-*` next to
+    `X-Forgejo-*`, so no alias is needed today. The question becomes
+    pressing only if Forgejo drops the `X-Gitea-*` headers. Proposal: keep
+    the non-goal and revisit when that happens.
