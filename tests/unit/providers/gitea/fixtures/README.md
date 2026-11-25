@@ -42,7 +42,7 @@ came in on (`http://localhost:3300`).
 |---|---|
 | `issues_opened` | `issues` / `issues` / `opened` |
 | `issues_label_updated_without_trigger` | `issues` / `issue_label` / `label_updated` (labels: `wontfix`) |
-| `issues_label_updated_with_trigger` | `issues` / `issue_label` / `label_updated` (labels: `agent:fix`, `wontfix`) |
+| `issues_label_updated_with_trigger` | `issues` / `issue_label` / `label_updated` (labels: `agent-fix-please`, `wontfix`) |
 | `issues_label_cleared` | `issues` / `issue_label` / `label_cleared`. **Note:** `issue.labels` still lists the labels from *before* the clear. |
 | `issues_closed`, `issues_reopened` | `issues` / `issues` / `closed`, `reopened` |
 | `issue_comment_created` | `issue_comment` / `issue_comment` / `created` (by `maintainer`) |

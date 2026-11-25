@@ -15,8 +15,8 @@
   "pr_comment_with_issue_comment_toggle": "no delivery",
   "q1_replay": {
     "web_status": 303,
-    "original_delivery": "fdb0b4b5-c464-4d69-8fe3-cc48b8b1fc35",
-    "replayed_delivery": "f6c0cd09-c8ff-4bc6-a38c-8af5093028f6",
+    "original_delivery": "e1978a1b-5f82-4092-b423-62be8b18aae4",
+    "replayed_delivery": "876fb774-9f31-42b7-ae6e-c13dccc89d0d",
     "same_delivery": false,
     "same_body": true
   },
@@ -160,7 +160,7 @@
   "q5_mergeable": {
     "q5/clean": [
       true,
-      true,
+      false,
       true,
       true,
       true,
@@ -228,21 +228,21 @@
     ]
   },
   "signature_headers": {
-    "x-github-delivery": "fdb0b4b5-c464-4d69-8fe3-cc48b8b1fc35",
+    "x-github-delivery": "e1978a1b-5f82-4092-b423-62be8b18aae4",
     "x-github-event": "issues",
     "x-github-event-type": "issues",
     "x-github-hook-installation-target-type": "repository",
-    "x-gitea-delivery": "fdb0b4b5-c464-4d69-8fe3-cc48b8b1fc35",
+    "x-gitea-delivery": "e1978a1b-5f82-4092-b423-62be8b18aae4",
     "x-gitea-event": "issues",
     "x-gitea-event-type": "issues",
     "x-gitea-hook-installation-target-type": "repository",
-    "x-gitea-signature": "060d4ea9028fa5141abe391a12ff081a38c5b23f8dd85eba7075c69ef3a98dbe",
-    "x-gogs-delivery": "fdb0b4b5-c464-4d69-8fe3-cc48b8b1fc35",
+    "x-gitea-signature": "809ba7e1473889f2744aacf0786838cbd3aa031e2c18551c6584b7eaec065f33",
+    "x-gogs-delivery": "e1978a1b-5f82-4092-b423-62be8b18aae4",
     "x-gogs-event": "issues",
     "x-gogs-event-type": "issues",
-    "x-gogs-signature": "060d4ea9028fa5141abe391a12ff081a38c5b23f8dd85eba7075c69ef3a98dbe",
-    "x-hub-signature": "sha1=e07cbc3e6906a4fd5f2f119901bc173d562aadb2",
-    "x-hub-signature-256": "sha256=060d4ea9028fa5141abe391a12ff081a38c5b23f8dd85eba7075c69ef3a98dbe"
+    "x-gogs-signature": "809ba7e1473889f2744aacf0786838cbd3aa031e2c18551c6584b7eaec065f33",
+    "x-hub-signature": "sha1=d8030e250dc363b6f50d16fa675345d62e27cdb0",
+    "x-hub-signature-256": "sha256=809ba7e1473889f2744aacf0786838cbd3aa031e2c18551c6584b7eaec065f33"
   },
   "unsigned_hook_signature": {
     "x-gitea-signature": "",

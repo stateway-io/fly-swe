@@ -1,13 +1,13 @@
 {
   "ref": "refs/heads/agent/issue-1-fix",
   "before": "0000000000000000000000000000000000000000",
-  "after": "8843b05009c48e174d92328499c036dddf400bbd",
-  "compare_url": "https://git.example.com/team/app/compare/71e6692868768eeafcaf92322b9ebb9112a78f9d...8843b05009c48e174d92328499c036dddf400bbd",
+  "after": "fbc5575453fc35de5c84b7626202647f8e153536",
+  "compare_url": "https://git.example.com/team/app/compare/ddd55a5080fefaa4e02ecd8dae066e36b5f0e594...fbc5575453fc35de5c84b7626202647f8e153536",
   "commits": [
     {
-      "id": "8843b05009c48e174d92328499c036dddf400bbd",
+      "id": "fbc5575453fc35de5c84b7626202647f8e153536",
       "message": "capture: agent/issue-1-fix\n",
-      "url": "https://git.example.com/team/app/commit/8843b05009c48e174d92328499c036dddf400bbd",
+      "url": "https://git.example.com/team/app/commit/fbc5575453fc35de5c84b7626202647f8e153536",
       "author": {
         "name": "capture",
         "email": "capture@example.com",
@@ -19,7 +19,7 @@
         "username": ""
       },
       "verification": null,
-      "timestamp": "2026-11-25T15:48:53-03:00",
+      "timestamp": "2026-11-25T15:54:39-03:00",
       "added": [
         "fix.txt"
       ],
@@ -29,9 +29,9 @@
   ],
   "total_commits": 1,
   "head_commit": {
-    "id": "8843b05009c48e174d92328499c036dddf400bbd",
+    "id": "fbc5575453fc35de5c84b7626202647f8e153536",
     "message": "capture: agent/issue-1-fix\n",
-    "url": "https://git.example.com/team/app/commit/8843b05009c48e174d92328499c036dddf400bbd",
+    "url": "https://git.example.com/team/app/commit/fbc5575453fc35de5c84b7626202647f8e153536",
     "author": {
       "name": "capture",
       "email": "capture@example.com",
@@ -43,7 +43,7 @@
       "username": ""
     },
     "verification": null,
-    "timestamp": "2026-11-25T15:48:53-03:00",
+    "timestamp": "2026-11-25T15:54:39-03:00",
     "added": [
       "fix.txt"
     ],
@@ -65,7 +65,7 @@
       "language": "",
       "is_admin": false,
       "last_login": "0001-01-01T00:00:00Z",
-      "created": "2026-11-25T18:48:47Z",
+      "created": "2026-11-25T18:54:33Z",
       "restricted": false,
       "active": false,
       "prohibit_login": false,
@@ -105,8 +105,8 @@
     "release_counter": 0,
     "default_branch": "main",
     "archived": false,
-    "created_at": "2026-11-25T18:48:47Z",
-    "updated_at": "2026-11-25T18:48:47Z",
+    "created_at": "2026-11-25T18:54:33Z",
+    "updated_at": "2026-11-25T18:54:33Z",
     "archived_at": "1970-01-01T00:00:00Z",
     "permissions": {
       "admin": true,
@@ -163,7 +163,7 @@
     "language": "",
     "is_admin": false,
     "last_login": "0001-01-01T00:00:00Z",
-    "created": "2026-11-25T18:48:46Z",
+    "created": "2026-11-25T18:54:33Z",
     "restricted": false,
     "active": false,
     "prohibit_login": false,
@@ -189,7 +189,7 @@
     "language": "",
     "is_admin": false,
     "last_login": "0001-01-01T00:00:00Z",
-    "created": "2026-11-25T18:48:46Z",
+    "created": "2026-11-25T18:54:33Z",
     "restricted": false,
     "active": false,
     "prohibit_login": false,

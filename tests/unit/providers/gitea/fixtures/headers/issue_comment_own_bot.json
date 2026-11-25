@@ -1,17 +1,17 @@
 {
-  "X-GitHub-Delivery": "6e23e1fc-9e5b-4b14-8457-6d7c8632fe3a",
+  "X-GitHub-Delivery": "46cb6e91-2a44-44f9-9d12-1481f8ceaae2",
   "X-GitHub-Event": "issue_comment",
   "X-GitHub-Event-Type": "issue_comment",
   "X-GitHub-Hook-Installation-Target-Type": "repository",
-  "X-Gitea-Delivery": "6e23e1fc-9e5b-4b14-8457-6d7c8632fe3a",
+  "X-Gitea-Delivery": "46cb6e91-2a44-44f9-9d12-1481f8ceaae2",
   "X-Gitea-Event": "issue_comment",
   "X-Gitea-Event-Type": "issue_comment",
   "X-Gitea-Hook-Installation-Target-Type": "repository",
-  "X-Gitea-Signature": "f28682accd6a8ee87e60de1c54a8393cc6ebb21506ad4e0b8c0addceddaa7468",
-  "X-Gogs-Delivery": "6e23e1fc-9e5b-4b14-8457-6d7c8632fe3a",
+  "X-Gitea-Signature": "6e78a1936670157857f0cdbb7ec51d0876d93f0dc1a6aafef08afba44556282b",
+  "X-Gogs-Delivery": "46cb6e91-2a44-44f9-9d12-1481f8ceaae2",
   "X-Gogs-Event": "issue_comment",
   "X-Gogs-Event-Type": "issue_comment",
-  "X-Gogs-Signature": "f28682accd6a8ee87e60de1c54a8393cc6ebb21506ad4e0b8c0addceddaa7468",
-  "X-Hub-Signature": "sha1=b101be2bc73e602a4d8e2eebdff76d0a5e0e6a73",
-  "X-Hub-Signature-256": "sha256=f28682accd6a8ee87e60de1c54a8393cc6ebb21506ad4e0b8c0addceddaa7468"
+  "X-Gogs-Signature": "6e78a1936670157857f0cdbb7ec51d0876d93f0dc1a6aafef08afba44556282b",
+  "X-Hub-Signature": "sha1=ff18ec6ea47bfd471c696f36150d7b9a6e5ccfb0",
+  "X-Hub-Signature-256": "sha256=6e78a1936670157857f0cdbb7ec51d0876d93f0dc1a6aafef08afba44556282b"
 }

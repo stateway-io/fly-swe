@@ -69,7 +69,7 @@ class TestIssueRef:
         assert ref.number == payload["issue"]["number"]
         assert ref.global_id == str(payload["issue"]["id"])
         assert ref.title == "Crash when the config file is empty"
-        assert ref.labels == ["agent:fix", "wontfix"]
+        assert ref.labels == ["agent-fix-please", "wontfix"]
         assert ref.author.login == "maintainer"
         assert ref.author.association == "unknown"
         assert ref.url == payload["issue"]["html_url"]
@@ -105,9 +105,11 @@ class TestIssueRef:
 
 class TestLabels:
     def test_skips_malformed_entries(self):
-        issue = {"labels": [{"name": "bug"}, {"name": 3}, "wontfix", {}, {"name": "agent:fix"}]}
+        issue = {
+            "labels": [{"name": "bug"}, {"name": 3}, "wontfix", {}, {"name": "agent-fix-please"}]
+        }
 
-        assert label_names(issue) == ["bug", "agent:fix"]
+        assert label_names(issue) == ["bug", "agent-fix-please"]
 
     def test_not_a_list(self):
         assert label_names({"labels": {"name": "bug"}}) == []

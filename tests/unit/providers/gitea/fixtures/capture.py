@@ -183,7 +183,11 @@ def seed() -> dict[str, Any]:
     for user in (BOT, MAINTAINER):
         ok(root.put(f"/repos/{REPO}/collaborators/{user}", json={"permission": "write"}))
     labels = {}
-    for name, color in (("bug", "#ee0701"), ("agent:fix", "#0e8a16"), ("wontfix", "#cccccc")):
+    for name, color in (
+        ("bug", "#ee0701"),
+        ("agent-fix-please", "#0e8a16"),
+        ("wontfix", "#cccccc"),
+    ):
         labels[name] = ok(root.post(f"/repos/{REPO}/labels", json={"name": name, "color": color}))[
             "id"
         ]
@@ -309,7 +313,8 @@ def capture(out: Path, image: str, *, fixtures: bool = True) -> dict[str, Any]:
             "issues_label_updated_with_trigger",
             lambda: ok(
                 maint.post(
-                    f"/repos/{REPO}/issues/{n}/labels", json={"labels": [labels["agent:fix"]]}
+                    f"/repos/{REPO}/issues/{n}/labels",
+                    json={"labels": [labels["agent-fix-please"]]},
                 )
             ),
         )
