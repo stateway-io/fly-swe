@@ -13,6 +13,7 @@ follows its structure and checklist.
 | Date | Change |
 |---|---|
 | 2026-11-04 | Original version. Gitea facts come from the Gitea API/webhook documentation and prior research (`PRD.md` §9, Appendix A); the ones marked **(verify)** have not been checked against a running instance and are measured in phase GT1 before the code depends on them. |
+| 2026-11-25 | GT1 measurements against **Gitea 28.4.0 and 1.27.3** (`tests/unit/providers/gitea/fixtures/capture.py`, results in `fixtures/measurements/`). Gitea dropped the `1.` prefix with 28.0 (Sep 2026). **Q1:** "Replay" sends a **new** `X-Gitea-Delivery` with a byte-identical body ⇒ content-based `delivery_key` (§4.2). **Q2:** a label change is `X-Gitea-Event: issues`, `X-Gitea-Event-Type: issue_label`, `action: label_updated`/`label_cleared`; **`label_cleared` still carries the pre-clear labels** in `issue.labels` ⇒ the adapter forces an empty set. A comment on a PR is `issue_comment` / `pull_request_comment` and is delivered **only** with the hook's separate *Pull Request Comment* toggle. **Q3:** minimal token scopes are `write:issue` + `write:repository` + `read:organization`; `read:user` only for `GET /user`. **Q4:** a `write` collaborator gets 403 on another user's permission; repo admin gets it. **Q5:** both versions report a transient `mergeable=false` on a clean PR and a stale `true` right after a conflicting push ⇒ one read is not a verdict (§4.4). Also confirmed: `GET .../comments` ignores `limit`/`page`; `POST .../issues/{n}/labels` and `CreatePullRequestOption.labels` accept IDs, and the former also accepts names on both versions; `X-Gitea-Signature` is bare hex and is empty on a hook without a secret. Decisions: TLS via `ca_bundle_path` only, no `verify_tls` (§4.7, Q9); one `feat/gitea-provider` branch and PR for the whole PRD; `GiteaKit.make` and its `KITS` entry land with `plugin.py` in GT3. |
 
 ---
 
@@ -83,7 +84,9 @@ is the first new provider to exercise the full `PullRequestClient` path
 
 ## 3. Gitea facts
 
-Target: the Gitea 1.2x line (minimum version is an open question, §10). The
+Target: Gitea 1.27 and 28 — Gitea dropped the `1.` prefix with 28.0
+(September 2026), so 28 is the release after 1.27. Both were measured in
+GT1; the minimum supported version is still an open question (§10). The
 API lives at `{host}/api/v1` and is documented by the instance's own Swagger
 (`{host}/api/swagger`).
 
@@ -93,20 +96,25 @@ API lives at `{host}/api/v1` and is documented by the instance's own Swagger
 |---|---|---|
 | Repo | `GET /repos/{owner}/{repo}` | `default_branch`, `clone_url`, `html_url`, `full_name` |
 | Issue | `GET /repos/{o}/{r}/issues/{index}` | `state`, `labels`, `html_url`, `pull_request` (non-null when it is a PR) |
-| Issue comments | `GET, POST /repos/{o}/{r}/issues/{index}/comments` | `GET` takes `since`/`before` but **no `limit`/`page`** **(verify)** — the client fetches and keeps the last `limit` |
+| Issue comments | `GET, POST /repos/{o}/{r}/issues/{index}/comments` | `GET` takes `since`/`before` but **no `limit`/`page`** (measured: `limit=1` still returns every comment) — the client fetches and keeps the last `limit` |
 | Edit comment | `PATCH /repos/{o}/{r}/issues/comments/{id}` | Available for a future `upsert_comment` |
-| Issue labels | `POST /repos/{o}/{r}/issues/{index}/labels` `{"labels": [...]}` | Recent versions accept names as well as IDs **(verify)**; the plugin resolves names → IDs to work on any 1.2x |
+| Issue labels | `POST /repos/{o}/{r}/issues/{index}/labels` `{"labels": [...]}` | Accepts names as well as IDs on 1.27 and 28 (measured); the plugin still resolves names → IDs, which `CreatePullRequestOption.labels` needs anyway, and to skip unknown names instead of failing the call |
 | Repo labels | `GET /repos/{o}/{r}/labels` | Paginated (`page`, `limit`) |
 | Org labels | `GET /orgs/{org}/labels` | Org-level labels apply to org repos; the name → ID map must include them |
 | Pulls | `GET /repos/{o}/{r}/pulls?state=open`, `POST /repos/{o}/{r}/pulls`, `GET /repos/{o}/{r}/pulls/{index}` | `CreatePullRequestOption`: `head`, `base`, `title`, `body`, `labels` (**IDs**), `assignees`; **no `draft` field** |
-| PR by branches | `GET /repos/{o}/{r}/pulls/{base}/{head}` | Newer versions only **(verify)**; `find_open_pr` uses the list endpoint so it works everywhere |
-| Permission | `GET /repos/{o}/{r}/collaborators/{user}/permission` | `permission`: `owner`/`admin`/`write`/`read`/`none`. Querying **another** user needs repo admin (or site admin) **(verify)** |
+| PR by branches | `GET /repos/{o}/{r}/pulls/{base}/{head}` | Newer versions only (not measured — nothing depends on it); `find_open_pr` uses the list endpoint so it works everywhere |
+| Permission | `GET /repos/{o}/{r}/collaborators/{user}/permission` | `permission`: `owner`/`admin`/`write`/`read`/`none`. Querying **another** user needs repo admin (or site admin) — measured: a `write` collaborator gets 403, an admin gets the answer (a non-collaborator reads as `read` on a public repo) |
 | Current user | `GET /user` | Bot login; used only by the opt-in e2e and diagnostics, never by `health_check` |
 
 API authentication: `Authorization: token <access-token>`. Tokens are
-**scoped** (Gitea ≥ 1.19): the bot needs `write:issue` and `write:repository`
-(PRs, labels, git push over HTTP), plus `read:user` and `read:organization`
-for identity and org labels **(verify the exact minimal set in GT1)**.
+**scoped** (Gitea ≥ 1.19). Measured minimal set:
+
+| Scope | Needed for |
+|---|---|
+| `write:issue` | issue read, comments, issue labels, repo labels |
+| `write:repository` | `GET /repos/{o}/{r}`, pulls (list/create), permission endpoint, git push over HTTP |
+| `read:organization` | org labels (`GET /orgs/{org}/labels`) |
+| `read:user` | only `GET /user` (opt-in e2e and diagnostics) — optional |
 
 Indexes: issues and PRs **share one index per repo**, so a PR's comments go
 through `/issues/{index}/comments` and `#N` can point at either.
@@ -120,23 +128,31 @@ through `/issues/{index}/comments` and `#N` can point at either.
   (`/webhooks/{instance_id}`); the adapter reads only `X-Gitea-*`.
 - **Signature.** `X-Gitea-Signature` is the hex HMAC-SHA256 of the raw body
   with the webhook secret, **no `sha256=` prefix**. With no secret on the
-  hook, the signature is empty — verification fails closed.
+  hook, the signature is empty — verification fails closed. (Both measured.)
 - **Delivery id.** `X-Gitea-Delivery` is the UUID of the hook task. The UI's
-  "Replay" creates a **new** hook task, which is believed to carry a new UUID
-  **(verify)** — see §4.2 for the content-based fallback.
+  "Replay" creates a **new** hook task with a **new** UUID and a
+  byte-identical body (measured on 1.27.3 and 28.4.0) — hence the
+  content-based key in §4.2.
 - **Event vs. event type.** `X-Gitea-Event` carries the coarse event
   (`issues`, `issue_comment`, `pull_request`, ...), and `X-Gitea-Event-Type`
   the fine one (`issue_label`, `issue_assign`, `pull_request_comment`, ...).
-  A label change arrives as `X-Gitea-Event: issues`, `X-Gitea-Event-Type:
-  issue_label`, `action: label_updated` **(verify)**. The adapter maps on
+  Measured: a label change arrives as `X-Gitea-Event: issues`,
+  `X-Gitea-Event-Type: issue_label`, `action: label_updated` (or
+  `label_cleared` when every label is removed). The adapter maps on
   `(X-Gitea-Event, action)` and logs both.
 - **Hook event toggles.** In the "custom events" UI, *Issues*, *Issue Label*
   and *Issue Comment* are separate checkboxes; the runbook tells the operator
-  to enable all three.
+  to enable all three. A comment on a PR is a fourth toggle, *Pull Request
+  Comment*: without it Gitea does not deliver PR comments at all (measured),
+  and with it they arrive as `X-Gitea-Event: issue_comment`,
+  `X-Gitea-Event-Type: pull_request_comment`. The core ignores PR comments,
+  so the runbook leaves it off; the adapter still marks them `target_kind="pr"`.
 - **`IssuePayload`:** `action`, `number`, `changes`, `issue`, `repository`,
   `sender`. Actions include `opened`, `closed`, `reopened`, `edited`,
   `label_updated`, `label_cleared`, `assigned`, `milestoned`, ... **No label
-  diff:** `issue.labels` is the current set.
+  diff:** `issue.labels` is the current set — except on `label_cleared`,
+  where it still lists the labels from **before** the clear (measured on
+  both versions).
 - **`IssueCommentPayload`:** `action` (`created`/`edited`/`deleted`),
   `issue`, `comment`, `changes`, `repository`, `sender`, `is_pull`. A comment
   on a PR comes as `X-Gitea-Event: issue_comment` with `is_pull: true` and
@@ -156,7 +172,8 @@ through `/issues/{index}/comments` and `#N` can point at either.
   both lists per instance (§8, risk 4).
 - **Body size:** issue/comment bodies are `LONGTEXT`-class columns with no
   documented API limit; a reverse proxy's request-size limit is the usual
-  bound **(verify)**.
+  bound (not measured in GT1; the conservative
+  `max_body_length` in §4.1 stands, see §10 Q7).
 
 ### 3.4 Ecosystem
 
@@ -209,12 +226,15 @@ only needs `webhook`), as `docs/providers.md` recommends.
   `hmac.new(secret, body, sha256).hexdigest()` with `hmac.compare_digest`
   (lower-cased). Anything missing ⇒ `WebhookRejectedError` with
   `mark_reason=None`. `X-Hub-Signature-256` is ignored.
-- **`delivery_key`:** `X-Gitea-Delivery`. Missing ⇒ `WebhookRejectedError`
-  (no `mark_reason`). If GT1 confirms that "Replay" issues a new UUID, the key
-  becomes content-based:
-  `sha256(event + action + repo + number + comment.id|issue.updated_at)`, so a
-  replayed delivery is a duplicate. The choice is recorded in the module
-  docstring.
+- **`delivery_key`:** content-based, since "Replay" issues a new UUID with
+  the same body (§3.2): `sha256(X-Gitea-Event + X-Gitea-Event-Type + raw
+  body)`, so a replayed delivery is a duplicate. Hashing the raw bytes needs
+  no parsing, so the key is computed before the signature check without
+  raising on a malformed body. Two distinct events always differ in the body
+  (`issue.updated_at`, labels, `comment.id`); two identical bodies describe
+  the same state, so collapsing them is harmless. `X-Gitea-Delivery` is
+  still required — missing ⇒ `WebhookRejectedError` (no `mark_reason`) — and
+  logged next to the key. The choice is recorded in the module docstring.
 - **`event_name`:** `X-Gitea-Event` (with `X-Gitea-Event-Type` in the log
   line when different).
 - **`parse_event`:** normalizes only; `policy/ingestion.py` decides.
@@ -222,12 +242,13 @@ only needs `webhook`), as `docs/providers.md` recommends.
 | `X-Gitea-Event` / `action` | Result | Normalization |
 |---|---|---|
 | `issues` / `opened` | `TriggerEvent(kind=issue_opened)` | — |
-| `issues` / `label_updated`, `label_cleared` | `TriggerEvent(kind=label_added)` | `IssueRef.labels` = current set (empty on `label_cleared`); the core decides from the set |
+| `issues` / `label_updated`, `label_cleared` | `TriggerEvent(kind=label_added)` | `IssueRef.labels` = current set; **forced empty on `label_cleared`**, whose payload still lists the old labels (§3.2); the core decides from the set |
 | `issues` / `closed`, `reopened` | `issue_closed`, `issue_reopened` | `state` from `issue.state` |
 | `issue_comment` / `created` | `TriggerEvent(kind=comment_command)` | `target_kind="pr"` when `is_pull` or `issue.pull_request`; `trigger_comment` filled |
 | `issues` / other actions, `issue_comment` / `edited`, `deleted` | `Ignored(reason=..., repo=...)` | Unsupported action |
 | any other event (`push`, `pull_request`, ...) | `Ignored(reason=..., repo=...)` | Unsupported event |
-| invalid JSON / missing `issue` or `repository` | `WebhookRejectedError(mark_reason="malformed")` | Authentic but unusable |
+| invalid JSON | `WebhookRejectedError(mark_reason="invalid_json")` | Authentic but unusable |
+| not an object / missing `issue` or `repository` | `WebhookRejectedError(mark_reason="invalid_payload")` | Same reasons as the GitHub adapter |
 
   - `Author.association = "unknown"`; `Author.is_self = (login.lower() ==
     bot_login.lower())`; a `sender.type`/`is_bot` hint is not relied upon.
@@ -259,7 +280,7 @@ path and status only.
 | `find_open_pr(branch)` | `GET /repos/{repo}/pulls?state=open` (paginated) → the one with `head.ref == branch` and `head.repo.full_name == repo` (same-repo branches only) → `PRRef(number, html_url, head.ref)` |
 | `create_pr(head, base, title, body, draft, labels)` | title = `"WIP: " + title` when `draft`; label names → IDs (as in `add_labels`; missing ⇒ skipped with a log); `POST /repos/{repo}/pulls` → `PRRef` |
 | `comment_on_pr(pr, body)` | `POST /repos/{repo}/issues/{pr.number}/comments` → `html_url` |
-| `pr_has_conflicts(pr, head_sha)` | `GET /repos/{repo}/pulls/{n}`; `None` unless `head.sha == head_sha`; then `mergeable is False` ⇒ `True`, `True` ⇒ `False`. Gitea computes mergeability in the background and may report `mergeable=false` while still checking **(verify)** — if so, return `None` until the status is final (the core acts only on a definite `True`) |
+| `pr_has_conflicts(pr, head_sha)` | `GET /repos/{repo}/pulls/{n}`; `None` unless `head.sha == head_sha`. Gitea computes mergeability in the background and the API exposes no "checking" state. Measured on both versions: a clean PR read `mergeable=false` for up to ~1.5 s after creation, and a PR read a stale `true` for ~0.2 s after a conflicting push. So **one read is not a verdict**: GT3 returns `True` only when `mergeable is False` holds across reads spread over a few seconds, `False` when `True` holds likewise, and `None` otherwise (the core acts only on a definite `True` and falls back to `git merge-tree`) |
 
 ### 4.5 `GitTransport`
 
@@ -271,7 +292,7 @@ path and status only.
 | `compare_url(repo, base, head)` | `{host}/{repo}/compare/{base}...{head}` (branch names URL-quoted) |
 | `format_ref(kind, n, repo, from_repo)` | `#n` when `repo == from_repo`, else `owner/repo#n` (same for issues and PRs) |
 | `closing_reference(issue_repo, n, target_repo)` | `Closes #n`, or `Closes owner/repo#n` across repos — Gitea resolves cross-repo keywords on the same instance |
-| `default_commit_email(name)` | `{name}@noreply.{hostname}` (Gitea's default `NO_REPLY_ADDRESS` shape); `git_identity.user_email` overrides it |
+| `default_commit_email(name)` | `{name}@noreply.{hostname}` (Gitea's default `NO_REPLY_ADDRESS` domain; Gitea itself renders a user's private address as `{id}+{login}@noreply.{hostname}`, observed in GT1 payloads); `git_identity.user_email` overrides it |
 
 `host` may carry a subpath (`https://example.com/git`); every URL above is
 built from it, and the `extraHeader` key uses it as the prefix.
@@ -280,7 +301,9 @@ built from it, and the `extraHeader` key uses it as the prefix.
 
 - A **bot user account** on Gitea (a regular user; Gitea has no app
   installation model), added as a collaborator with **write** access on the
-  issues and target repos — or to an org team with write access.
+  issues and target repos — or to an org team with write access. Gitea 28
+  adds dedicated **bot accounts** (token-only, no interactive login, no
+  notifications), the better fit there; the runbook (GT5) documents both.
 - A **scoped access token** for that account (§3.1). It does not expire
   unless the operator sets an expiry; the client does not refresh it. 401
   becomes a terminal failure with an alert.
@@ -299,7 +322,7 @@ class GiteaProviderSettings(ProviderSettingsBase):
     host: str = ""                              # required; scheme required, trailing slash stripped
     bot_login: str = ""                         # required
     author_permission: Literal["allowlist", "api"] = "allowlist"
-    verify_tls: bool = True                     # self-hosted instances with a private CA
+    ca_bundle_path: str = ""                    # self-hosted instances with a private CA
     request_timeout_seconds: float = 30.0
     token: str = ""
     webhook_secret: str = ""
@@ -311,9 +334,10 @@ class GiteaProviderSettings(ProviderSettingsBase):
 
 - `host` is validated like the GitHub one (scheme required, trailing slash
   dropped). There is no sensible default for a self-hosted forge.
-- `verify_tls: false` must log a warning at load time and be reported by
-  `health_check` as `"warning: TLS verification disabled"` (does not flip
-  `ok`). A path to a CA bundle is preferable; see §10.
+- `ca_bundle_path` (non-secret, e.g. a PEM on the volume) is the CA bundle
+  the HTTP client verifies the instance against; empty ⇒ the system store.
+  There is deliberately **no** switch to disable TLS verification (§10 Q9).
+  `health_check` reports a bundle path that doesn't exist.
 - The module imports only pydantic and `providers.base` — no `httpx`.
 
 Example (`config.yaml.example`):
@@ -341,7 +365,8 @@ From config only, no network, never raises:
 - `config`: `"ok"` or `"missing: providers.<id>.host, providers.<id>.bot_login,
   PROVIDERS__<ID>__TOKEN, PROVIDERS__<ID>__WEBHOOK_SECRET"` (only the missing
   ones).
-- `tls`: `"warning: ..."` when `verify_tls` is false.
+- `tls`: `"ok"`, or `"missing: providers.<id>.ca_bundle_path (<path>)"` when
+  the configured bundle doesn't exist (a local file check, no network).
 - `author_permission`: `"warning: api mode needs the bot to be repo admin"`
   when `mode=api` (informational).
 
@@ -376,15 +401,17 @@ The runbook documents both modes and the trade-off of granting admin.
 
 ## 5. Implementation phases
 
-Each phase is one atomic PR on a `feat/gitea-provider*` branch, following
-`AGENTS.md` and `CONTRIBUTING.md` (Conventional Commits, ruff + pytest green,
-coverage ≥ the floor, minor version bump as its own commit, `uv lock`).
+All phases land on **one** `feat/gitea-provider` branch and one PR, each
+phase as a block of atomic commits, following `AGENTS.md` and
+`CONTRIBUTING.md` (Conventional Commits, ruff + pytest green on every
+commit, coverage ≥ the floor). The minor version bump (`uv lock` after) is
+one commit at the end.
 
 | Phase | Deliverable | Tests |
 |---|---|---|
-| **GT1** — Settings + webhook + kit | `settings.py`, `webhook.py`, `normalize.py`; real fixtures captured from a Gitea container (§6); measurement of every **(verify)** item in §3 — delivery UUID on replay, label-event headers, token scopes, permission endpoint rights, mergeability while checking — recorded in this PRD's revision history; settings union entry; `GiteaKit` with `make` stubbing the HTTP layer | `test_settings.py`, `test_webhook.py`, `test_signature.py` |
+| **GT1** — Settings + webhook + kit | `settings.py`, `webhook.py`, `normalize.py`; real fixtures captured from a Gitea container (§6); measurement of every **(verify)** item in §3 — delivery UUID on replay, label-event headers, token scopes, permission endpoint rights, mergeability while checking — recorded in this PRD's revision history; settings union entry; `GiteaKit.delivery` (its `make` needs the plugin, so it lands in GT3) | `test_settings.py`, `test_normalize.py`, `test_webhook.py`, `test_signature.py`, `test_kit.py` (the contract's webhook checks against the adapter until GT3) |
 | **GT2** — Client + transport | `api.py`, `client.py`, `transport.py` | `test_client.py` with `httpx.MockTransport` (pagination, org labels, 401/404/5xx, permission mapping); `test_transport.py` (custom host, subpath, cross-repo refs) |
-| **GT3** — PRs + registration | `pr.py`, `plugin.py`; entry in `BUILTIN_PROVIDER_TYPES` | `test_pr_ops.py` (WIP prefix, label IDs, find by head, conflicts `None`/`True`/`False`), `test_plugin.py` (health checks); conformance suite green for `gitea` |
+| **GT3** — PRs + registration | `pr.py`, `plugin.py`; entry in `BUILTIN_PROVIDER_TYPES`; `GiteaKit.make` with an injected `httpx.MockTransport` and its `KITS` entry (`test_kit.py` goes) | `test_pr_ops.py` (WIP prefix, label IDs, find by head, conflicts `None`/`True`/`False`), `test_plugin.py` (health checks); conformance suite green for `gitea` |
 | **GT4** — Opt-in e2e | `gitea/gitea:<pinned>` container, set up via the API (admin, bot user, scoped token, repo, labels, webhook) + fake LLM | `tests/e2e/test_gitea_flow.py`: label → PR `WIP:` with `Closes #N` → comment on the issue; follow-up command reuses the branch and PR |
 | **GT5** — Docs | `docs/operations.md` (Gitea setup: bot user, token scopes, webhook events, author modes, secrets), `config.yaml.example`, `.env.example`, `README.md`, `AGENTS.md` (Provider plugins), `PRD.md` §9 (point to this PRD) | — |
 
@@ -419,9 +446,10 @@ progress bar (`docs/providers.md` § Opening the PR).
     exercises "missing key" by omitting `X-Gitea-Delivery` — the adapter
     rejects a delivery without it even when the key is derived from content.
 - **Fixtures.** Real payloads under
-  `tests/unit/providers/gitea/fixtures/*.json`, captured from the GT4
-  container image, trimmed of anything personal, with the Gitea version in
-  a `README` next to them.
+  `tests/unit/providers/gitea/fixtures/*.json`, captured by `capture.py`
+  from a `gitea/gitea:28.4.0` container seeded with synthetic data (nothing
+  personal to trim), with the version and the regeneration command in a
+  `README` next to them.
 - **Unit.** `tests/unit/providers/gitea/` mirrors the GitHub layout. No
   network: `httpx.MockTransport`.
 - **Config.** Production-like tests use a settings subclass that nullifies
@@ -477,10 +505,10 @@ progress bar (`docs/providers.md` § Opening the PR).
 | 2 | Spoofing via `X-GitHub-*`/`X-Hub-Signature-256` | Provider chosen by path; adapter reads only `X-Gitea-*` |
 | 3 | Labels by ID, and labels may live at org level | Name → ID map from repo + org labels; missing label ⇒ log and skip; never create labels |
 | 4 | Operator changed `WORK_IN_PROGRESS_PREFIXES` or `CLOSE_KEYWORDS` in `app.ini` | Document the defaults we rely on; if demand appears, make `draft_prefix`/`auto_close_keyword` configurable — that needs a port change (capabilities are class-level), so it goes through an issue first |
-| 5 | `mergeable=false` while Gitea is still checking ⇒ false conflict | Return `None` until status is final (GT1 measures); core falls back to `git merge-tree` |
+| 5 | `mergeable=false` while Gitea is still checking ⇒ false conflict (**confirmed** on 1.27.3 and 28.4.0, along with a stale `true`) | Never trust one read: require agreeing reads over a few seconds, else `None` (§4.4); core falls back to `git merge-tree` |
 | 6 | Bot needs repo admin for `api` author mode | `allowlist` is the default; `api` is opt-in and documented |
 | 7 | Payload and API drift between Gitea versions | Versioned fixtures; pinned e2e image; minimum version documented |
-| 8 | Self-signed TLS on self-hosted instances | `verify_tls` (warned) now, CA bundle path preferred (§10) |
+| 8 | Self-signed TLS on self-hosted instances | `ca_bundle_path`; no switch to disable verification (§4.7) |
 | 9 | Over-scoped token | Document the minimal scopes; one token per instance, env only |
 | 10 | Forgejo users try the `gitea` type | Not promised (non-goal); note in the runbook; `forgejo` type tracked as follow-up |
 
@@ -499,23 +527,27 @@ progress bar (`docs/providers.md` § Opening the PR).
 
 ## 10. Open questions
 
-1. Does Gitea's "Replay" reuse `X-Gitea-Delivery`? (GT1)
-2. Exact headers and `action` for a label change — `X-Gitea-Event: issues`
-   with `X-Gitea-Event-Type: issue_label` and `action: label_updated`? (GT1)
-3. Minimal token scope set for issues, labels, PRs, org labels and git push
-   over HTTP. (GT1)
-4. Can a write-only bot query `/collaborators/{user}/permission` for others,
-   or is admin required? (GT1)
-5. Does `mergeable` read `false` while the conflict check is pending? (GT1)
-6. Minimum supported Gitea version, and the e2e image tag to pin. Proposal:
-   the oldest release still receiving security fixes at GT4 time.
+1. ~~Does Gitea's "Replay" reuse `X-Gitea-Delivery`?~~ **No** — new UUID,
+   same body; content-based key (§4.2). (GT1)
+2. ~~Exact headers and `action` for a label change?~~ **Yes** as guessed:
+   `issues` / `issue_label` / `label_updated` (and `label_cleared`, with
+   stale labels). (GT1)
+3. ~~Minimal token scope set?~~ `write:issue`, `write:repository`,
+   `read:organization` (+ `read:user` for `GET /user` only) (§3.1). (GT1)
+4. ~~Can a write-only bot query others' permission?~~ **No** (403); repo
+   admin is required. (GT1)
+5. ~~Does `mergeable` read `false` while pending?~~ **Yes**, and it can read
+   a stale `true` after a conflicting push (§4.4). (GT1)
+6. Minimum supported Gitea version, and the e2e image tag to pin. GT1
+   measured 1.27.3 and 28.4.0 with identical results except `mergeable`
+   timing (28 adds a `type` field to user objects). Proposal: support 1.27+,
+   pin `gitea/gitea:28.4.0` for the e2e.
 7. `max_body_length`: keep `65_000` or raise toward the `~1,000,000` the
    providers PRD noted? Depends on DB column types and typical proxy limits.
 8. `terms.repo_instructions_files`: `[]` (generic `AGENTS.md`/`CLAUDE.md`
    only) or also `.gitea/copilot-instructions.md`? Proposal: `[]` — Gitea
    has no such convention.
-9. `verify_tls: bool` vs. a `ca_bundle_path` setting (non-secret, path on
-   the volume). Proposal: ship `ca_bundle_path` only, if the target
-   instance needs it.
+9. ~~`verify_tls: bool` vs. a `ca_bundle_path` setting?~~ **Decided:**
+   `ca_bundle_path` only (§4.7).
 10. Should the `gitea` type accept Forgejo explicitly (reading
     `X-Forgejo-*` as an alias), or wait for a separate `forgejo` type?
