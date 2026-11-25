@@ -183,6 +183,22 @@ class GiteaAPI:
         self._labels.put(repo, names)
         return names
 
+    def label_ids(self, repo: str, names: list[str]) -> list[int]:
+        """IDs for ``names`` on ``repo``, in order, re-reading the label list
+        once if a name is missing (it may have been created since the cache
+        was filled). A name that still isn't there is logged and skipped —
+        the service never creates labels in someone's repo."""
+        known = self.labels(repo)
+        if any(name not in known for name in names):
+            known = self.labels(repo, refresh=True)
+        ids: list[int] = []
+        for name in names:
+            if name in known:
+                ids.append(known[name])
+            else:
+                logger.warning("gitea_label_unknown", repo=repo, label=name)
+        return ids
+
     def permission(self, repo: str, login: str) -> str | None:
         """``login``'s raw Gitea permission on ``repo`` (``owner``,
         ``admin``, ``write``, ``read``, ``none``), or None when the token may

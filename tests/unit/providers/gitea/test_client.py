@@ -9,7 +9,6 @@ from typing import Any
 
 import httpx
 import pytest
-from structlog.testing import capture_logs
 
 from issue_agent.providers.gitea.api import GiteaAPIError
 from issue_agent.providers.gitea.client import GiteaForgeClient
@@ -121,39 +120,6 @@ class TestAddLabels:
         _client(rec).add_labels(1, ["agent-generated", "bug"])
 
         assert json.loads(rec.calls("POST", ISSUE_LABELS)[0].content) == {"labels": [1, 10]}
-
-    def test_unknown_label_is_refetched_once_then_skipped_never_created(self):
-        rec = Recorder(
-            {
-                ("GET", ORG): [],
-                ("GET", REPO_LABELS): [{"id": 10, "name": "bug"}],
-                ("POST", ISSUE_LABELS): [],
-            }
-        )
-
-        with capture_logs() as logs:
-            _client(rec).add_labels(1, ["bug", "nope"])
-
-        assert len(rec.calls("GET", REPO_LABELS)) == 2
-        assert json.loads(rec.calls("POST", ISSUE_LABELS)[0].content) == {"labels": [10]}
-        assert not rec.calls("POST", REPO_LABELS)
-        assert [e["label"] for e in logs if e["event"] == "gitea_label_unknown"] == ["nope"]
-
-    def test_label_created_since_the_cache_is_found_on_refetch(self):
-        rec = Recorder(
-            {
-                ("GET", ORG): [],
-                ("GET", REPO_LABELS): [
-                    httpx.Response(200, json=[]),
-                    httpx.Response(200, json=[{"id": 5, "name": "new"}]),
-                ],
-                ("POST", ISSUE_LABELS): [],
-            }
-        )
-
-        _client(rec).add_labels(1, ["new"])
-
-        assert json.loads(rec.calls("POST", ISSUE_LABELS)[0].content) == {"labels": [5]}
 
     def test_known_labels_use_the_cache(self):
         rec = Recorder(

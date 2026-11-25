@@ -251,6 +251,45 @@ class TestLabels:
         assert len(rec.calls("GET", REPO_LABELS)) == 3
 
 
+class TestLabelIds:
+    def test_in_order_unknown_refetched_once_then_skipped(self):
+        rec = Recorder(
+            {
+                ("GET", ORG): [{"id": 1, "name": "a"}],
+                ("GET", REPO_LABELS): [{"id": 10, "name": "b"}],
+            }
+        )
+
+        with capture_logs() as logs:
+            assert _api(rec).label_ids(REPO, ["b", "nope", "a"]) == [10, 1]
+
+        assert len(rec.calls("GET", REPO_LABELS)) == 2
+        assert not rec.calls("POST", REPO_LABELS)
+        assert [e["label"] for e in logs if e["event"] == "gitea_label_unknown"] == ["nope"]
+
+    def test_label_created_since_the_cache_is_found_on_refetch(self):
+        rec = Recorder(
+            {
+                ("GET", ORG): [],
+                ("GET", REPO_LABELS): [
+                    httpx.Response(200, json=[]),
+                    httpx.Response(200, json=[{"id": 5, "name": "new"}]),
+                ],
+            }
+        )
+
+        assert _api(rec).label_ids(REPO, ["new"]) == [5]
+
+    def test_all_known_uses_the_cache(self):
+        rec = Recorder({("GET", ORG): [], ("GET", REPO_LABELS): [{"id": 10, "name": "b"}]})
+        api = _api(rec)
+
+        api.label_ids(REPO, ["b"])
+        api.label_ids(REPO, ["b"])
+
+        assert len(rec.calls("GET", REPO_LABELS)) == 1
+
+
 PERM = f"{P}/repos/{REPO}/collaborators/alice/permission"
 
 
