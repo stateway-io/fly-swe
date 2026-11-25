@@ -233,10 +233,13 @@ only needs `webhook`), as `docs/providers.md` recommends.
   raising on a malformed body. Two distinct events always differ in the body
   (`issue.updated_at`, labels, `comment.id`); two identical bodies describe
   the same state, so collapsing them is harmless. `X-Gitea-Delivery` is
-  still required — missing ⇒ `WebhookRejectedError` (no `mark_reason`) — and
-  logged next to the key. The choice is recorded in the module docstring.
-- **`event_name`:** `X-Gitea-Event` (with `X-Gitea-Event-Type` in the log
-  line when different).
+  still required — missing ⇒ `WebhookRejectedError` (no `mark_reason`). The
+  key is `gitea-<hex>`; the dispatcher logs it as the delivery id, and
+  `event_name` shows both event headers. The choice is recorded in the
+  module docstring.
+- **`event_name`:** `X-Gitea-Event`, with `/X-Gitea-Event-Type` appended
+  when different (`issues/issue_label`, `issue_comment/pull_request_comment`)
+  — it is what the dispatcher logs and records.
 - **`parse_event`:** normalizes only; `policy/ingestion.py` decides.
 
 | `X-Gitea-Event` / `action` | Result | Normalization |
@@ -344,7 +347,8 @@ Example (`config.yaml.example`):
 
 ```yaml
 providers:
-  gitea-corp:                          # → POST /webhooks/gitea-corp
+  gitea_corp:                          # → POST /webhooks/gitea_corp
+                                       # (no '-': env can't name it, #26)
     type: gitea
     host: https://git.example.com      # API at {host}/api/v1
     bot_login: issue-agent
@@ -352,7 +356,7 @@ providers:
 repos:
   - issues: team/app
     target: team/app
-    provider: gitea-corp
+    provider: gitea_corp
 ```
 
 Secrets, env only (`.env.example`, `docs/operations.md` § Configuration):
