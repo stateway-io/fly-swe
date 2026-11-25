@@ -5,10 +5,11 @@ to ``BUILTIN_PROVIDER_TYPES``; the modules here never import a provider SDK.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Annotated, Union
+from typing import TYPE_CHECKING, Annotated
 
 from pydantic import Field
 
+from issue_agent.providers.gitea.settings import GiteaProviderSettings
 from issue_agent.providers.github.settings import GitHubProviderSettings
 
 if TYPE_CHECKING:
@@ -16,9 +17,10 @@ if TYPE_CHECKING:
 
 SETTINGS_BY_TYPE: dict[str, type[ProviderSettingsBase]] = {
     "github": GitHubProviderSettings,
+    "gitea": GiteaProviderSettings,
 }
 
 ProviderSettings = Annotated[
-    Union[GitHubProviderSettings],  # noqa: UP007 — a union of one, for now
+    GitHubProviderSettings | GiteaProviderSettings,
     Field(discriminator="type"),
 ]
