@@ -15,6 +15,7 @@ follows its structure and checklist.
 | 2026-11-04 | Original version. Gitea facts come from the Gitea API/webhook documentation and prior research (`PRD.md` §9, Appendix A); the ones marked **(verify)** have not been checked against a running instance and are measured in phase GT1 before the code depends on them. |
 | 2026-11-25 | GT1 measurements against **Gitea 28.4.0 and 1.27.3** (`tests/unit/providers/gitea/fixtures/capture.py`, results in `fixtures/measurements/`). Gitea dropped the `1.` prefix with 28.0 (Sep 2026). **Q1:** "Replay" sends a **new** `X-Gitea-Delivery` with a byte-identical body ⇒ content-based `delivery_key` (§4.2). **Q2:** a label change is `X-Gitea-Event: issues`, `X-Gitea-Event-Type: issue_label`, `action: label_updated`/`label_cleared`; **`label_cleared` still carries the pre-clear labels** in `issue.labels` ⇒ the adapter forces an empty set. A comment on a PR is `issue_comment` / `pull_request_comment` and is delivered **only** with the hook's separate *Pull Request Comment* toggle. **Q3:** minimal token scopes are `write:issue` + `write:repository` + `read:organization`; `read:user` only for `GET /user`. **Q4:** a `write` collaborator gets 403 on another user's permission; repo admin gets it. **Q5:** both versions report a transient `mergeable=false` on a clean PR and a stale `true` right after a conflicting push ⇒ one read is not a verdict (§4.4). Also confirmed: `GET .../comments` ignores `limit`/`page`; `POST .../issues/{n}/labels` and `CreatePullRequestOption.labels` accept IDs, and the former also accepts names on both versions; `X-Gitea-Signature` is bare hex and is empty on a hook without a secret. Decisions: TLS via `ca_bundle_path` only, no `verify_tls` (§4.7, Q9); one `feat/gitea-provider` branch and PR for the whole PRD; `GiteaKit.make` and its `KITS` entry land with `plugin.py` in GT3. |
 | 2026-11-25 | GT1 compatibility smoke check against **Codeberg** (Forgejo `17.0.0+gitea-1.22.0`), relayed through smee.io. The repo was `samueldc/fly-swe-gitea`, the hook type was `forgejo`, and the actions were the same as the local capture. Forgejo sends `X-Forgejo-*` **and** `X-Gitea-*` with the same values. The GT1 adapter, unchanged, normalized every delivery as it does for Gitea. That covers `label_updated`, a `label_cleared` that also carries the stale labels, `issue_comment`/`pull_request_comment` with `is_pull`, and `push` → `unsupported_event`. The API facts matched too: `GET /user` returns 403 without `read:user`, comments ignore `limit`/`page`, and labels can be set by name. smee re-serializes the body, so the signature of a relayed body does not verify. Re-indenting the JSON with two spaces restores Forgejo's original bytes and the signature verifies. That is a note for local development only; the adapter always checks the raw body. The Forgejo fixtures stay out of the tests (non-goal). |
+| 2026-11-25 | GT2 (`api.py`, `client.py`, `transport.py`). Checked live against Gitea 28.4.0 with the minimal-scope token: comments, labels by ID (repo + org, an unknown label skipped and not created), permission 403 as a write bot and mapped as admin, `git clone`/`push` through `git_auth_env`, `pr_url`/`compare_url`. Decisions: the caches live on one shared `GiteaAPI` per instance, not per client, because the core builds a client on every use (§4.3). `ca_bundle_path` is **added** to the default store and also given to git as `http.<host>/.sslCAInfo` (§4.5). Redirects are not followed, so the token never reaches another host. The error types are `GiteaAuthError` (401/403), `GiteaNotFoundError` (404) and `GiteaAPIError`. Two gaps from ports added after this PRD: `PullRequestClient.get_pr_state` (retention, #20) is required and lands in GT3 (§4.4). `CIClient` (#21) is not implemented: `supports_ci=False` (§4.1), with commit statuses tracked in §9. |
 
 ---
 
@@ -214,6 +215,7 @@ only needs `webhook`), as `docs/providers.md` recommends.
 | `draft_prefix` | `"WIP: "` | Matches Gitea's default `WIP:` prefix |
 | `supports_pr_api` | `True` | `pulls()` is overridden |
 | `supports_labels` | `True` | Issue and PR labels via the API (by ID) |
+| `supports_ci` | `False` | `ci()` not implemented yet; Gitea Actions commit statuses are a follow-up (§9) |
 | `auto_close_keyword` | `"Closes"` | In Gitea's default `CLOSE_KEYWORDS` |
 | `max_body_length` | `65_000` | Conservative (§3.3, §10); truncation happens in the core |
 | `terms.issue` / `terms.pr` | `"issue"` / `"Pull Request"` | Gitea UI vocabulary |
@@ -269,13 +271,16 @@ only needs `webhook`), as `docs/providers.md` recommends.
 | `list_comments(n, limit)` | `GET /repos/{repo}/issues/{n}/comments` → last `limit`, oldest first, `association="unknown"`, `is_self` by login |
 | `post_comment(n, body)` | `POST /repos/{repo}/issues/{n}/comments` → `html_url` |
 | `get_default_branch()` | `GET /repos/{repo}` → `default_branch` |
-| `add_labels(n, labels)` | names → IDs from repo + org labels (cached per client) → `POST .../issues/{n}/labels`; an unknown name is logged and skipped — **never create labels** in the user's repo |
-| `author_permission(login)` | `mode=api`: `GET .../collaborators/{login}/permission` → `owner`→`"owner"`, `admin`/`write`→`"collaborator"`, `read`/`none`→`"none"`; 403 ⇒ `"unknown"` + warning; cached per `(repo, login)`. `mode=allowlist` (default): `"unknown"` |
+| `add_labels(n, labels)` | names → IDs from repo + org labels (cached per instance, TTL 5 min; re-read once when a name is missing) → `POST .../issues/{n}/labels`; an unknown name is logged and skipped — **never create labels** in the user's repo |
+| `author_permission(login)` | `mode=api`: `GET .../collaborators/{login}/permission` → `owner`→`"owner"`, `admin`/`write`→`"collaborator"`, `read`/`none`→`"none"`; 403 ⇒ `"unknown"` + warning; cached per `(repo, login)` on the instance, TTL 5 min. `mode=allowlist` (default): `"unknown"` |
 
 HTTP errors (`api.py`): 401/403 ⇒ credential/permission error, no retry;
 404 ⇒ missing resource; 5xx and timeouts ⇒ recoverable under the worker's
-existing retry policy. The token is never logged; request logs carry method,
-path and status only.
+existing retry policy. Redirects are not followed (a 3xx is an error), so the
+token never reaches another host. The token is never logged; request logs
+carry method, path and status only. The HTTP client and both caches live on
+one `GiteaAPI` per instance, shared by every client the plugin builds: the
+core asks for a new client on every use.
 
 ### 4.4 `PullRequestClient`
 
@@ -285,13 +290,14 @@ path and status only.
 | `create_pr(head, base, title, body, draft, labels)` | title = `"WIP: " + title` when `draft`; label names → IDs (as in `add_labels`; missing ⇒ skipped with a log); `POST /repos/{repo}/pulls` → `PRRef` |
 | `comment_on_pr(pr, body)` | `POST /repos/{repo}/issues/{pr.number}/comments` → `html_url` |
 | `pr_has_conflicts(pr, head_sha)` | `GET /repos/{repo}/pulls/{n}`; `None` unless `head.sha == head_sha`. Gitea computes mergeability in the background and the API exposes no "checking" state. Measured on both versions: a clean PR read `mergeable=false` for up to ~1.5 s after creation, and a PR read a stale `true` for ~0.2 s after a conflicting push. So **one read is not a verdict**: GT3 returns `True` only when `mergeable is False` holds across reads spread over a few seconds, `False` when `True` holds likewise, and `None` otherwise (the core acts only on a definite `True` and falls back to `git merge-tree`) |
+| `get_pr_state(n)` | `GET /repos/{repo}/pulls/{n}` → `merged` ⇒ `"merged"` at `merged_at`; else `state == "closed"` ⇒ `"closed"` at `closed_at`; else `"open"`. Raises on an API error (the retention sweep retries) |
 
 ### 4.5 `GitTransport`
 
 | Method | Value |
 |---|---|
 | `clone_url(repo)` | `{host}/{repo}.git` — no credential |
-| `git_auth_env(repo)` | `GIT_CONFIG_COUNT=1`, `GIT_CONFIG_KEY_0=http.{host}/.extraHeader`, `GIT_CONFIG_VALUE_0=Authorization: Basic base64("<bot_login>:<token>")`, `GIT_TERMINAL_PROMPT=0` — same technique as `providers/github/transport.py`; the token is never in the URL or on disk |
+| `git_auth_env(repo)` | `GIT_CONFIG_COUNT=1`, `GIT_CONFIG_KEY_0=http.{host}/.extraHeader`, `GIT_CONFIG_VALUE_0=Authorization: Basic base64("<bot_login>:<token>")`, `GIT_TERMINAL_PROMPT=0` — same technique as `providers/github/transport.py`; the token is never in the URL or on disk. With `ca_bundle_path` set, a second key `http.{host}/.sslCAInfo` (`GIT_CONFIG_COUNT=2`) gives git the same CA as the API client |
 | `pr_url(repo, n)` | `{host}/{repo}/pulls/{n}` |
 | `compare_url(repo, base, head)` | `{host}/{repo}/compare/{base}...{head}` (branch names URL-quoted) |
 | `format_ref(kind, n, repo, from_repo)` | `#n` when `repo == from_repo`, else `owner/repo#n` (same for issues and PRs) |
@@ -416,7 +422,7 @@ one commit at the end.
 |---|---|---|
 | **GT1** — Settings + webhook + kit | `settings.py`, `webhook.py`, `normalize.py`; real fixtures captured from a Gitea container (§6); measurement of every **(verify)** item in §3 — delivery UUID on replay, label-event headers, token scopes, permission endpoint rights, mergeability while checking — recorded in this PRD's revision history; settings union entry; `GiteaKit.delivery` (its `make` needs the plugin, so it lands in GT3) | `test_settings.py`, `test_normalize.py`, `test_webhook.py`, `test_signature.py`, `test_kit.py` (the contract's webhook checks against the adapter until GT3) |
 | **GT2** — Client + transport | `api.py`, `client.py`, `transport.py` | `test_client.py` with `httpx.MockTransport` (pagination, org labels, 401/404/5xx, permission mapping); `test_transport.py` (custom host, subpath, cross-repo refs) |
-| **GT3** — PRs + registration | `pr.py`, `plugin.py`; entry in `BUILTIN_PROVIDER_TYPES`; `GiteaKit.make` with an injected `httpx.MockTransport` and its `KITS` entry (`test_kit.py` goes) | `test_pr_ops.py` (WIP prefix, label IDs, find by head, conflicts `None`/`True`/`False`), `test_plugin.py` (health checks); conformance suite green for `gitea` |
+| **GT3** — PRs + registration | `pr.py` (incl. `get_pr_state`), `plugin.py`; entry in `BUILTIN_PROVIDER_TYPES`; `GiteaKit.make` with an injected `httpx.MockTransport` and its `KITS` entry (`test_kit.py` goes) | `test_pr_ops.py` (WIP prefix, label IDs, find by head, conflicts `None`/`True`/`False`), `test_plugin.py` (health checks); conformance suite green for `gitea` |
 | **GT4** — Opt-in e2e | `gitea/gitea:<pinned>` container, set up via the API (admin, bot user, scoped token, repo, labels, webhook) + fake LLM | `tests/e2e/test_gitea_flow.py`: label → PR `WIP:` with `Closes #N` → comment on the issue; follow-up command reuses the branch and PR |
 | **GT5** — Docs | `docs/operations.md` (Gitea setup: bot user, token scopes, webhook events, author modes, secrets), `config.yaml.example`, `.env.example`, `README.md`, `AGENTS.md` (Provider plugins), `PRD.md` §9 (point to this PRD) | — |
 
@@ -527,6 +533,8 @@ progress bar (`docs/providers.md` § Opening the PR).
 - `upsert_comment` via `PATCH /issues/comments/{id}` (Renovate-style
   `ensureComment`), once the port grows it.
 - `ensure_webhook` through `POST /repos/{o}/{r}/hooks`.
+- `CIClient` from Gitea Actions commit statuses
+  (`GET /repos/{o}/{r}/commits/{ref}/status`) and `supports_ci=True`.
 - Triggers on PR events and PR review comments.
 
 ---
