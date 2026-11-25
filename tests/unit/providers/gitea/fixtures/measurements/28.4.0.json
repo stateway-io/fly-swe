@@ -1,0 +1,251 @@
+{
+  "image": "gitea/gitea:28.4.0",
+  "version": "28.4.0",
+  "labels_by_name": {
+    "status": 200,
+    "body": "[{\"id\":1,\"name\":\"bug\",\"exclusive\":false,\"is_archived\":false,\"color\":\"ee0701\",\"description\":\"\",\"url\":\"https://git.example.com/api/v1/repos/team/app/labels/1\"}]"
+  },
+  "comments_paging": {
+    "all": 5,
+    "limit_1_page_1": 5
+  },
+  "pr_create_labels": [
+    "agent-generated"
+  ],
+  "pr_comment_with_issue_comment_toggle": "no delivery",
+  "q1_replay": {
+    "web_status": 303,
+    "original_delivery": "fdb0b4b5-c464-4d69-8fe3-cc48b8b1fc35",
+    "replayed_delivery": "f6c0cd09-c8ff-4bc6-a38c-8af5093028f6",
+    "same_delivery": false,
+    "same_body": true
+  },
+  "q2_label_events": {
+    "issues_label_updated_without_trigger": {
+      "event": "issues",
+      "event_type": "issue_label",
+      "action": "label_updated"
+    },
+    "issues_label_cleared": {
+      "event": "issues",
+      "event_type": "issue_label",
+      "action": "label_cleared"
+    },
+    "issues_opened": {
+      "event": "issues",
+      "event_type": "issues",
+      "action": "opened"
+    },
+    "issue_comment_on_pull_request": {
+      "event": "issue_comment",
+      "event_type": "pull_request_comment",
+      "action": "created"
+    },
+    "push": {
+      "event": "push",
+      "event_type": "push",
+      "action": null
+    }
+  },
+  "q3_scopes": {
+    "<all>": {
+      "GET repo": 200,
+      "GET issue": 200,
+      "GET comments": 200,
+      "POST comment": 201,
+      "GET repo labels": 200,
+      "GET org labels": 200,
+      "POST issue labels": 200,
+      "GET pulls": 200,
+      "GET user": 200,
+      "GET permission(self)": 200,
+      "git push": 0,
+      "POST pull": 201
+    },
+    "write:issue": {
+      "GET repo": 403,
+      "GET issue": 200,
+      "GET comments": 200,
+      "POST comment": 201,
+      "GET repo labels": 200,
+      "GET org labels": 403,
+      "POST issue labels": 200,
+      "GET pulls": 403,
+      "GET user": 403,
+      "GET permission(self)": 403,
+      "git push": 128,
+      "POST pull": 403
+    },
+    "write:repository": {
+      "GET repo": 200,
+      "GET issue": 403,
+      "GET comments": 403,
+      "POST comment": 403,
+      "GET repo labels": 403,
+      "GET org labels": 403,
+      "POST issue labels": 403,
+      "GET pulls": 200,
+      "GET user": 403,
+      "GET permission(self)": 200,
+      "git push": 0,
+      "POST pull": 201
+    },
+    "read:user": {
+      "GET repo": 403,
+      "GET issue": 403,
+      "GET comments": 403,
+      "POST comment": 403,
+      "GET repo labels": 403,
+      "GET org labels": 403,
+      "POST issue labels": 403,
+      "GET pulls": 403,
+      "GET user": 200,
+      "GET permission(self)": 403,
+      "git push": 128,
+      "POST pull": 403
+    },
+    "read:organization": {
+      "GET repo": 403,
+      "GET issue": 403,
+      "GET comments": 403,
+      "POST comment": 403,
+      "GET repo labels": 403,
+      "GET org labels": 200,
+      "POST issue labels": 403,
+      "GET pulls": 403,
+      "GET user": 403,
+      "GET permission(self)": 403,
+      "git push": 128,
+      "POST pull": 403
+    },
+    "read:issue": {
+      "GET repo": 403,
+      "GET issue": 200,
+      "GET comments": 200,
+      "POST comment": 403,
+      "GET repo labels": 200,
+      "GET org labels": 403,
+      "POST issue labels": 403,
+      "GET pulls": 403,
+      "GET user": 403,
+      "GET permission(self)": 403,
+      "git push": 128,
+      "POST pull": 403
+    },
+    "read:repository": {
+      "GET repo": 200,
+      "GET issue": 403,
+      "GET comments": 403,
+      "POST comment": 403,
+      "GET repo labels": 403,
+      "GET org labels": 403,
+      "POST issue labels": 403,
+      "GET pulls": 200,
+      "GET user": 403,
+      "GET permission(self)": 200,
+      "git push": 128,
+      "POST pull": 403
+    }
+  },
+  "q4_permission": {
+    "write bot -> maintainer": 403,
+    "write bot -> outsider": 403,
+    "write bot -> issue-agent": 200,
+    "write bot -> issue-agent permission": "write",
+    "admin bot -> maintainer": 200,
+    "admin bot -> maintainer permission": "write",
+    "admin bot -> outsider": 200,
+    "admin bot -> outsider permission": "read"
+  },
+  "q5_mergeable": {
+    "q5/clean": [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ],
+    "q5/conflict": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ],
+    "q5/clean after conflicting push": [
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "signature_headers": {
+    "x-github-delivery": "fdb0b4b5-c464-4d69-8fe3-cc48b8b1fc35",
+    "x-github-event": "issues",
+    "x-github-event-type": "issues",
+    "x-github-hook-installation-target-type": "repository",
+    "x-gitea-delivery": "fdb0b4b5-c464-4d69-8fe3-cc48b8b1fc35",
+    "x-gitea-event": "issues",
+    "x-gitea-event-type": "issues",
+    "x-gitea-hook-installation-target-type": "repository",
+    "x-gitea-signature": "060d4ea9028fa5141abe391a12ff081a38c5b23f8dd85eba7075c69ef3a98dbe",
+    "x-gogs-delivery": "fdb0b4b5-c464-4d69-8fe3-cc48b8b1fc35",
+    "x-gogs-event": "issues",
+    "x-gogs-event-type": "issues",
+    "x-gogs-signature": "060d4ea9028fa5141abe391a12ff081a38c5b23f8dd85eba7075c69ef3a98dbe",
+    "x-hub-signature": "sha1=e07cbc3e6906a4fd5f2f119901bc173d562aadb2",
+    "x-hub-signature-256": "sha256=060d4ea9028fa5141abe391a12ff081a38c5b23f8dd85eba7075c69ef3a98dbe"
+  },
+  "unsigned_hook_signature": {
+    "x-gitea-signature": "",
+    "x-hub-signature-256": "sha256="
+  }
+}
