@@ -13,6 +13,12 @@ scopes, the permission endpoint and `mergeable` over time. Measurements exist
 for 28.4.0 and for 1.27.3 (`--measure-only`). The PRD's revision history
 summarizes them.
 
+`api/pull_{open,merged,closed}.json` are `GET /repos/team/app/pulls/{n}`
+responses from the same seeded instance (`capture.py --measure-only --keep`).
+PR #2 is open, #5 was merged and #4 was closed through the API as `root`.
+`pr.py`'s tests use them for the PR shape: `head.ref`, `head.sha`,
+`head.repo.full_name`, `mergeable`, `merged`, `merged_at` and `closed_at`.
+
 ## Regenerating
 
 ```bash
