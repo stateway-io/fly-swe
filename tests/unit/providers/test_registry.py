@@ -7,6 +7,7 @@ from pydantic_settings import SettingsConfigDict
 
 from issue_agent.config import Settings
 from issue_agent.providers.base import WebhookRejectedError
+from issue_agent.providers.gitea.plugin import GiteaProviderPlugin
 from issue_agent.providers.github.plugin import GitHubProviderPlugin
 from issue_agent.providers.registry import BUILTIN_PROVIDER_TYPES, ProviderRegistry
 from tests.fakes.fake_provider import FakeProvider, FakeProviderWithCI, FakeProviderWithPulls
@@ -65,6 +66,26 @@ class TestFromSettings:
         ghe.webhook.verify_signature({"X-Hub-Signature-256": sign_payload(body, "s2")}, body)
         with pytest.raises(WebhookRejectedError):
             github.webhook.verify_signature({"X-Hub-Signature-256": sign_payload(body, "s2")}, body)
+
+    def test_github_and_gitea_side_by_side(self):
+        settings = SettingsNoEnv(
+            PROVIDERS={
+                **github_providers(app_id=1, webhook_secret="s1"),
+                "gitea_corp": {
+                    "type": "gitea",
+                    "host": "https://git.example.com",
+                    "bot_login": "issue-agent",
+                },
+            },
+            LLM_API_KEY="k",
+        )
+
+        registry = ProviderRegistry.from_settings(settings)
+        gitea = registry.get("gitea_corp")
+
+        assert isinstance(gitea, GiteaProviderPlugin)
+        assert isinstance(registry.get("github"), GitHubProviderPlugin)
+        assert gitea.transport().clone_url("o/r") == "https://git.example.com/o/r.git"
 
     def test_no_instances_is_an_empty_registry(self):
         settings = SettingsNoEnv(LLM_API_KEY="k")

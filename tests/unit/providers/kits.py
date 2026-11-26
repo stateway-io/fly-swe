@@ -17,7 +17,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 from unittest.mock import MagicMock
 
-from issue_agent.providers.gitea.webhook import GiteaWebhookAdapter
+import httpx
+
+from issue_agent.providers.gitea.plugin import GiteaProviderPlugin
+from issue_agent.providers.gitea.settings import GiteaProviderSettings
 from issue_agent.providers.github.auth import GitHubAppAuth
 from issue_agent.providers.github.normalize import BotIdentity
 from issue_agent.providers.github.plugin import GitHubProviderPlugin
@@ -111,19 +114,27 @@ _GITEA_SAMPLES = {
 
 
 class GiteaKit:
-    """Deliveries replay real captures (``gitea/fixtures``), re-signed.
-
-    ``make`` and the ``KITS`` entry arrive with the plugin (PRD-Gitea GT3);
-    until then ``adapter`` builds just the webhook port, which
-    ``gitea/test_kit.py`` runs the contract's webhook checks against.
-    """
+    """Deliveries replay real captures (``gitea/fixtures``), re-signed. The
+    plugin's API runs on a ``MockTransport`` that answers 404, so the
+    outbound ports are buildable offline."""
 
     type = "gitea"
     reports_association = False
     bot_login = "issue-agent"
 
-    def adapter(self, instance_id: str, secret: str) -> GiteaWebhookAdapter:
-        return GiteaWebhookAdapter(instance_id=instance_id, secret=secret, bot_login=self.bot_login)
+    def make(self, instance_id: str, secret: str) -> ProviderPlugin:
+        config = GiteaProviderSettings(
+            type="gitea",
+            host="https://git.example.com",
+            bot_login=self.bot_login,
+            token="gitea_kit_token",
+            webhook_secret=secret,
+        )
+        return GiteaProviderPlugin(
+            instance_id,
+            config,
+            http_transport=httpx.MockTransport(lambda request: httpx.Response(404)),
+        )
 
     def delivery(
         self, sample: str, *, secret: str, delivery_key: str | None = "delivery-1"
@@ -185,6 +196,7 @@ class FakeKit:
 
 KITS: dict[str, ProviderKit] = {
     "github": GitHubKit(),
+    "gitea": GiteaKit(),
     "fake": FakeKit(),
     "fake-no-association": FakeKit(reports_association=False),
     "fake-with-prs": FakeKit(with_pulls=True),

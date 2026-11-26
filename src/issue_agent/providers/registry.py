@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from issue_agent.providers.base import ProviderPlugin
+from issue_agent.providers.gitea.plugin import GiteaProviderPlugin
 from issue_agent.providers.github.plugin import GitHubProviderPlugin
 
 if TYPE_CHECKING:
@@ -20,6 +21,7 @@ if TYPE_CHECKING:
 
 BUILTIN_PROVIDER_TYPES: dict[str, type[ProviderPlugin]] = {
     GitHubProviderPlugin.type: GitHubProviderPlugin,
+    GiteaProviderPlugin.type: GiteaProviderPlugin,
 }
 
 
