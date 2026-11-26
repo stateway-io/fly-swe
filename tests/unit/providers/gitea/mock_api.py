@@ -22,7 +22,8 @@ def settings(**kw: Any) -> GiteaProviderSettings:
 class Recorder:
     """A MockTransport handler that answers from ``routes`` and records every
     request. A route value is a response, a JSON body (200), or a list of
-    responses consumed one per call (the last one repeats)."""
+    responses consumed one per call (the last one repeats). A JSON list body
+    carries ``X-Total-Count`` with its length, as Gitea's list endpoints do."""
 
     def __init__(self, routes: dict[tuple[str, str], Any]) -> None:
         self.routes = routes
@@ -37,6 +38,8 @@ class Recorder:
             return answer.pop(0) if len(answer) > 1 else answer[0]
         if isinstance(answer, httpx.Response):
             return answer
+        if isinstance(answer, list):
+            return httpx.Response(200, json=answer, headers={"X-Total-Count": str(len(answer))})
         return httpx.Response(200, json=answer)
 
     def calls(self, method: str, path: str) -> list[httpx.Request]:

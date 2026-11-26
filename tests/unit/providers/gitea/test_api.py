@@ -112,17 +112,25 @@ class TestRequests:
 
 
 class TestPaginate:
-    def test_walks_pages_until_a_short_one(self, monkeypatch: pytest.MonkeyPatch):
-        monkeypatch.setattr(api_module, "PAGE_SIZE", 2)
-        pages = {1: [1, 2], 2: [3, 4], 3: [5]}
+    @staticmethod
+    def _server(items: list[int], cap: int, *, total: bool = True):
+        """A list endpoint over ``items`` that clamps ``limit`` to ``cap``,
+        as Gitea does with ``[api] MAX_RESPONSE_ITEMS``."""
         seen: list[dict[str, str]] = []
 
         def handler(request: httpx.Request) -> httpx.Response:
             params = dict(request.url.params)
             seen.append(params)
-            return httpx.Response(200, json=pages[int(params["page"])])
+            size = min(int(params["limit"]), cap)
+            start = (int(params["page"]) - 1) * size
+            headers = {"X-Total-Count": str(len(items))} if total else {}
+            return httpx.Response(200, json=items[start : start + size], headers=headers)
 
-        api = GiteaAPI(settings(), transport=httpx.MockTransport(handler))
+        return GiteaAPI(settings(), transport=httpx.MockTransport(handler)), seen
+
+    def test_walks_pages_up_to_the_total(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setattr(api_module, "PAGE_SIZE", 2)
+        api, seen = self._server([1, 2, 3, 4, 5], cap=50)
 
         assert api.paginate("/l", params={"state": "open"}) == [1, 2, 3, 4, 5]
         assert seen == [
@@ -131,19 +139,44 @@ class TestPaginate:
             {"state": "open", "page": "3", "limit": "2"},
         ]
 
-    def test_empty_page_stops(self, monkeypatch: pytest.MonkeyPatch):
+    def test_a_server_cap_below_the_page_size_is_not_the_end(self):
+        # MAX_RESPONSE_ITEMS=5 on the server: every page is "short".
+        api, seen = self._server(list(range(12)), cap=5)
+
+        assert api.paginate("/l") == list(range(12))
+        assert len(seen) == 3
+
+    def test_exact_multiple_of_the_page_needs_no_extra_request(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
         monkeypatch.setattr(api_module, "PAGE_SIZE", 2)
+        api, seen = self._server([1, 2, 3, 4], cap=50)
+
+        assert api.paginate("/l") == [1, 2, 3, 4]
+        assert len(seen) == 2
+
+    def test_without_a_total_it_reads_until_an_empty_page(self):
+        api, seen = self._server(list(range(12)), cap=5, total=False)
+
+        assert api.paginate("/l") == list(range(12))
+        assert len(seen) == 4
+
+    def test_an_unparsable_total_is_ignored(self):
         rec = Recorder(
-            {("GET", f"{P}/l"): [httpx.Response(200, json=[1, 2]), httpx.Response(200, json=[])]}
+            {
+                ("GET", f"{P}/l"): [
+                    httpx.Response(200, json=[1], headers={"X-Total-Count": "lots"}),
+                    httpx.Response(200, json=[]),
+                ]
+            }
         )
 
-        assert _api(rec).paginate("/l") == [1, 2]
+        assert _api(rec).paginate("/l") == [1]
         assert len(rec.requests) == 2
 
     def test_page_cap_bounds_a_server_ignoring_page(self, monkeypatch: pytest.MonkeyPatch):
-        monkeypatch.setattr(api_module, "PAGE_SIZE", 1)
         monkeypatch.setattr(api_module, "MAX_PAGES", 3)
-        rec = Recorder({("GET", f"{P}/l"): ["same"]})
+        rec = Recorder({("GET", f"{P}/l"): [httpx.Response(200, json=["same"])]})
 
         assert _api(rec).paginate("/l") == ["same"] * 3
 

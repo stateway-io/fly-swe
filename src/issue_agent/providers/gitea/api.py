@@ -128,15 +128,24 @@ class GiteaAPI:
         return _json(self._request("PATCH", path, json=json))
 
     def paginate(self, path: str, params: dict[str, Any] | None = None) -> list[Any]:
-        """Every item of a ``page``/``limit`` list endpoint. Stops on a short
-        page; ``MAX_PAGES`` bounds a server that ignores ``page``."""
+        """Every item of a ``page``/``limit`` list endpoint.
+
+        A short page is not the end: Gitea clamps ``limit`` to the admin's
+        ``[api] MAX_RESPONSE_ITEMS``, which may be below ``PAGE_SIZE``. So it
+        stops once it holds the ``X-Total-Count`` Gitea sends on list
+        endpoints, or, without that header, on an empty page. ``MAX_PAGES``
+        bounds a server that ignores ``page``."""
         items: list[Any] = []
         for page in range(1, MAX_PAGES + 1):
-            batch = self.get(path, params={**(params or {}), "page": page, "limit": PAGE_SIZE})
+            response = self._request(
+                "GET", path, params={**(params or {}), "page": page, "limit": PAGE_SIZE}
+            )
+            batch = _json(response)
             if not isinstance(batch, list):
                 raise GiteaAPIError(200, "GET", path, "expected a list")
             items.extend(batch)
-            if len(batch) < PAGE_SIZE:
+            total = _total_count(response)
+            if not batch or (total is not None and len(items) >= total):
                 break
         return items
 
@@ -217,6 +226,11 @@ class GiteaAPI:
             value = raw.lower() if isinstance(raw, str) else None
         self._permissions.put(key, value)
         return value
+
+
+def _total_count(response: httpx.Response) -> int | None:
+    raw = response.headers.get("X-Total-Count", "")
+    return int(raw) if raw.isdigit() else None
 
 
 def _json(response: httpx.Response) -> Any:
