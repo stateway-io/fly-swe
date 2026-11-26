@@ -1,10 +1,15 @@
 """A throwaway Gitea in Docker, for the fixture capture tool and the opt-in
-e2e (PRD-Gitea GT1/GT4). Everything it creates is synthetic and local.
+e2e (PRD-Gitea §6). Everything it creates is synthetic and local.
 
 Needs Docker and git. The container reaches services on the host through
 ``host.docker.internal``; the bridge gateway IP is put in Gitea's webhook
 ``ALLOWED_HOST_LIST`` (Gitea 28 wants an explicit IP there, and 1.27 reads
 the ``[webhook]`` key — both are set).
+
+The admin password below is public, so nothing here is reachable from the
+network: Gitea's port is published on ``127.0.0.1`` only, and a webhook
+receiver binds to ``bridge_gateway()``, the one address the container can
+reach and other hosts can't.
 """
 
 from __future__ import annotations
@@ -23,6 +28,14 @@ PASSWORD = "Capture-pass-1234"  # throwaway containers only
 
 def _docker(*args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
     return subprocess.run(["docker", *args], check=check, capture_output=True, text=True)
+
+
+def bridge_gateway() -> str:
+    """The host's address on Docker's default bridge (``host.docker.internal``
+    inside the container)."""
+    return _docker(
+        "network", "inspect", "bridge", "--format", "{{(index .IPAM.Config 0).Gateway}}"
+    ).stdout.strip()
 
 
 def ok(resp: httpx.Response) -> Any:
@@ -46,9 +59,7 @@ class GiteaServer:
         """Start a fresh container (replacing one of the same name) and create
         the site admin ``root``."""
         self.stop()
-        gateway = _docker(
-            "network", "inspect", "bridge", "--format", "{{(index .IPAM.Config 0).Gateway}}"
-        ).stdout.strip()
+        gateway = bridge_gateway()
         env = {
             "GITEA__security__INSTALL_LOCK": "true",
             "GITEA__database__DB_TYPE": "sqlite3",
@@ -63,7 +74,7 @@ class GiteaServer:
             # The web login (capture's "Replay") runs over plain http.
             "GITEA__session__COOKIE_SECURE": "false",
         }
-        args = ["run", "-d", "--name", self.name, "-p", f"{self.port}:3000"]
+        args = ["run", "-d", "--name", self.name, "-p", f"127.0.0.1:{self.port}:3000"]
         args += ["--add-host", "host.docker.internal:host-gateway"]
         for k, v in env.items():
             args += ["-e", f"{k}={v}"]

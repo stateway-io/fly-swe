@@ -28,7 +28,7 @@ from typing import Any
 
 import httpx
 
-from tests.helpers.gitea_server import PASSWORD, GiteaServer, ok
+from tests.helpers.gitea_server import PASSWORD, GiteaServer, bridge_gateway, ok
 
 CONTAINER = "fly-swe-gitea-capture"
 HTTP_PORT = 3300
@@ -67,7 +67,7 @@ class _Receiver:
             def log_message(self, *args: Any) -> None:
                 pass
 
-        self._server = ThreadingHTTPServer(("0.0.0.0", RECEIVER_PORT), Handler)
+        self._server = ThreadingHTTPServer((bridge_gateway(), RECEIVER_PORT), Handler)
         threading.Thread(target=self._server.serve_forever, daemon=True).start()
 
     def count(self) -> int:

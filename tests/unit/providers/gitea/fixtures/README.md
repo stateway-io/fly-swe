@@ -27,8 +27,10 @@ uv run python -m tests.unit.providers.gitea.fixtures.capture --image gitea/gitea
 ```
 
 You need Docker and git. The script starts a throwaway container (`fly-swe-gitea-capture`
-on port 3300), receives the webhooks on port 3399 through
-`host.docker.internal`, and removes the container when it's done. Ids,
+on `127.0.0.1:3300`), receives the webhooks on port 3399 of the Docker bridge
+gateway (`host.docker.internal` inside the container), and removes the
+container when it's done. Neither is reachable from the network: the test
+password in `tests/helpers/gitea_server.py` is public. Ids,
 UUIDs, timestamps and signatures differ between runs, and the
 `mergeable` samples are timing-dependent.
 

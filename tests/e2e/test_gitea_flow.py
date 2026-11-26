@@ -1,4 +1,4 @@
-"""End to end against a real Gitea (PRD-Gitea GT4) — opt-in.
+"""End to end against a real Gitea (PRD-Gitea §6) — opt-in.
 
 A Gitea container delivers real webhooks to the service running in this
 process (the generic ``/webhooks/{instance_id}`` router behind uvicorn); the
@@ -11,7 +11,7 @@ follow-up comment then reuses the same branch and Pull Request.
 
 Needs Docker and git. ``E2E_GITEA_IMAGE`` picks the image (default
 ``gitea/gitea:28.4.0``); ``E2E_GITEA_KEEP=1`` leaves the container up
-(``http://localhost:3310``, ``root`` / the shared test password).
+(``http://localhost:3310``, local only; ``root`` / the shared test password).
 """
 
 from __future__ import annotations
@@ -38,7 +38,7 @@ from issue_agent.runner.executor import MiniSWERunner
 from issue_agent.webhook.routes import router as webhook_router
 from issue_agent.worker import run_task
 from tests.helpers.fake_model import FakeModel, _make_bash_response
-from tests.helpers.gitea_server import GiteaServer, ok
+from tests.helpers.gitea_server import GiteaServer, bridge_gateway, ok
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -67,9 +67,9 @@ class SettingsNoEnv(Settings):
     model_config = SettingsConfigDict(env_file=None, env_prefix="", extra="ignore", yaml_file=None)
 
 
-def _free_port() -> int:
+def _free_port(host: str) -> int:
     with socket.socket() as s:
-        s.bind(("", 0))
+        s.bind((host, 0))
         return s.getsockname()[1]
 
 
@@ -179,8 +179,10 @@ def service(gitea: GiteaServer, tmp_path_factory: pytest.TempPathFactory) -> Ite
         service.responses.append((event, response.status_code, body.decode()))
         return Response(body, response.status_code, dict(response.headers))
 
-    port = service.port = _free_port()
-    server = uvicorn.Server(uvicorn.Config(app, host="0.0.0.0", port=port, log_level="warning"))
+    # Reachable from the container, not from the network.
+    host = bridge_gateway()
+    port = service.port = _free_port(host)
+    server = uvicorn.Server(uvicorn.Config(app, host=host, port=port, log_level="warning"))
     thread = threading.Thread(target=server.run, daemon=True)
     with patch("issue_agent.webhook.routes.get_settings", return_value=settings):
         thread.start()
