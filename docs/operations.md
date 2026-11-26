@@ -730,7 +730,11 @@ All three event toggles are needed: a label change is its own toggle
 (*Issue Label*), separate from *Issues*. Leave **Pull Request Comment** off —
 the core ignores comments on Pull Requests anyway. Gitea sends the full label
 set on every label change, not a diff, so the label router decides on the
-issue's current labels.
+issue's current labels. One consequence differs from GitHub: removing a
+label (say `needs-info`) from an issue that still carries a trigger label
+(`bug`) also arrives as a label change, and queues a new run unless one is
+already pending or running; see
+[#27](https://github.com/stateway-io/fly-swe/issues/27).
 
 To check deliveries, open the webhook and look at **Recent Deliveries**
 (request, response and status per delivery; *Redeliver* resends one). **Test
@@ -765,6 +769,10 @@ bundle on the volume and set `providers.<id>.ca_bundle_path` (e.g.
 `/data/certs/corp-ca.pem`). It is added to the system trust store for API
 calls and given to git (`http.<host>/.sslCAInfo`). There is deliberately no
 option to turn verification off.
+
+Use an `https://` host in production. A plain `http://` host is accepted (a
+local test server, say), but then the API token and git's Basic credential
+cross the network in clear text.
 
 ### Draft Pull Requests, conflicts and CI
 

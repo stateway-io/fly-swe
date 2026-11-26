@@ -1,8 +1,8 @@
 """Gitea shape -> canonical model (PRD-Gitea §4.2).
 
 The single place that knows how Gitea spells an issue, a comment and its
-author. Shared by the webhook adapter (raw payloads) and, from GT2, the API
-client (comment history), so both produce the same ``Author``.
+author. Shared by the webhook adapter (raw payloads) and the API client
+(comment history), so both produce the same ``Author``.
 
 Gitea reports no ``author_association``: every author is ``"unknown"``
 (the worker may ask ``author_permission``), and "this service's own bot" is

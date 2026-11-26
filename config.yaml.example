@@ -58,7 +58,7 @@ providers:
   # gitea_corp:                  # → POST /webhooks/gitea_corp
   #   type: gitea
   #   # Base URL with the scheme (required); a subpath is kept. API at
-  #   # {host}/api/v1.
+  #   # {host}/api/v1. Use https: over http the token travels in clear text.
   #   host: https://git.example.com
   #   # Login of the bot user (required): its own comments are ignored by it.
   #   bot_login: issue-agent

@@ -16,11 +16,12 @@ follows its structure and checklist.
 |---|---|
 | 2026-11-04 | Original version. Gitea facts come from the Gitea API/webhook documentation and prior research (`PRD.md` §9, Appendix A); the ones marked **(verify)** have not been checked against a running instance and are measured in phase GT1 before the code depends on them. |
 | 2026-11-25 | GT1 measurements against **Gitea 28.4.0 and 1.27.3** (`tests/unit/providers/gitea/fixtures/capture.py`, results in `fixtures/measurements/`). Gitea dropped the `1.` prefix with 28.0 (Sep 2026). **Q1:** "Replay" sends a **new** `X-Gitea-Delivery` with a byte-identical body ⇒ content-based `delivery_key` (§4.2). **Q2:** a label change is `X-Gitea-Event: issues`, `X-Gitea-Event-Type: issue_label`, `action: label_updated`/`label_cleared`; **`label_cleared` still carries the pre-clear labels** in `issue.labels` ⇒ the adapter forces an empty set. A comment on a PR is `issue_comment` / `pull_request_comment` and is delivered **only** with the hook's separate *Pull Request Comment* toggle. **Q3:** minimal token scopes are `write:issue` + `write:repository` + `read:organization`; `read:user` only for `GET /user`. **Q4:** a `write` collaborator gets 403 on another user's permission; repo admin gets it. **Q5:** both versions report a transient `mergeable=false` on a clean PR and a stale `true` right after a conflicting push ⇒ one read is not a verdict (§4.4). Also confirmed: `GET .../comments` ignores `limit`/`page`; `POST .../issues/{n}/labels` and `CreatePullRequestOption.labels` accept IDs, and the former also accepts names on both versions; `X-Gitea-Signature` is bare hex and is empty on a hook without a secret. Decisions: TLS via `ca_bundle_path` only, no `verify_tls` (§4.7, Q9); one `feat/gitea-provider` branch and PR for the whole PRD; `GiteaKit.make` and its `KITS` entry land with `plugin.py` in GT3. |
-| 2026-11-25 | GT1 compatibility smoke check against **Codeberg** (Forgejo `17.0.0+gitea-1.22.0`), relayed through smee.io. The repo was `samueldc/fly-swe-gitea`, the hook type was `forgejo`, and the actions were the same as the local capture. Forgejo sends `X-Forgejo-*` **and** `X-Gitea-*` with the same values. The GT1 adapter, unchanged, normalized every delivery as it does for Gitea. That covers `label_updated`, a `label_cleared` that also carries the stale labels, `issue_comment`/`pull_request_comment` with `is_pull`, and `push` → `unsupported_event`. The API facts matched too: `GET /user` returns 403 without `read:user`, comments ignore `limit`/`page`, and labels can be set by name. smee re-serializes the body, so the signature of a relayed body does not verify. Re-indenting the JSON with two spaces restores Forgejo's original bytes and the signature verifies. That is a note for local development only; the adapter always checks the raw body. The Forgejo fixtures stay out of the tests (non-goal). |
+| 2026-11-25 | GT1 compatibility smoke check against **Codeberg** (Forgejo `17.0.0+gitea-1.22.0`), relayed through smee.io. The repo was a throwaway one, the hook type was `forgejo`, and the actions were the same as the local capture. Forgejo sends `X-Forgejo-*` **and** `X-Gitea-*` with the same values. The GT1 adapter, unchanged, normalized every delivery as it does for Gitea. That covers `label_updated`, a `label_cleared` that also carries the stale labels, `issue_comment`/`pull_request_comment` with `is_pull`, and `push` → `unsupported_event`. The API facts matched too: `GET /user` returns 403 without `read:user`, comments ignore `limit`/`page`, and labels can be set by name. smee re-serializes the body, so the signature of a relayed body does not verify. Re-indenting the JSON with two spaces restores Forgejo's original bytes and the signature verifies. That is a note for local development only; the adapter always checks the raw body. The Forgejo fixtures stay out of the tests (non-goal). |
 | 2026-11-25 | GT2 (`api.py`, `client.py`, `transport.py`). Checked live against Gitea 28.4.0 with the minimal-scope token: comments, labels by ID (repo + org, an unknown label skipped and not created), permission 403 as a write bot and mapped as admin, `git clone`/`push` through `git_auth_env`, `pr_url`/`compare_url`. Decisions: the caches live on one shared `GiteaAPI` per instance, not per client, because the core builds a client on every use (§4.3). `ca_bundle_path` is **added** to the default store and also given to git as `http.<host>/.sslCAInfo` (§4.5). Redirects are not followed, so the token never reaches another host. The error types are `GiteaAuthError` (401/403), `GiteaNotFoundError` (404) and `GiteaAPIError`. Two gaps from ports added after this PRD: `PullRequestClient.get_pr_state` (retention, #20) is required and lands in GT3 (§4.4). `CIClient` (#21) is not implemented: `supports_ci=False` (§4.1), with commit statuses tracked in §9. |
 | 2026-11-25 | GT3 (`pr.py`, `plugin.py`, registry entry, `GiteaKit.make` in `KITS`, `test_gitea_stack.py`). The conformance suite passes for `gitea`. Real fixtures were posted through `/webhooks/gitea` into the queue, with no core change: a replay with a new UUID is a duplicate, and `label_cleared` creates no task. Checked live on 28.4.0 through `plugin.pulls()`: title prefixed once, label IDs, `find_open_pr`, conflicts, and `get_pr_state` open/closed/merged. **Finding:** a WIP PR always reads `mergeable=false`, so the multi-read verdict would have reported a conflict on every agent PR. A draft/WIP PR now answers `None` and the core checks locally (§4.4). The `draft` field was measured on 28.4.0 only, and a title-prefix fallback covers versions without it. Also corrected: the core, not the plugin, applies the `WIP:` prefix (§4.4). Q8 decided (`[]`). |
 | 2026-11-25 | GT4: opt-in e2e (`tests/e2e/test_gitea_flow.py`) passes on **28.4.0 and 1.27.3** in ~26 s, with no core change (§6). It found three things. (1) `draft` is per route (`repos[].draft`, default `false`), so agent PRs are WIP only when configured; the e2e sets it, and the §4.4 wording is corrected. (2) In the PR flow the core labels the PR, not the issue, so the bot never changes the issue's labels and the "bot's own label change re-triggers" risk does not arise. (3) A human adding a non-trigger label (`wontfix`) to an issue that still has `docs` enqueues a new run, because the core decides on the current set. That is generic: GitHub's adapter also passes `issue.labels`. It is tracked as stateway-io/fly-swe#27, not fixed here. Q6 decided. `capture.py` now runs as a module (`python -m tests.unit.providers.gitea.fixtures.capture`) on the shared `GiteaServer`, with identical measurements. |
 | 2026-11-26 | GT5: docs and the 1.5.0 bump. `docs/operations.md` § Gitea Integration covers supported versions, the bot account, token scopes, the three webhook toggles, both author modes, TLS, drafts/conflicts and the health checks, plus Gitea label setup and secrets; `config.yaml.example`, `.env.example`, `README.md`, `AGENTS.md`, `docs/providers.md` and `PRD.md` §9 list `gitea` as built in. **Finding:** Gitea accepts duplicate label names (no `--force` equivalent), so the runbook's label loop skips existing names; checked live on 28.4.0 with the bot's minimal-scope token. |
+| 2026-11-26 | Final review. **Fixed:** list pagination stopped at the first short page, but Gitea clamps `limit` to `[api] MAX_RESPONSE_ITEMS`; reproduced live (cap 5: 10 of 24 labels seen) and fixed with `X-Total-Count` (§4.3, risk 12). The test Gitea now listens on `127.0.0.1` only and the webhook receivers on the Docker bridge gateway, since its admin password is in the repo. Recorded: label removal re-triggers (risk 11, #27); a plain `http://` host sends the token in clear (runbook). Stale wording on drafts, `GET /user` and phase references corrected. |
 
 ---
 
@@ -39,9 +40,10 @@ is the first new provider to exercise the full `PullRequestClient` path
 
 1. Implement `src/issue_agent/providers/gitea/` as a `ProviderPlugin`
    (`docs/providers.md` § The ports) registered in `BUILTIN_PROVIDER_TYPES`.
-2. Implement `pulls(repo)` (`supports_pr_api=True`): the agent opens a PR,
-   marked as draft with the `WIP: ` title prefix (Gitea has no native draft
-   flag), labeled `agent-generated`, with `Closes #N` in the body.
+2. Implement `pulls(repo)` (`supports_pr_api=True`): the agent opens a PR
+   labeled `agent-generated`, with `Closes #N` in the body; a route with
+   `draft: true` gets the `WIP: ` title prefix (Gitea has no native draft
+   flag).
 3. Pass the conformance suite
    (`tests/unit/providers/test_provider_contract.py`) through a `GiteaKit`,
    and an opt-in e2e against a real Gitea in a container.
@@ -63,7 +65,7 @@ is the first new provider to exercise the full `PullRequestClient` path
 - **Forgejo.** It is a hard fork with a compatible v1 API and also sends the
   `X-Gitea-*` headers, so this plugin works against it (smoke-checked on Codeberg in GT1, see the
   revision history) — but we don't promise or test it here. A `forgejo` type (likely a thin subclass
-  reading `X-Forgejo-*`) is a follow-up (§10).
+  reading `X-Forgejo-*`) is a follow-up (§9, §10 Q10).
 - Triggering on Gitea PR events (`pull_request`, PR review comments): out of
   scope, as in the GitHub provider. Comments on PRs are normalized with
   `target_kind="pr"` and the core ignores them.
@@ -93,7 +95,7 @@ is the first new provider to exercise the full `PullRequestClient` path
 
 Target: Gitea 1.27 and 28 — Gitea dropped the `1.` prefix with 28.0
 (September 2026), so 28 is the release after 1.27. Both were measured in
-GT1; the minimum supported version is still an open question (§10). The
+GT1; the supported minimum is 1.27 (§10 Q6). The
 API lives at `{host}/api/v1` and is documented by the instance's own Swagger
 (`{host}/api/swagger`).
 
@@ -111,7 +113,7 @@ API lives at `{host}/api/v1` and is documented by the instance's own Swagger
 | Pulls | `GET /repos/{o}/{r}/pulls?state=open`, `POST /repos/{o}/{r}/pulls`, `GET /repos/{o}/{r}/pulls/{index}` | `CreatePullRequestOption`: `head`, `base`, `title`, `body`, `labels` (**IDs**), `assignees`; **no `draft` field** |
 | PR by branches | `GET /repos/{o}/{r}/pulls/{base}/{head}` | Newer versions only (not measured — nothing depends on it); `find_open_pr` uses the list endpoint so it works everywhere |
 | Permission | `GET /repos/{o}/{r}/collaborators/{user}/permission` | `permission`: `owner`/`admin`/`write`/`read`/`none`. Querying **another** user needs repo admin (or site admin) — measured: a `write` collaborator gets 403, an admin gets the answer (a non-collaborator reads as `read` on a public repo) |
-| Current user | `GET /user` | Bot login; used only by the opt-in e2e and diagnostics, never by `health_check` |
+| Current user | `GET /user` | Bot login; not used by the plugin (`bot_login` is configured), never by `health_check` |
 
 API authentication: `Authorization: token <access-token>`. Tokens are
 **scoped** (Gitea ≥ 1.19). Measured minimal set:
@@ -121,7 +123,7 @@ API authentication: `Authorization: token <access-token>`. Tokens are
 | `write:issue` | issue read, comments, issue labels, repo labels |
 | `write:repository` | `GET /repos/{o}/{r}`, pulls (list/create), permission endpoint, git push over HTTP |
 | `read:organization` | org labels (`GET /orgs/{org}/labels`) |
-| `read:user` | only `GET /user` (opt-in e2e and diagnostics) — optional |
+| `read:user` | only `GET /user` — not needed |
 
 Indexes: issues and PRs **share one index per repo**, so a PR's comments go
 through `/issues/{index}/comments` and `#N` can point at either.
@@ -206,7 +208,7 @@ providers/gitea/
 ├── api.py         → thin httpx wrapper: base URL, token header, timeouts, pagination, error mapping
 ├── client.py      → GiteaForgeClient
 ├── pr.py          → GiteaPullRequestClient
-└── transport.py   → GiteaGitTransport
+└── transport.py   → GiteaTransport
 ```
 
 The `httpx.Client` is built **lazily** on first outbound use (the web process
@@ -278,6 +280,10 @@ only needs `webhook`), as `docs/providers.md` recommends.
 | `get_default_branch()` | `GET /repos/{repo}` → `default_branch` |
 | `add_labels(n, labels)` | names → IDs from repo + org labels (cached per instance, TTL 5 min; re-read once when a name is missing) → `POST .../issues/{n}/labels`; an unknown name is logged and skipped — **never create labels** in the user's repo |
 | `author_permission(login)` | `mode=api`: `GET .../collaborators/{login}/permission` → `owner`→`"owner"`, `admin`/`write`→`"collaborator"`, `read`/`none`→`"none"`; 403 ⇒ `"unknown"` + warning; cached per `(repo, login)` on the instance, TTL 5 min. `mode=allowlist` (default): `"unknown"` |
+
+Lists (labels, open PRs) are paged with `limit=50`, but Gitea clamps
+`limit` to `[api] MAX_RESPONSE_ITEMS`, so a short page is not the end: the
+client stops at the `X-Total-Count` header, or on an empty page without it.
 
 HTTP errors (`api.py`): 401/403 ⇒ credential/permission error, no retry;
 404 ⇒ missing resource; 5xx and timeouts ⇒ recoverable under the worker's
@@ -403,15 +409,16 @@ The runbook documents both modes and the trade-off of granting admin.
 
 1. Issue gets the trigger label (or a maintainer comments a command) → task.
 2. The agent edits; the harness commits, pushes `agent/issue-<n>-<slug>` and
-   opens a PR titled `WIP: <title>` with `Closes #<n>`, labeled
-   `agent-generated` (if the label exists in the repo or org).
+   opens a PR with `Closes #<n>`, labeled `agent-generated` (if the label
+   exists in the repo or org), and titled `WIP: <title>` when the route sets
+   `draft: true`.
 3. The bot comments on the issue with the summary, the cost and the PR link.
 4. A follow-up command on the issue resumes the same branch; the harness
    updates the PR and comments on it; conflicts come from
    `pr_has_conflicts` (or `git merge-tree` in the core when it returns
    `None`).
-5. A human removes `WIP:`, reviews and merges. Merging into the default
-   branch closes the issue.
+5. A human reviews (removing `WIP:` first, if present) and merges. Merging
+   into the default branch closes the issue.
 
 ---
 
@@ -458,9 +465,9 @@ progress bar (`docs/providers.md` § Opening the PR).
     | `labels_changed_without_trigger` | `issues` / `label_updated` without the trigger label |
     | `unsupported` | `push` |
 
-    If the content-based `delivery_key` is adopted (§4.2), the kit still
-    exercises "missing key" by omitting `X-Gitea-Delivery` — the adapter
-    rejects a delivery without it even when the key is derived from content.
+    The `delivery_key` is content-based (§4.2), yet the kit still exercises
+    "missing key" by omitting `X-Gitea-Delivery`: the adapter rejects a
+    delivery without it.
 - **Fixtures.** Real payloads under
   `tests/unit/providers/gitea/fixtures/*.json`, captured by `capture.py`
   from a `gitea/gitea:28.4.0` container seeded with synthetic data (nothing
@@ -532,7 +539,7 @@ progress bar (`docs/providers.md` § Opening the PR).
 
 | # | Risk | Mitigation |
 |---|---|---|
-| 1 | "Replay" issues a new delivery UUID ⇒ double execution | Measure in GT1; if so, content-based `delivery_key` plus the core's creation dedupe |
+| 1 | "Replay" issues a new delivery UUID ⇒ double execution | **Confirmed** in GT1; content-based `delivery_key` (§4.2) plus the core's creation dedupe |
 | 2 | Spoofing via `X-GitHub-*`/`X-Hub-Signature-256` | Provider chosen by path; adapter reads only `X-Gitea-*` |
 | 3 | Labels by ID, and labels may live at org level | Name → ID map from repo + org labels; missing label ⇒ log and skip; never create labels |
 | 4 | Operator changed `WORK_IN_PROGRESS_PREFIXES` or `CLOSE_KEYWORDS` in `app.ini` | Document the defaults we rely on; if demand appears, make `draft_prefix`/`auto_close_keyword` configurable — that needs a port change (capabilities are class-level), so it goes through an issue first |
@@ -541,7 +548,9 @@ progress bar (`docs/providers.md` § Opening the PR).
 | 7 | Payload and API drift between Gitea versions | Versioned fixtures; pinned e2e image; minimum version documented |
 | 8 | Self-signed TLS on self-hosted instances | `ca_bundle_path`; no switch to disable verification (§4.7) |
 | 9 | Over-scoped token | Document the minimal scopes; one token per instance, env only |
-| 10 | Forgejo users try the `gitea` type | Not promised (non-goal); note in the runbook; `forgejo` type tracked as follow-up |
+| 10 | Forgejo users try the `gitea` type | Not promised (non-goal); noted in the runbook; `forgejo` type tracked as follow-up (§9) |
+| 11 | No label diff: removing a non-trigger label from an issue that still has a trigger label arrives as `label_updated` with a trigger in the set ⇒ a new run (GitHub sends `unlabeled`, which is ignored) | The core decides on the current set (§3.2); generic follow-up in stateway-io/fly-swe#27, which would cover this case too; documented in the runbook |
+| 12 | Admin caps list pages (`[api] MAX_RESPONSE_ITEMS`) below the client's `limit` ⇒ lists cut at page 1 | Pages follow `X-Total-Count`, or read until an empty page (§4.3); found in the final review |
 
 ---
 
