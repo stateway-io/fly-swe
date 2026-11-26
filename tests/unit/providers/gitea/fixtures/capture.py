@@ -7,11 +7,11 @@ local receiver, and answers PRD-Gitea §10 Q1–Q5. Everything it creates is
 synthetic (``example.com`` addresses, ``git.example.com`` as ROOT_URL), so
 the payloads need no scrubbing.
 
-    uv run python tests/unit/providers/gitea/fixtures/capture.py \
+    uv run python -m tests.unit.providers.gitea.fixtures.capture \
         --image gitea/gitea:28.4.0 --out tests/unit/providers/gitea/fixtures
 
-Needs Docker and git. The container is removed at the end (``--keep`` keeps
-it for poking around).
+Needs Docker and git. The container (``tests/helpers/gitea_server.py``) is
+removed at the end (``--keep`` keeps it for poking around).
 """
 
 from __future__ import annotations
@@ -20,8 +20,6 @@ import argparse
 import base64
 import json
 import re
-import subprocess
-import tempfile
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -30,11 +28,13 @@ from typing import Any
 
 import httpx
 
+from tests.helpers.gitea_server import PASSWORD, GiteaServer, ok
+
 CONTAINER = "fly-swe-gitea-capture"
 HTTP_PORT = 3300
 RECEIVER_PORT = 3399
 ROOT_URL = "https://git.example.com/"
-PASSWORD = "Capture-pass-1234"  # throwaway container only
+SERVER = GiteaServer(name=CONTAINER, port=HTTP_PORT, root_url=ROOT_URL)
 SECRET = "capture-webhook-secret"  # throwaway container only
 ORG = "team"
 REPO = f"{ORG}/app"
@@ -97,83 +97,25 @@ def _h(delivery: dict[str, Any]) -> tuple[str | None, str | None]:
 # --- Container ---------------------------------------------------------------
 
 
-def _docker(*args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(["docker", *args], check=check, capture_output=True, text=True)
-
-
 def start_gitea(image: str) -> None:
-    _docker("rm", "-f", CONTAINER, check=False)
-    gateway = _docker(
-        "network", "inspect", "bridge", "--format", "{{(index .IPAM.Config 0).Gateway}}"
-    ).stdout.strip()
-    env = {
-        "GITEA__security__INSTALL_LOCK": "true",
-        "GITEA__database__DB_TYPE": "sqlite3",
-        "GITEA__server__ROOT_URL": ROOT_URL,
-        "GITEA__server__HTTP_PORT": "3000",
-        "GITEA__service__DISABLE_REGISTRATION": "true",
-        # Gitea 28 moved this to [security] and wants an explicit IP for a
-        # non-public address; 1.27 reads [webhook]. Set both.
-        "GITEA__security__ALLOWED_HOST_LIST": gateway,
-        "GITEA__webhook__ALLOWED_HOST_LIST": gateway,
-        "GITEA__webhook__DELIVER_TIMEOUT": "10",
-        "GITEA__repository__DEFAULT_BRANCH": "main",
-        "GITEA__log__LEVEL": "Warn",
-        # The web login (for "Replay") runs over plain http on localhost.
-        "GITEA__session__COOKIE_SECURE": "false",
-    }
-    args = ["run", "-d", "--name", CONTAINER, "-p", f"{HTTP_PORT}:3000"]
-    args += ["--add-host", "host.docker.internal:host-gateway"]
-    for k, v in env.items():
-        args += ["-e", f"{k}={v}"]
-    _docker(*args, image)
-    deadline = time.monotonic() + 120
-    while time.monotonic() < deadline:
-        try:
-            if httpx.get(f"http://localhost:{HTTP_PORT}/api/healthz", timeout=2).is_success:
-                break
-        except httpx.HTTPError:
-            pass
-        time.sleep(1)
-    else:
-        raise TimeoutError(_docker("logs", CONTAINER, check=False).stderr[-2000:])
-    _docker(
-        "exec", "-u", "git", CONTAINER, "gitea", "admin", "user", "create", "--admin",
-        "--username", "root", "--password", PASSWORD, "--email", "root@example.com",
-        "--must-change-password=false",
-    )  # fmt: skip
+    SERVER.start(image)
 
 
 # --- API helpers -------------------------------------------------------------
 
 
-def api(auth: httpx.Auth | None = None, token: str | None = None) -> httpx.Client:
-    headers = {"Authorization": f"token {token}"} if token else {}
-    return httpx.Client(
-        base_url=f"http://localhost:{HTTP_PORT}/api/v1", auth=auth, headers=headers, timeout=30
-    )
-
-
-def ok(resp: httpx.Response) -> Any:
-    if resp.is_error:
-        raise RuntimeError(
-            f"{resp.request.method} {resp.request.url} -> {resp.status_code} {resp.text}"
-        )
-    return resp.json() if resp.content else None
+def api(token: str) -> httpx.Client:
+    return SERVER.api(token=token)
 
 
 def make_token(user: str, name: str, scopes: list[str]) -> str:
-    with api(auth=httpx.BasicAuth(user, PASSWORD)) as c:
-        return ok(c.post(f"/users/{user}/tokens", json={"name": name, "scopes": scopes}))["sha1"]
+    return SERVER.make_token(user, name, scopes)
 
 
 def seed() -> dict[str, Any]:
-    root = api(auth=httpx.BasicAuth("root", PASSWORD))
+    root = SERVER.root()
     for user in (BOT, MAINTAINER, OUTSIDER):
-        ok(root.post("/admin/users", json={
-            "username": user, "email": f"{user}@example.com", "password": PASSWORD,
-            "must_change_password": False,
-        }))  # fmt: skip
+        SERVER.create_user(user)
     ok(root.post("/orgs", json={"username": ORG, "visibility": "public"}))
     ok(
         root.post(
@@ -199,18 +141,12 @@ def seed() -> dict[str, Any]:
 
 
 def add_hook(root: httpx.Client, *, secret: str, path: str) -> int:
-    hook = ok(root.post(f"/repos/{REPO}/hooks", json={
-        "type": "gitea",
-        "active": True,
-        "branch_filter": "*",
-        "events": ["issues", "issue_label", "issue_comment", "push"],
-        "config": {
-            "url": f"http://host.docker.internal:{RECEIVER_PORT}{path}",
-            "content_type": "json",
-            "secret": secret,
-        },
-    }))  # fmt: skip
-    return hook["id"]
+    return SERVER.add_hook(
+        REPO,
+        url=f"http://host.docker.internal:{RECEIVER_PORT}{path}",
+        secret=secret,
+        events=["issues", "issue_label", "issue_comment", "push"],
+    )
 
 
 # --- Web UI (for "Replay", which has no API) ---------------------------------
@@ -248,28 +184,7 @@ def _csrf(page: str) -> dict[str, str]:
 def git_push(
     token: str, user: str, branch: str, path: str, content: str, *, base: str = "main"
 ) -> int:
-    """Clone, commit one file on ``branch`` (from ``base``) and push with the
-    extraHeader technique the transport will use. Returns git's exit code."""
-    host = f"http://localhost:{HTTP_PORT}"
-    basic = base64.b64encode(f"{user}:{token}".encode()).decode()
-    env = {
-        "GIT_CONFIG_COUNT": "1",
-        "GIT_CONFIG_KEY_0": f"http.{host}/.extraHeader",
-        "GIT_CONFIG_VALUE_0": f"Authorization: Basic {basic}",
-        "GIT_TERMINAL_PROMPT": "0",
-        "HOME": tempfile.gettempdir(),
-        "PATH": "/usr/bin:/bin:/usr/local/bin",
-    }
-    with tempfile.TemporaryDirectory() as tmp:
-        run = lambda *a: subprocess.run(a, cwd=tmp, env=env, capture_output=True, text=True)  # noqa: E731
-        if run("git", "clone", "-q", "-b", base, f"{host}/{REPO}.git", ".").returncode:
-            return 128
-        run("git", "checkout", "-q", "-B", branch)
-        Path(tmp, path).write_text(content)
-        run("git", "add", path)
-        run("git", "-c", "user.name=capture", "-c", "user.email=capture@example.com",
-            "commit", "-q", "-m", f"capture: {branch}")  # fmt: skip
-        return run("git", "push", "-q", "origin", f"HEAD:refs/heads/{branch}").returncode
+    return SERVER.git_push(token, user, REPO, branch, path, content, base=base)
 
 
 # --- Capture -----------------------------------------------------------------
@@ -455,7 +370,7 @@ def capture(out: Path, image: str, *, fixtures: bool = True) -> dict[str, Any]:
 
 def measure_scopes(labels: dict[str, int]) -> dict[str, dict[str, int]]:
     """Status of each operation the plugin needs, per single-scope token."""
-    root = api(auth=httpx.BasicAuth("root", PASSWORD))
+    root = SERVER.root()
     ok(root.post(f"/repos/{REPO}/issues", json={"title": "scope probe", "body": ""}))
     issue = ok(root.get(f"/repos/{REPO}/issues", params={"state": "open", "type": "issues"}))[0][
         "number"
@@ -513,7 +428,7 @@ def measure_permission(bot_token: str) -> dict[str, int | str]:
         out[f"write bot -> {target}"] = r.status_code
         if r.is_success:
             out[f"write bot -> {target} permission"] = r.json().get("permission")
-    root = api(auth=httpx.BasicAuth("root", PASSWORD))
+    root = SERVER.root()
     ok(root.put(f"/repos/{REPO}/collaborators/{BOT}", json={"permission": "admin"}))
     for target in (MAINTAINER, OUTSIDER):
         r = bot.get(f"/repos/{REPO}/collaborators/{target}/permission")
@@ -584,7 +499,7 @@ def main() -> None:
         )
     finally:
         if not args.keep:
-            _docker("rm", "-f", CONTAINER, check=False)
+            SERVER.stop()
 
 
 if __name__ == "__main__":

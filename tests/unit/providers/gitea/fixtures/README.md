@@ -22,8 +22,8 @@ PR #2 is open, #5 was merged and #4 was closed through the API as `root`.
 ## Regenerating
 
 ```bash
-uv run python tests/unit/providers/gitea/fixtures/capture.py --image gitea/gitea:28.4.0
-uv run python tests/unit/providers/gitea/fixtures/capture.py --image gitea/gitea:1.27.3 --measure-only
+uv run python -m tests.unit.providers.gitea.fixtures.capture --image gitea/gitea:28.4.0
+uv run python -m tests.unit.providers.gitea.fixtures.capture --image gitea/gitea:1.27.3 --measure-only
 ```
 
 You need Docker and git. The script starts a throwaway container (`fly-swe-gitea-capture`
