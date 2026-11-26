@@ -15,10 +15,11 @@
 # key is omitted (or commented out), the built-in default noted next to it
 # applies.
 # Secrets do NOT go here — they stay in an environment variable / `fly secrets`:
-# PROVIDERS__<ID>__APP_PRIVATE_KEY (or _APP_PRIVATE_KEY_PATH),
-# PROVIDERS__<ID>__WEBHOOK_SECRET, LLM_API_KEY, LLM_FALLBACK_API_KEY
-# (optional), ALERT_WEBHOOK_URL, FLY_API_TOKEN. <ID> is the provider instance
-# id in upper case (`github` -> GITHUB). Putting a provider secret in this
+# PROVIDERS__<ID>__APP_PRIVATE_KEY (or _APP_PRIVATE_KEY_PATH) for GitHub,
+# PROVIDERS__<ID>__TOKEN for Gitea, PROVIDERS__<ID>__WEBHOOK_SECRET,
+# LLM_API_KEY, LLM_FALLBACK_API_KEY (optional), ALERT_WEBHOOK_URL,
+# FLY_API_TOKEN. <ID> is the provider instance id in upper case
+# (`github` -> GITHUB). Putting a provider secret in this
 # file is an error. See .env.example at the repo root.
 
 agent:
@@ -30,10 +31,12 @@ agent:
 # (`/webhooks/<id>`) and the env prefix of the instance's secrets
 # (PROVIDERS__<ID>__...). Any field here can also come from env, e.g.
 # PROVIDERS__GITHUB__APP_ID. Keep the id `github` to preserve the
-# `/webhooks/github` URL configured on the GitHub App.
+# `/webhooks/github` URL configured on the GitHub App. Prefer '_' to '-':
+# an id with '-' can't be written in an env var name, so its secrets can't
+# be set (https://github.com/stateway-io/fly-swe/issues/26).
 providers:
   github:
-    # Provider type (required). Built-in: github.
+    # Provider type (required). Built-in: github, gitea.
     type: github
     # GitHub App ID (required). Not a secret.
     app_id: 0
@@ -49,6 +52,26 @@ providers:
     # The App installation token is renewed this many seconds before it
     # expires. Default: 300.
     # token_refresh_margin_seconds: 300
+  # A Gitea server (1.27+), driven by a bot user with an access token. Setup:
+  # docs/operations.md § Gitea Integration. Secrets (env only):
+  # PROVIDERS__GITEA_CORP__TOKEN, PROVIDERS__GITEA_CORP__WEBHOOK_SECRET.
+  # gitea_corp:                  # → POST /webhooks/gitea_corp
+  #   type: gitea
+  #   # Base URL with the scheme (required); a subpath is kept. API at
+  #   # {host}/api/v1.
+  #   host: https://git.example.com
+  #   # Login of the bot user (required): its own comments are ignored by it.
+  #   bot_login: issue-agent
+  #   # How an unknown comment author is judged. Default: allowlist.
+  #   #   allowlist — the issue author and comments.author_filter.allowlist.
+  #   #   api — also ask Gitea for the commenter's repo permission; needs
+  #   #     the bot to be repo admin.
+  #   author_permission: allowlist
+  #   # PEM bundle for a server behind a private CA, added to the system
+  #   # store for the API and for git. Default: empty = system store only.
+  #   ca_bundle_path: /data/certs/corp-ca.pem
+  #   # Timeout of each API request, in seconds. Default: 30.
+  #   request_timeout_seconds: 30
 
 # List of (issue repo, code repo) pairs. The repository an issue comes from
 # selects the pair that handles it; issues from repositories not listed here
@@ -73,7 +96,9 @@ repos:
     # Prefix of the branch name in the trunk_based workflow; ignored in
     # gitflow. Default: agent.
     branch_prefix: agent
-    # true = open the PR as a draft. Default: false.
+    # true = open the PR as a draft. On a forge without a draft flag (Gitea)
+    # the title gets the forge's work-in-progress prefix (`WIP: `) instead.
+    # Default: false.
     draft: false
     # Labels added to the PR in addition to pr.label (below). Default: [].
     labels: []
@@ -298,7 +323,8 @@ comments:
     enabled: true
     # Always accept comments from the author of the issue. Default: true.
     allow_issue_author: true
-    # Accepted values of GitHub's author_association field.
+    # Accepted author associations, as the forge reports them (GitHub's
+    # author_association; on Gitea only with author_permission: api).
     # Default: [OWNER, MEMBER, COLLABORATOR].
     allow_associations: [OWNER, MEMBER, COLLABORATOR]
     # Logins accepted individually, bots included. Default: [].
