@@ -43,9 +43,9 @@ receiver and a worker, sharing a durable SQLite queue, running as one
 process pair on one small machine. Point it at a repo, and it keeps
 triaging issues for as long as it's deployed.
 
-GitHub is the built-in forge. The core never talks to it directly: every
-forge sits behind a [provider plugin](#provider-plugins), so others (GitLab,
-Gitea, Gogs, …) can be added without touching the agent.
+GitHub and Gitea are built in. The core never talks to either directly:
+every forge sits behind a [provider plugin](#provider-plugins), so others
+(GitLab, Gogs, …) can be added without touching the agent.
 
 ## How it works
 
@@ -142,6 +142,13 @@ Two line items: the Fly Machine, and the LLM tokens each issue consumes.
 This is the fast path; every step links to the full procedure in
 [docs/operations.md](./docs/operations.md).
 
+> **On Gitea** steps 1–2 become: create a bot user with write access to the
+> repos, give it a token with the `write:issue`, `write:repository` and
+> `read:organization` scopes, and add a webhook for the *Issues*, *Issue
+> Label* and *Issue Comment* events pointing at `/webhooks/<instance id>`
+> ([guide](./docs/operations.md#gitea-integration)). The secrets are
+> `PROVIDERS__<ID>__TOKEN` and `PROVIDERS__<ID>__WEBHOOK_SECRET`.
+
 1. **Create a GitHub App**
    ([guide](./docs/operations.md#obtaining-and-configuring-the-github-app-private-key))
    with `Contents`, `Pull requests`, and `Issues` set to Read & Write, and
@@ -218,6 +225,10 @@ providers:
     app_id: 123456           # GitHub App ID (not a secret)
     bot_login: my-app[bot]   # the App's bot account
     # host: https://ghe.example.com   # GitHub Enterprise
+  # gitea_corp:              # a Gitea server → /webhooks/gitea_corp
+  #   type: gitea
+  #   host: https://git.example.com
+  #   bot_login: issue-agent
 
 repos:
   - issues: owner/repo       # where issues come from
@@ -242,7 +253,7 @@ budgets:
 | Block | Covers |
 |---|---|
 | `agent` | The agent's display name in comments and PRs |
-| `providers` | Forge instances by id: `type` plus that type's fields (GitHub: App ID, bot login, Enterprise host) |
+| `providers` | Forge instances by id: `type` plus that type's fields (GitHub: App ID, bot login, Enterprise host; Gitea: host, bot login, author mode, CA bundle) |
 | `repos` | Issue/target repo pairs, their provider instance, branch strategy, per-repo test/lint commands and LLM override |
 | `llm` | Model, LLM provider, fallback, cost tracking mode, prompt caching |
 | `budgets` | Iteration/cost/time caps, per-command timeout |
@@ -307,14 +318,14 @@ behind a few small ports ([`providers/base.py`](./src/issue_agent/providers/base
 | `GitTransport` | Tokenless clone URL, per-process git credentials, PR/compare URLs, `#N`-style references |
 | `capabilities` | What the forge supports (drafts, labels, auto-close) and its vocabulary (`issue`, `Pull Request` / `Merge Request`), which the prompts render with |
 
-A **type** is code (`github` is the only built-in one today); an
+A **type** is code (built in: `github` and `gitea`); an
 **instance** is config. Each entry under `providers.<id>` gets its own
 webhook URL (`/webhooks/<id>`), its own secrets (`PROVIDERS__<ID>__*`) and
-its own `/readyz` checks, so github.com and a GitHub Enterprise host can run
-side by side. The provider is picked from the URL path, never sniffed from
+its own `/readyz` checks, so github.com, a GitHub Enterprise host and a
+Gitea server can run side by side. The provider is picked from the URL path, never sniffed from
 headers.
 
-Want to add GitLab, Gitea/Forgejo, Gogs or your own forge? The guide is
+Want to add GitLab, Forgejo, Gogs or your own forge? The guide is
 [docs/providers.md](./docs/providers.md); every plugin is held to the same
 conformance test suite. The design record is the [PRD](./PRD.md).
 
@@ -390,7 +401,7 @@ src/issue_agent/
 ├── worker.py           → worker loop
 ├── config.py           → Pydantic Settings (env > config.yaml > default)
 ├── core/               → canonical model (TriggerEvent, IssueRef, Author, Comment), PR text
-├── providers/          → provider ports, registry, settings union, github/ (webhook adapter, App auth, API client, PR ops, git transport)
+├── providers/          → provider ports, registry, settings union, github/ (webhook adapter, App auth, API client, PR ops, git transport), gitea/ (webhook adapter, API client, PR ops, git transport)
 ├── webhook/            → dispatcher POST /webhooks/{instance_id}, health
 ├── queue/              → SQLite store, models, schema
 ├── policy/             → label router, guards, ingestion filters, comment-author filter

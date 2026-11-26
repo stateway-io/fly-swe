@@ -1,8 +1,10 @@
 # PRD — Gitea Provider
 
-**Status:** Draft, not scheduled. Its prerequisites — Phases 0–4 of the
-[provider plugins PRD](./PRD.md), including the `terms` vocabulary, the
-optional `PullRequestClient` port and per-instance settings — are done.
+**Status:** Implemented (GT1–GT5) on `feat/gitea-provider`, shipping in
+1.5.0. Operator setup: [`docs/operations.md` § Gitea
+Integration](./docs/operations.md#gitea-integration). It builds on Phases 0–4
+of the [provider plugins PRD](./PRD.md): the `terms` vocabulary, the
+optional `PullRequestClient` port and per-instance settings.
 **Date:** 2026-11-04
 **Type:** `feat` (new provider; no change to the core)
 **Contributor guide:** [`docs/providers.md`](./docs/providers.md) — this PRD
@@ -18,6 +20,7 @@ follows its structure and checklist.
 | 2026-11-25 | GT2 (`api.py`, `client.py`, `transport.py`). Checked live against Gitea 28.4.0 with the minimal-scope token: comments, labels by ID (repo + org, an unknown label skipped and not created), permission 403 as a write bot and mapped as admin, `git clone`/`push` through `git_auth_env`, `pr_url`/`compare_url`. Decisions: the caches live on one shared `GiteaAPI` per instance, not per client, because the core builds a client on every use (§4.3). `ca_bundle_path` is **added** to the default store and also given to git as `http.<host>/.sslCAInfo` (§4.5). Redirects are not followed, so the token never reaches another host. The error types are `GiteaAuthError` (401/403), `GiteaNotFoundError` (404) and `GiteaAPIError`. Two gaps from ports added after this PRD: `PullRequestClient.get_pr_state` (retention, #20) is required and lands in GT3 (§4.4). `CIClient` (#21) is not implemented: `supports_ci=False` (§4.1), with commit statuses tracked in §9. |
 | 2026-11-25 | GT3 (`pr.py`, `plugin.py`, registry entry, `GiteaKit.make` in `KITS`, `test_gitea_stack.py`). The conformance suite passes for `gitea`. Real fixtures were posted through `/webhooks/gitea` into the queue, with no core change: a replay with a new UUID is a duplicate, and `label_cleared` creates no task. Checked live on 28.4.0 through `plugin.pulls()`: title prefixed once, label IDs, `find_open_pr`, conflicts, and `get_pr_state` open/closed/merged. **Finding:** a WIP PR always reads `mergeable=false`, so the multi-read verdict would have reported a conflict on every agent PR. A draft/WIP PR now answers `None` and the core checks locally (§4.4). The `draft` field was measured on 28.4.0 only, and a title-prefix fallback covers versions without it. Also corrected: the core, not the plugin, applies the `WIP:` prefix (§4.4). Q8 decided (`[]`). |
 | 2026-11-25 | GT4: opt-in e2e (`tests/e2e/test_gitea_flow.py`) passes on **28.4.0 and 1.27.3** in ~26 s, with no core change (§6). It found three things. (1) `draft` is per route (`repos[].draft`, default `false`), so agent PRs are WIP only when configured; the e2e sets it, and the §4.4 wording is corrected. (2) In the PR flow the core labels the PR, not the issue, so the bot never changes the issue's labels and the "bot's own label change re-triggers" risk does not arise. (3) A human adding a non-trigger label (`wontfix`) to an issue that still has `docs` enqueues a new run, because the core decides on the current set. That is generic: GitHub's adapter also passes `issue.labels`. It is tracked as stateway-io/fly-swe#27, not fixed here. Q6 decided. `capture.py` now runs as a module (`python -m tests.unit.providers.gitea.fixtures.capture`) on the shared `GiteaServer`, with identical measurements. |
+| 2026-11-26 | GT5: docs and the 1.5.0 bump. `docs/operations.md` § Gitea Integration covers supported versions, the bot account, token scopes, the three webhook toggles, both author modes, TLS, drafts/conflicts and the health checks, plus Gitea label setup and secrets; `config.yaml.example`, `.env.example`, `README.md`, `AGENTS.md`, `docs/providers.md` and `PRD.md` §9 list `gitea` as built in. **Finding:** Gitea accepts duplicate label names (no `--force` equivalent), so the runbook's label loop skips existing names; checked live on 28.4.0 with the bot's minimal-scope token. |
 
 ---
 

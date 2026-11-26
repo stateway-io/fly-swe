@@ -23,7 +23,7 @@ src/issue_agent/
 ├── config.py           → Pydantic Settings
 ├── logging.py          → structlog setup
 ├── core/               → canonical model (TriggerEvent, IssueRef, Author, Comment), PR text (pr_text.py)
-├── providers/          → provider ports (base.py), registry, per-instance settings union (settings.py), github/ (settings, webhook adapter, App auth, API client, PR ops, git transport)
+├── providers/          → provider ports (base.py), registry, per-instance settings union (settings.py), github/ (settings, webhook adapter, App auth, API client, PR ops, git transport), gitea/ (settings, webhook adapter, API client, PR ops, git transport)
 ├── webhook/            → generic dispatcher POST /webhooks/{instance_id}, health
 ├── queue/              → SQLite store, models, schema
 ├── policy/             → label router, guards, ingestion filters, comment-author filter
@@ -40,7 +40,7 @@ docs/                   → runbook (operations), troubleshooting, label-schema,
 ## Architecture Constraints
 
 - **Single Fly Machine** — webhook + worker in the same process via honcho (see `Procfile`, `fly.toml`)
-- **GitHub App** for auth, not a PAT (`src/issue_agent/providers/github/auth.py`)
+- **GitHub App** for auth, not a PAT (`src/issue_agent/providers/github/auth.py`); Gitea has no app model, so its plugin uses a bot user's scoped token (`providers/gitea/`)
 - **`LocalEnvironment`** from mini-SWE-agent, scoped, not a Docker sandbox — see the README's "Status, limitations & roadmap" for the sandboxing plan
 - **SQLite + persistent Fly Volume**, not Postgres (`src/issue_agent/queue/`)
 - **Triple cost controls**: `max_iterations`, `max_cost_per_task_usd`, `max_daily_cost_usd` (`config.yaml.example` → `budgets:`)
@@ -76,6 +76,7 @@ uv run ruff check && uv run ruff format --check   # lint + format (CI gate)
 uv run pytest tests/unit tests/integration --cov  # coverage (CI gate, floor in pyproject.toml)
 uv run honcho start                  # run locally (web + worker)
 LOG_LEVEL=debug uv run pytest -v     # debug
+E2E_GITEA=1 uv run pytest tests/e2e/test_gitea_flow.py -v  # opt-in e2e vs a Gitea container (Docker)
 ```
 
 ## Test Discipline
@@ -197,11 +198,11 @@ set of changes is ready for production:
 - Container runs as a **non-root user** (UID 1000)
 - Agent workspace: only `/data/workspaces/<task-id>/<owner>/`
 - The issue body is **untrusted data**: it is not interpreted as a template, and the agent's subprocess runs with a minimal env with no secrets (`runner/environment.py`, `runner/prompts.py`)
-- Timing-safe HMAC SHA-256 on every webhook, failing closed on an empty secret (`providers/github/webhook.py`)
+- Timing-safe HMAC SHA-256 on every webhook, failing closed on an empty secret (`providers/github/webhook.py`, `providers/gitea/webhook.py`)
 
 ## Provider plugins
 
-Every forge (GitHub today) is a plugin behind the ports in
+Every forge (GitHub and Gitea today) is a plugin behind the ports in
 `src/issue_agent/providers/base.py`; nothing outside `providers/` imports a
 forge SDK or names a forge.
 

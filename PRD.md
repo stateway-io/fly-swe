@@ -1081,7 +1081,9 @@ implemented here:
 3. **Gitea/Forgejo** — same header family (`X-Gitea-Signature` HMAC-SHA256
    without prefix, `X-Gitea-Delivery`/`X-Forgejo-Delivery`), PR API, draft via
    `WIP:` prefix, per-repo token. Provider chosen by path (`X-GitHub-*`
-   headers are spoofed by these forges).
+   headers are spoofed by these forges). **Implemented in 1.5.0** as the
+   `gitea` type, specified in [`PRD-Gitea.md`](./PRD-Gitea.md) (Gitea 1.27+;
+   Forgejo not promised).
 4. **Gogs**: specified in its own PRD, [`PRD-gogs.md`](./PRD-gogs.md).
    Depends on Phases 1–3, on the Phase 4 `terms`, and on the generic prerequisites
    from §3.1/§3.7. It is the first new provider by the maintainer's decision

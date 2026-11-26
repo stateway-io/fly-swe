@@ -1,6 +1,6 @@
 # Writing a provider plugin
 
-fly-swe talks to a forge — GitHub today; GitLab, Gitea/Forgejo or Gogs
+fly-swe talks to a forge — GitHub and Gitea today; GitLab, Forgejo or Gogs
 tomorrow — only through a **provider plugin**. This guide is for anyone who
 wants to add one. It covers the ports a plugin implements, the canonical
 model it produces, how it is configured and registered, and the conformance
@@ -9,10 +9,15 @@ suite that decides whether it is done.
 The design record behind all of this is the [provider plugin PRD](../PRD.md);
 the code is the authoritative reference, starting with
 [`src/issue_agent/providers/base.py`](../src/issue_agent/providers/base.py).
-Two working examples to read alongside this guide:
+Three working examples to read alongside this guide:
 
 - [`providers/github/`](../src/issue_agent/providers/github/) — the real
   GitHub App plugin.
+- [`providers/gitea/`](../src/issue_agent/providers/gitea/) — a token-auth
+  plugin with no SDK (plain `httpx`), drafts by title prefix, no CI port, and
+  a label-set payload with no diff. Its design record is
+  [PRD-Gitea.md](../PRD-Gitea.md), and its tests show how to replay captured
+  webhooks and run an opt-in e2e against a real container.
 - [`tests/fakes/fake_provider.py`](../tests/fakes/fake_provider.py) — an
   in-memory forge in under 400 lines, deliberately unlike GitHub (its own headers,
   its own JSON, no PR API). It is the shortest complete plugin in the repo.
@@ -348,9 +353,11 @@ the conformance suite, the queue, worker and executor work with it.
 
 The PRD's [roadmap](../PRD.md#9-future-roadmap-out-of-scope-for-this-prd) records what
 is already known about GitLab (token vs. signing-token webhooks, `iid`,
-nested groups, `oauth2:` git auth, `!N` references) and Gitea/Forgejo
-(`X-Gitea-Signature`, `WIP:` drafts). Gogs, a forge without a PR API, has
-its own spec in [PRD-gogs.md](../PRD-gogs.md).
+nested groups, `oauth2:` git auth, `!N` references). Gitea is built in; its
+spec and measured forge behavior (label events without a diff, `mergeable`
+lag, WIP drafts) are in [PRD-Gitea.md](../PRD-Gitea.md), a starting point
+for a Forgejo type. Gogs, a forge without a PR API, has its own spec in
+[PRD-gogs.md](../PRD-gogs.md).
 
 ## Opening the PR
 
