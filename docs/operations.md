@@ -24,19 +24,24 @@ default.
   and code defaults (the agent will have no `repos:` and match no webhook).
 
 **Provider instances:** each forge the service talks to is an instance under
-`providers.<id>` in `config.yaml`, with a `type` (built-in: `github`) and the
-type's non-secret fields (`app_id`, `bot_login`, `host`,
-`token_refresh_margin_seconds` for GitHub). The id names the webhook URL
+`providers.<id>` in `config.yaml`, with a `type` (built-in: `github`, `gitea`)
+and the type's non-secret fields (`app_id`, `bot_login`, `host`,
+`token_refresh_margin_seconds` for GitHub; `host`, `bot_login`,
+`author_permission`, `ca_bundle_path`, `request_timeout_seconds` for Gitea —
+see [§ Gitea Integration](#gitea-integration)). The id names the webhook URL
 (`/webhooks/<id>`) and the env prefix of the instance's secrets
 (`PROVIDERS__<ID>__<FIELD>`, `<ID>` in upper case). Env and YAML are
 deep-merged per field, so the YAML holds the instance and the env adds its
 secrets; any non-secret field can also be overridden from env (e.g.
 `PROVIDERS__GITHUB__HOST`). A secret written in `config.yaml` is rejected at
 startup. Several instances of one type can coexist (github.com plus a GitHub
-Enterprise host); each `repos[]` entry then names its instance with
+Enterprise host, or GitHub plus a Gitea server); each `repos[]` entry then names its instance with
 `provider:` (optional when only one instance is configured). The same
 `owner/repo` may be routed on two instances; deliveries, queue entries and
-per-issue work are kept apart per instance.
+per-issue work are kept apart per instance. Use lowercase letters, digits and
+`_` in an id: a `-` can't appear in an env var name, so an instance like
+`gitea-corp` could not receive its secrets
+([#26](https://github.com/stateway-io/fly-swe/issues/26)).
 
 ```yaml
 providers:
@@ -47,11 +52,17 @@ providers:
     type: github
     app_id: 7
     host: https://ghe.example.com
+  gitea_corp:                  # → /webhooks/gitea_corp
+    type: gitea
+    host: https://git.example.com
+    bot_login: issue-agent
 repos:
   - issues: owner/repo         # on github.com
     provider: github
   - issues: team/service       # on GHE
     provider: ghe
+  - issues: team/app           # on the Gitea server
+    provider: gitea_corp
 ```
 
 **Per-repo LLM override:** each entry in `repos:` may define its own `llm:`
@@ -119,14 +130,15 @@ the repo root):
 |---|---|---|
 | `CONFIG_YAML` | **Yes** (prod) | base64 of the real `config.yaml`, mounted at `/app/config.yaml` by `fly.toml` `[[files]]` |
 | `PROVIDERS__<ID>__APP_PRIVATE_KEY` / `PROVIDERS__<ID>__APP_PRIVATE_KEY_PATH` | **Yes** (one of, per GitHub instance) | GitHub App private key, inline PEM or a filesystem path |
-| `PROVIDERS__<ID>__WEBHOOK_SECRET` | **Yes** (per instance) | HMAC secret for webhook payload validation; empty rejects every delivery |
+| `PROVIDERS__<ID>__TOKEN` | **Yes** (per Gitea instance) | Access token of the Gitea bot account ([§ Gitea Integration](#gitea-integration)) |
+| `PROVIDERS__<ID>__WEBHOOK_SECRET` | **Yes** (per instance, any type) | HMAC secret for webhook payload validation; empty rejects every delivery |
 | `LLM_API_KEY` | **Yes** | API key for the LLM provider |
 | `LLM_FALLBACK_API_KEY` | No | Key for `llm.fallback.model`; unset falls back to `LLM_API_KEY` |
 | `ALERT_WEBHOOK_URL` | No | Webhook URL for budget-exceeded alerts (Discord, Telegram, etc.) |
 | `FLY_API_TOKEN` | CI only | Not a `Settings` field — authenticates `flyctl` in the deploy workflow |
 
-`<ID>` is the provider instance id in upper case (`github` → `GITHUB`). The
-installation ID is **not** configured: the GitHub plugin resolves the
+`<ID>` is the provider instance id in upper case (`github` → `GITHUB`,
+`gitea_corp` → `GITEA_CORP`). The installation ID is **not** configured: the GitHub plugin resolves the
 installation of each repo it talks to (issues and target repos separately)
 with `GithubIntegration.get_repo_installation(owner, repo)`, cached per
 process.
@@ -652,13 +664,143 @@ The agent resolves the installation ID of each repo through the GitHub API
 (cached per process), so there is nothing to configure here. To read it manually, see *Verify the App is Installed* above, or the
 redirect URL right after installing: `https://github.com/settings/installations/<id>`.
 
+## Gitea Integration
+
+A Gitea server is a provider instance of type `gitea`. Unlike GitHub there is
+no app to install: the agent acts as a **bot user** with an access token, and
+each repo (or org) sends it webhooks.
+
+### Supported versions
+
+Gitea **1.27 or later**. The opt-in end-to-end test runs against
+`gitea/gitea:28.4.0` (`E2E_GITEA=1 uv run pytest tests/e2e/test_gitea_flow.py`)
+and has also passed on 1.27.3. Forgejo (Codeberg included) still sends the
+`X-Gitea-*` headers and passed a smoke test with the `gitea` type, but it is
+not a supported target; a separate `forgejo` type is a possible follow-up.
+
+The plugin relies on two `app.ini` defaults: `[repository.pull-request]
+WORK_IN_PROGRESS_PREFIXES` must include `WIP:` (draft agent PRs) and
+`CLOSE_KEYWORDS` must include `close`/`closes` (`Closes #N` closes the
+issue on merge). Changing either breaks that behavior silently.
+
+### Bot account
+
+1. Create a user for the agent, e.g. `issue-agent`. On Gitea 28 a **bot
+   account** (token-only, no web login, no notifications) is the better fit;
+   a regular user works on every version.
+2. Give it **write** access on the issue repo and the target repo: as a
+   repo collaborator (*Settings → Collaborators*) or through an org team with
+   write permission on those repos.
+3. Set `providers.<id>.bot_login` to that login. It is required: the
+   own-comment filter matches on it, so without it the bot would react to its
+   own comments; `/readyz` reports it missing.
+
+### Access token
+
+Create the token as the bot (*Settings → Applications → Generate New Token*,
+or `POST /api/v1/users/<bot>/tokens`) with only these scopes:
+
+| Scope | Used for |
+|---|---|
+| `write:issue` | Read issues, post comments, add labels; Pull Requests are issues in Gitea's API |
+| `write:repository` | Clone and push the work branch, open Pull Requests |
+| `read:organization` | Read org-level labels (the PR label can live on the org) |
+
+Set it as `PROVIDERS__<ID>__TOKEN`; one token per instance. Gitea tokens do
+not expire unless you set an expiry, and the plugin never refreshes them: a
+revoked token makes every API call fail with 401 and the tasks fail until the
+secret is replaced. Git authenticates with an `http.<host>/.extraHeader`
+(Basic `bot_login:token`) passed through env to the harness's own git
+commands only — the token is never in a URL, on disk, or in the agent's shell.
+
+### Webhook
+
+Add a webhook on each issue repo (*Settings → Webhooks → Add Webhook →
+Gitea*), or once on the org to cover all its repos:
+
+| Field | Value |
+|---|---|
+| Target URL | `<base-url>/webhooks/<instance id>`, e.g. `https://<app-name>.fly.dev/webhooks/gitea_corp` |
+| HTTP method / content type | `POST` / `application/json` |
+| Secret | The value of `PROVIDERS__<ID>__WEBHOOK_SECRET` (`openssl rand -hex 32`) |
+| Trigger on | **Custom events**: **Issues**, **Issue Label** and **Issue Comment** |
+| Branch filter | `*` (the default) |
+
+All three event toggles are needed: a label change is its own toggle
+(*Issue Label*), separate from *Issues*. Leave **Pull Request Comment** off —
+the core ignores comments on Pull Requests anyway. Gitea sends the full label
+set on every label change, not a diff, so the label router decides on the
+issue's current labels.
+
+To check deliveries, open the webhook and look at **Recent Deliveries**
+(request, response and status per delivery; *Redeliver* resends one). **Test
+Delivery** sends a `push` event: a `200` with
+`{"status":"ignored","reason":"unsupported_event"}` proves the URL and the
+secret are right, since the signature is checked first. A `400` means a
+signature or header problem (wrong secret, or the hook isn't of type Gitea);
+a `404` means the instance id in the URL is not configured.
+
+### Comment authors
+
+Gitea's payloads carry no author association, so comment authors are
+classified by `providers.<id>.author_permission`:
+
+- **`allowlist`** (default): the issue author and the logins in
+  `comments.author_filter.allowlist` are accepted; anyone else's comment is
+  dropped by the worker's author guard before any LLM spend. Needs no extra
+  permission.
+- **`api`**: the worker asks
+  `GET /repos/{repo}/collaborators/{login}/permission` (cached for 5
+  minutes): `owner` counts as `OWNER`, `admin`/`write` as `COLLABORATOR`,
+  matched against `comments.author_filter.allow_associations`. Gitea only
+  answers that endpoint for a **repo admin**, so this mode means granting the
+  bot admin on the repo — a wider blast radius if the token leaks. Without
+  admin the lookups return 403 and authors stay unknown (rejected unless
+  allowlisted). `/readyz` shows a reminder when this mode is on.
+
+### TLS for a private CA
+
+For a server whose certificate is signed by a private CA, put the CA's PEM
+bundle on the volume and set `providers.<id>.ca_bundle_path` (e.g.
+`/data/certs/corp-ca.pem`). It is added to the system trust store for API
+calls and given to git (`http.<host>/.sslCAInfo`). There is deliberately no
+option to turn verification off.
+
+### Draft Pull Requests, conflicts and CI
+
+- `repos[].draft: true` opens the agent's Pull Requests as work in progress:
+  the title gets the `WIP: ` prefix (Gitea has no separate draft flag). The
+  default is `false`.
+- Gitea reports a WIP Pull Request as not mergeable regardless of conflicts,
+  and its `mergeable` flag lags right after a push. The plugin waits for
+  three agreeing reads on the current head and reports "unknown" for a WIP
+  Pull Request; the harness then checks for conflicts itself with
+  `git merge-tree`.
+- The plugin applies `pr.label` (default `agent-generated`) to the Pull
+  Requests it opens. The label must exist on the target repo or its org.
+- The CI monitor is not supported on Gitea (`ci_monitor` has no effect).
+
+### Gitea health checks
+
+The instance's checks in `/readyz` come from config and the filesystem only:
+
+| Key | Values |
+|---|---|
+| `settings` | Lists any missing `providers.<id>.host`, `providers.<id>.bot_login`, `PROVIDERS__<ID>__TOKEN`, `PROVIDERS__<ID>__WEBHOOK_SECRET` (not ready) |
+| `<id>_tls` | `ok`, or `missing: providers.<id>.ca_bundle_path (<path>)` when the bundle file doesn't exist (not ready) |
+| `<id>_author_permission` | `ok`, or `warning: api mode needs the bot to be repo admin` (informational) |
+
+---
+
 ---
 
 ## Onboarding an Issue Repository
 
 For each `(issue repo, code repo)` pair the agent should act on:
 
-1. Install the GitHub App on **both** repos (§ GitHub Integration).
+1. Install the GitHub App on **both** repos (§ GitHub Integration) — on
+   Gitea, give the bot write access to both and add the webhook to the issue
+   repo instead (§ Gitea Integration).
 2. Add the pair to `config.yaml` under `repos:` and re-push `CONFIG_YAML`
    (§ Configuration).
 3. Create the routing labels — **the names are fixed in
@@ -690,6 +832,31 @@ gh label create agent-generated -R <owner>/<code-repo> -c 5319E7 -d "PR opened a
 
 `--force` makes it idempotent (creates or updates colour/description; `bug`,
 `docs`, `question` often already exist as GitHub defaults).
+
+**On Gitea** `gh` doesn't apply: create the same labels in the UI
+(*Issues → Labels*) or through the API. Org labels (*org Settings →
+Labels*) are visible to every repo in the org, so `agent-generated` and the
+routing labels can be defined once there; a repo label of the same name wins.
+Unlike `gh label create --force`, Gitea doesn't reject a duplicate name, so
+the loop below skips labels that already exist on the repo.
+
+```bash
+# $GITEA_TOKEN: any token with write:issue and write access to the repo (the bot's works).
+# Run it for the target repo too when it differs (agent-generated goes there).
+# Gitea allows duplicate label names, so existing ones are skipped.
+GITEA=https://git.example.com REPO=<owner>/<repo>
+AUTH="Authorization: token $GITEA_TOKEN"
+EXISTING=$(curl -sf -H "$AUTH" "$GITEA/api/v1/repos/$REPO/labels?limit=50")
+for spec in "bug:#d73a4a" "docs:#008672" "chore:#fbbd2f" "question:#d876e3" \
+            "feature-request:#0e8a16" "agent-fix-please:#1d76db" "agent-skip:#000000" \
+            "severity:high:#b60205" "severity:critical:#b60205" "agent-generated:#5319e7"; do
+  name=${spec%:*} color=${spec##*:}
+  grep -q "\"name\":\"$name\"" <<<"$EXISTING" && continue
+  curl -sf -X POST "$GITEA/api/v1/repos/$REPO/labels" -H "$AUTH" \
+    -H "Content-Type: application/json" \
+    -d "{\"name\": \"$name\", \"color\": \"$color\"}" >/dev/null && echo "created $name"
+done
+```
 
 Routing recap (default config): `bug` / `docs` / `chore` / `agent-fix-please` →
 **FIX** (opens a PR); `question` / `feature-request` / `bug` +
@@ -817,6 +984,16 @@ the config changes — the Machine restarts and picks it up without a redeploy.
 > `LLM_FALLBACK_API_KEY` is an optional secret, only needed when `llm.fallback.model`
 > is set (it defaults to `LLM_API_KEY`).
 
+For a Gitea instance (`gitea_corp` here) the secrets are the bot's token and
+the webhook secret:
+
+```bash
+flyctl secrets set \
+  PROVIDERS__GITEA_CORP__TOKEN=<value> \
+  PROVIDERS__GITEA_CORP__WEBHOOK_SECRET=<value> \
+  --app <app-name>
+```
+
 **Set or update a single secret:**
 
 ```bash
@@ -902,7 +1079,7 @@ with no app to target.
 | Endpoint | Expected Status | What it checks |
 |---|---|---|
 | `GET /healthz` | 200 | Liveness — always 200 while the process is up |
-| `GET /readyz` | 200 / 503 | SQLite reachable, required settings present, each provider instance's own health check (GitHub: private key looks like a PEM), model function-calling support (advisory) |
+| `GET /readyz` | 200 / 503 | SQLite reachable, required settings present, each provider instance's own health check (GitHub: private key looks like a PEM; Gitea: host, bot login, token, secret and CA bundle present), model function-calling support (advisory) |
 
 **`/healthz` response** (`service` is the slugified `agent.name`; `version` is
 the installed `fly-swe` distribution version, resolved once at startup via
@@ -946,7 +1123,8 @@ Each provider instance reports its own health. Its missing configuration joins
 `github` instance contributes `github_auth` and `github_own_bot_login`. Any
 unhealthy instance makes the service not ready. `github_own_bot_login` is
 informational: it warns when `providers.<id>.bot_login` is unset and never flips
-readiness.
+readiness. A Gitea instance contributes `<id>_tls` and `<id>_author_permission`
+(see [§ Gitea health checks](#gitea-health-checks)).
 
 `llm_function_calling` is informational only — it reports `warning: ...` when
 LiteLLM's capability map says `llm.model` may not support function/tool calling
