@@ -47,7 +47,7 @@ module-name = "issue_agent"
 
 [tool.pytest.ini_options]
 markers = [
-    "e2e: Tests that hit real GitHub and webhook endpoints. Requires agent running and credentials.",
+    "e2e: Opt-in tests against a real forge (GitHub credentials, or a Gitea container with E2E_GITEA=1).",
 ]
 testpaths = ["tests"]
 

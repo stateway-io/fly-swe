@@ -17,6 +17,7 @@ follows its structure and checklist.
 | 2026-11-25 | GT1 compatibility smoke check against **Codeberg** (Forgejo `17.0.0+gitea-1.22.0`), relayed through smee.io. The repo was `samueldc/fly-swe-gitea`, the hook type was `forgejo`, and the actions were the same as the local capture. Forgejo sends `X-Forgejo-*` **and** `X-Gitea-*` with the same values. The GT1 adapter, unchanged, normalized every delivery as it does for Gitea. That covers `label_updated`, a `label_cleared` that also carries the stale labels, `issue_comment`/`pull_request_comment` with `is_pull`, and `push` → `unsupported_event`. The API facts matched too: `GET /user` returns 403 without `read:user`, comments ignore `limit`/`page`, and labels can be set by name. smee re-serializes the body, so the signature of a relayed body does not verify. Re-indenting the JSON with two spaces restores Forgejo's original bytes and the signature verifies. That is a note for local development only; the adapter always checks the raw body. The Forgejo fixtures stay out of the tests (non-goal). |
 | 2026-11-25 | GT2 (`api.py`, `client.py`, `transport.py`). Checked live against Gitea 28.4.0 with the minimal-scope token: comments, labels by ID (repo + org, an unknown label skipped and not created), permission 403 as a write bot and mapped as admin, `git clone`/`push` through `git_auth_env`, `pr_url`/`compare_url`. Decisions: the caches live on one shared `GiteaAPI` per instance, not per client, because the core builds a client on every use (§4.3). `ca_bundle_path` is **added** to the default store and also given to git as `http.<host>/.sslCAInfo` (§4.5). Redirects are not followed, so the token never reaches another host. The error types are `GiteaAuthError` (401/403), `GiteaNotFoundError` (404) and `GiteaAPIError`. Two gaps from ports added after this PRD: `PullRequestClient.get_pr_state` (retention, #20) is required and lands in GT3 (§4.4). `CIClient` (#21) is not implemented: `supports_ci=False` (§4.1), with commit statuses tracked in §9. |
 | 2026-11-25 | GT3 (`pr.py`, `plugin.py`, registry entry, `GiteaKit.make` in `KITS`, `test_gitea_stack.py`). The conformance suite passes for `gitea`. Real fixtures were posted through `/webhooks/gitea` into the queue, with no core change: a replay with a new UUID is a duplicate, and `label_cleared` creates no task. Checked live on 28.4.0 through `plugin.pulls()`: title prefixed once, label IDs, `find_open_pr`, conflicts, and `get_pr_state` open/closed/merged. **Finding:** a WIP PR always reads `mergeable=false`, so the multi-read verdict would have reported a conflict on every agent PR. A draft/WIP PR now answers `None` and the core checks locally (§4.4). The `draft` field was measured on 28.4.0 only, and a title-prefix fallback covers versions without it. Also corrected: the core, not the plugin, applies the `WIP:` prefix (§4.4). Q8 decided (`[]`). |
+| 2026-11-25 | GT4: opt-in e2e (`tests/e2e/test_gitea_flow.py`) passes on **28.4.0 and 1.27.3** in ~26 s, with no core change (§6). It found three things. (1) `draft` is per route (`repos[].draft`, default `false`), so agent PRs are WIP only when configured; the e2e sets it, and the §4.4 wording is corrected. (2) In the PR flow the core labels the PR, not the issue, so the bot never changes the issue's labels and the "bot's own label change re-triggers" risk does not arise. (3) A human adding a non-trigger label (`wontfix`) to an issue that still has `docs` enqueues a new run, because the core decides on the current set. That is generic: GitHub's adapter also passes `issue.labels`. It is tracked as stateway-io/fly-swe#27, not fixed here. Q6 decided. `capture.py` now runs as a module (`python -m tests.unit.providers.gitea.fixtures.capture`) on the shared `GiteaServer`, with identical measurements. |
 
 ---
 
@@ -290,7 +291,7 @@ core asks for a new client on every use.
 | `find_open_pr(branch)` | `GET /repos/{repo}/pulls?state=open` (paginated) → the one with `head.ref == branch` and `head.repo.full_name == repo` (same-repo branches only) → `PRRef(number, html_url, head.ref)` |
 | `create_pr(head, base, title, body, draft, labels)` | The title arrives **already prefixed**: the core adds `draft_prefix` itself when `draft_mode == "title_prefix"` (`runner/executor.py`) and passes `draft=False`, so the plugin neither prefixes nor reads `draft`. Labels are `[pr_label_agent_generated, *labels]` (as on GitHub, the plugin adds the agent label), names → IDs via the shared cache (missing ⇒ skipped with a log). `POST /repos/{repo}/pulls` with `labels` as IDs → `PRRef` |
 | `comment_on_pr(pr, body)` | `POST /repos/{repo}/issues/{pr.number}/comments` → `html_url` |
-| `pr_has_conflicts(pr, head_sha)` | `GET /repos/{repo}/pulls/{n}`. Gitea's `mergeable` is `!checking && !conflict && !error && !WIP`, and the API has no separate conflict state. **A WIP PR always reads `mergeable=false`** (measured in GT3 on 28.4.0, and the merge endpoint answers "Work in progress PRs cannot be merged"). So a PR with `draft: true`, or without the field but with a default WIP prefix in the title, answers `None` at once. The agent's PRs are WIP by default, so the core usually checks locally (`git merge-tree`). On a ready PR, reads count only with `head.sha == head_sha`, and **3 consecutive agreeing reads, 1 s apart** are the verdict (`false` ⇒ `True`, `true` ⇒ `False`). That spans ≥ 2 s, more than the measured transients (`false` ~1.5 s on a fresh clean PR, a stale `true` ~0.2 s after a conflicting push). With no agreement in 10 reads, or on an API error, the answer is `None` |
+| `pr_has_conflicts(pr, head_sha)` | `GET /repos/{repo}/pulls/{n}`. Gitea's `mergeable` is `!checking && !conflict && !error && !WIP`, and the API has no separate conflict state. **A WIP PR always reads `mergeable=false`** (measured in GT3 on 28.4.0, and the merge endpoint answers "Work in progress PRs cannot be merged"). So a PR with `draft: true`, or without the field but with a default WIP prefix in the title, answers `None` at once. An agent PR is WIP when its route sets `draft: true` (`repos[].draft`, default `false`); for those, the core checks locally (`git merge-tree`). On a ready PR, reads count only with `head.sha == head_sha`, and **3 consecutive agreeing reads, 1 s apart** are the verdict (`false` ⇒ `True`, `true` ⇒ `False`). That spans ≥ 2 s, more than the measured transients (`false` ~1.5 s on a fresh clean PR, a stale `true` ~0.2 s after a conflicting push). With no agreement in 10 reads, or on an API error, the answer is `None` |
 | `get_pr_state(n)` | `GET /repos/{repo}/pulls/{n}` → `merged` ⇒ `"merged"` at `merged_at`; else `state == "closed"` ⇒ `"closed"` at `closed_at`; else `"open"`. Raises on an API error (the retention sweep retries) |
 
 ### 4.5 `GitTransport`
@@ -466,8 +467,23 @@ progress bar (`docs/providers.md` § Opening the PR).
   network: `httpx.MockTransport`.
 - **Config.** Production-like tests use a settings subclass that nullifies
   `env_file`/`yaml_file` (project rule), with a `gitea` instance.
-- **E2E (opt-in, `tests/e2e/`).** Real Gitea in a container; also proves the
-  success criterion (no core change).
+- **E2E (opt-in, `tests/e2e/test_gitea_flow.py`).** A real Gitea container
+  (`tests/helpers/gitea_server.py`, shared with `capture.py`) delivers real
+  webhooks to the generic router served by uvicorn in the test process.
+  `worker.run_task` drives the agent with `FakeModel`, through a
+  minimal-scope bot token. The test checks:
+  - label → one task → the branch is pushed;
+  - one `WIP:` PR (prefix applied once) with `Closes #N` and
+    `agent-generated`;
+  - the bot comments on the issue;
+  - its own deliveries start no new run;
+  - a follow-up comment adds a commit to the same branch and PR and is
+    reported on the PR.
+
+  Run it with `E2E_GITEA=1 uv run pytest tests/e2e/test_gitea_flow.py -v`
+  (`E2E_GITEA_IMAGE`, `E2E_GITEA_KEEP=1`). It needs Docker; it takes ~26 s
+  on 28.4.0 and on 1.27.3. Not in CI. This also proves the success
+  criterion (no core change).
 - **What we don't test.** The core is already covered against
   `FakeProvider` with and without a PR API and association.
 
@@ -553,10 +569,9 @@ progress bar (`docs/providers.md` § Opening the PR).
    admin is required. (GT1)
 5. ~~Does `mergeable` read `false` while pending?~~ **Yes**, and it can read
    a stale `true` after a conflicting push (§4.4). (GT1)
-6. Minimum supported Gitea version, and the e2e image tag to pin. GT1
-   measured 1.27.3 and 28.4.0 with identical results except `mergeable`
-   timing (28 adds a `type` field to user objects). Proposal: support 1.27+,
-   pin `gitea/gitea:28.4.0` for the e2e.
+6. ~~Minimum supported Gitea version, and the e2e image tag to pin?~~
+   **Decided:** support 1.27+; the e2e pins `gitea/gitea:28.4.0` and also
+   passes on 1.27.3 (GT4).
 7. `max_body_length`: keep `65_000` or raise toward the `~1,000,000` the
    providers PRD noted? Depends on DB column types and typical proxy limits.
 8. ~~`terms.repo_instructions_files`: `[]` or also

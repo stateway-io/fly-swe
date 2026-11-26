@@ -88,8 +88,8 @@ class GiteaPullRequestClient(PullRequestClient):
 
         ``mergeable`` also folds in "work in progress": a WIP PR always reads
         ``false``, conflicts or not (measured on 28.4.0 — "Work in progress
-        PRs cannot be merged"). The agent's PRs are usually WIP, so for one
-        the answer is None from the first read."""
+        PRs cannot be merged"). An agent PR is WIP when its route has
+        ``draft: true``; for one, the answer is None from the first read."""
         streak: bool | None = None
         count = 0
         for attempt in range(self._conflict_max_reads):
