@@ -168,9 +168,13 @@ def test_comment_on_pr_without_url():
 PULL = f"{PULLS}/{OPEN['number']}"
 
 
+# The captured open PR is a WIP one; these reads are of a ready PR.
+READY = OPEN | {"title": "Fix crash", "draft": False}
+
+
 def _reads(*mergeable: Any, sha: str = SHA) -> list[httpx.Response]:
     return [
-        httpx.Response(200, json=_with_head(OPEN, sha=sha) | {"mergeable": m}) for m in mergeable
+        httpx.Response(200, json=_with_head(READY, sha=sha) | {"mergeable": m}) for m in mergeable
     ]
 
 
@@ -225,6 +229,34 @@ class TestPrHasConflicts:
         rec = Recorder({("GET", PULL): [httpx.Response(200, json=[]), *_reads(True, True, True)]})
 
         assert _pulls(rec).pr_has_conflicts(_ref(), SHA) is False
+
+    def test_captured_wip_pr_reads_unmergeable(self):
+        # Guard on the fixture itself: what made WIP need its own branch.
+        assert (OPEN["draft"], OPEN["mergeable"]) == (True, False)
+        assert OPEN["title"].startswith("WIP: ")
+
+    @pytest.mark.parametrize(
+        "wip",
+        [
+            {"draft": True},
+            {"draft": None, "title": "WIP: fix"},
+            {"title": "[wip] fix"},
+        ],
+    )
+    def test_work_in_progress_is_unknown_without_waiting(self, wip: dict[str, Any]):
+        pr = {k: v for k, v in READY.items() if k != "draft"} | wip | {"mergeable": False}
+        rec = Recorder({("GET", PULL): pr})
+        sleeps = Sleeps()
+
+        assert _pulls(rec, sleeps).pr_has_conflicts(_ref(), SHA) is None
+        assert len(rec.requests) == 1
+        assert sleeps.calls == []
+
+    def test_draft_false_trusts_mergeable_even_with_a_wip_looking_title(self):
+        pr = READY | {"title": "WIP: but not draft", "draft": False, "mergeable": False}
+        rec = Recorder({("GET", PULL): pr})
+
+        assert _pulls(rec).pr_has_conflicts(_ref(), SHA) is True
 
     def test_knobs(self):
         rec = Recorder({("GET", PULL): _reads(False)})

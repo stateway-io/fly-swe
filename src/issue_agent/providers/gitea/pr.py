@@ -84,7 +84,12 @@ class GiteaPullRequestClient(PullRequestClient):
         clean PR, ``true`` for ~0.2 s after a conflicting push). So only
         ``conflict_reads`` consecutive agreeing reads on ``head_sha`` are a
         verdict; anything else — no agreement within ``conflict_max_reads``,
-        an API error — is None, and the core checks locally instead."""
+        an API error — is None, and the core checks locally instead.
+
+        ``mergeable`` also folds in "work in progress": a WIP PR always reads
+        ``false``, conflicts or not (measured on 28.4.0 — "Work in progress
+        PRs cannot be merged"). The agent's PRs are usually WIP, so for one
+        the answer is None from the first read."""
         streak: bool | None = None
         count = 0
         for attempt in range(self._conflict_max_reads):
@@ -93,6 +98,8 @@ class GiteaPullRequestClient(PullRequestClient):
             try:
                 data = self._api.get(f"/repos/{self._repo}/pulls/{pr.number}")
             except Exception:
+                return None
+            if _is_work_in_progress(_dict(data)):
                 return None
             mergeable = _dict(data).get("mergeable")
             if _dict(_dict(data).get("head")).get("sha") != head_sha or not isinstance(
@@ -121,6 +128,19 @@ def _pr_ref(pr: dict[str, Any]) -> PRRef:
 
 def _dict(value: Any) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
+
+
+# Gitea's default [repository.pull-request] WORK_IN_PROGRESS_PREFIXES. The
+# ``draft`` field says it directly where the version has it; the title is
+# the fallback (Gitea matches the prefixes case-insensitively).
+_WIP_PREFIXES = ("WIP:", "[WIP]")
+
+
+def _is_work_in_progress(pr: dict[str, Any]) -> bool:
+    if isinstance(pr.get("draft"), bool):
+        return pr["draft"]
+    title = pr.get("title")
+    return isinstance(title, str) and title.upper().startswith(_WIP_PREFIXES)
 
 
 def _same_repo(full_name: Any, repo: str) -> bool:
